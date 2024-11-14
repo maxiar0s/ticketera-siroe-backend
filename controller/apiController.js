@@ -8,7 +8,7 @@ const postForm = async (req, res) => {
         responsible,
         additionalNotes } = req.body;   
     
-    const crearSolicitud = await solicitud.create({
+    const crearSolicitud = await levantamiento.create({
         clientName,
         dateTime,
         problemType,
@@ -21,13 +21,13 @@ const postForm = async (req, res) => {
 }
 
 const getResults = async (req, res) => {
-    const solicitudes = await solicitud.findAll({});    
+    const solicitudes = await levantamiento.findAll({});    
     res.json(solicitudes);
 }
 
 const getResult = async (req, res) => {
     const { id } = req.params;
-    const solicitudes = await solicitud.findOne({ where: {id} });    
+    const solicitudes = await levantamiento.findOne({ where: {id} });    
     res.json(solicitudes);
 }
 
