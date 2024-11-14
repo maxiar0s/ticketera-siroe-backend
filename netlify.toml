@@ -1,6 +1,5 @@
-[build]
-  functions = "netlify/functions"
-  node_version = "16"
-
 [functions]
-  node_bundler = "esbuild" 
+  node_bundler = "esbuild"
+[build.environment]
+  node_version = "16"
+  functions = "netlify/functions"

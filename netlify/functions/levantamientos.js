@@ -1,7 +1,7 @@
 // netlify/functions/levantamientos.js
-const { levantamiento } = require('../../models/index.js');
+import { levantamiento } from '../../models/index.js';
 
-exports.handler = async function(event, context) {
+export async function handler(event, context) {
     const levantamientos = await levantamiento.findAll();
   
     return {
