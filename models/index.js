@@ -1,10 +1,10 @@
-import solicitud from "./solicitud.js";
+import levantamiento from "./levantamiento.js";
 import usuario from "./usuario.js";
 
 
 
 
 export {
-    solicitud,
+    levantamiento,
     usuario
 }

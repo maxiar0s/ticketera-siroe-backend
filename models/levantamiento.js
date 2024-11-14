@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
-const solicitud = db.define('Solicitud', {
+const levantamiento = db.define('Levantamientos', {
     clientName: {
         type: DataTypes.STRING,
         allowNull: false
@@ -30,4 +30,4 @@ const solicitud = db.define('Solicitud', {
     timestamps: false
 })
 
-export default solicitud
+export default levantamiento

@@ -1,4 +1,4 @@
-import { solicitud } from "../models/index.js";
+import { levantamiento } from "../models/index.js";
 
 const postForm = async (req, res) => {
     const { clientName,
