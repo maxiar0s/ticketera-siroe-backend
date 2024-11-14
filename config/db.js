@@ -3,6 +3,7 @@ import dotenv from 'dotenv/config';
 
 const db = new Sequelize({
     dialect: "mysql",
+    dialectModule: require('mysql2'),
     database: process.env.DB_DATABASE_NAME,
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
