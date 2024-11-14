@@ -1,6 +1,6 @@
 [build]
-  functions = "netlify/functions"  # Carpeta donde están tus funciones serverless
+  functions = "netlify/functions"
   node_version = "16"
 
 [functions]
-  node_bundler = "esbuild"  # Netlify usa esbuild para empaquetar las funciones
+  node_bundler = "esbuild" 

@@ -1,12 +1,12 @@
 // netlify/functions/levantamientos.js
-const { levantamiento } = require('../../models/index.js');
 
-exports.handler = async function(event, context) {
+export async function handler(event, context) {
+    const { levantamiento } = require('../../models/index.js');
     const levantamients = await levantamiento.findAll();
   
     return {
       statusCode: 200,
       body: JSON.stringify(levantamients)
     };
-};
+}
   
