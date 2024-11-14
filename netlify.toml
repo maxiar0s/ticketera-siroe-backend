@@ -1,0 +1,6 @@
+[build]
+  publish = "public"  # Carpeta de salida de tu frontend (por ejemplo, /dist, /build, o la carpeta generada)
+  functions = "netlify/functions"  # Carpeta donde están tus funciones serverless
+
+[functions]
+  node_bundler = "esbuild"  # Netlify usa esbuild para empaquetar las funciones
