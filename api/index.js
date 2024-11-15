@@ -1,5 +1,6 @@
 import express from "express";
 import db from "../config/db.js";
+import cors from 'cors';
 import apiRoutes from '../routes/apiRoutes.js'
 import usuarioRoutes from '../routes/usuarioRoutes.js'
 
