@@ -11,7 +11,7 @@ app.use(express.urlencoded({ extended: true }));
 
 
 app.use(cors({
-    origin: 'https://app-soporte-siroe.vercel.app',
+    origin: 'https://app-soporte-siroe-3b8z.vercel.app',
     methods: 'GET,POST,PUT,DELETE', 
     allowedHeaders: 'Content-Type,Authorization', 
 }));
