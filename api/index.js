@@ -16,7 +16,6 @@ app.use(cors({
 }));
 
 
-
 // Conexión a DB
 try {
     await db.authenticate();
