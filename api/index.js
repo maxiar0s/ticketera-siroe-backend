@@ -8,6 +8,14 @@ const app =  express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+
+app.use(cors({
+    origin: 'app-soporte-siroe.vercel.app',
+    methods: 'GET,POST,PUT,DELETE', 
+    allowedHeaders: 'Content-Type,Authorization', 
+  }));
+
+
 // Conexión a DB
 try {
     await db.authenticate();
