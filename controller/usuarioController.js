@@ -15,7 +15,7 @@ const crearUsuario = async (req, res) => {
         email,
         password: hashed_password
     });
-    return;
+    return res.json({ resp: 'Usuario creado con exito.'});
 }
 
 const login = async (req, res) => {
