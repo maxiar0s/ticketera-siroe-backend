@@ -40,8 +40,8 @@ const login = async (req, res) => {
     }
     const password_compare = await bcrypt.compare(password, Usuario.password);
     if(password_compare){
-        // jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD);
-        return res.json({resp: 'Ingresado correctamente', id: Usuario.id});
+        const token = jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD);
+        return res.json({resp: 'Ingresado correctamente', token});
     } else {
         return res.json({resp: 'correo electronico o contraseña invalida'});
     }
