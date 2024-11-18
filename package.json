@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "server": "nodemon index.js"
+    "server": "nodemon api/index.js"
   },
   "author": "Jonathan Muñoz",
   "license": "ISC",

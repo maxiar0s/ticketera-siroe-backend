@@ -17,7 +17,7 @@ const crearUsuario = async (req, res) => {
     if(usuarioExistente) {
         return res.json({ resp: 'Correo electronico ya registrado.'});
     }
-    
+    console.log('asdasdas')
     const hashed_password = await bcrypt.hash(password, 10);
     const Usuario = await usuario.create({
         name,
