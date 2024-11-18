@@ -22,29 +22,29 @@ const postCliente = async (req, res) => {
 
 const postEquipamiento = async (req, res) => {
     const { clienteId,
-        equipmentType,
-        brand,
-        model,
-        serialNumber,
-        ipAddress,
-        processor,
-        ram,
-        storage,
-        os,
-        officeSuite,
-        softwareLicenses,
-        physicalState,
-        lastMaintenance,
-        currentIssues,
-        monitors,
-        keyboard,
-        mouse,
-        otherPeripherals,
-        antivirus,
-        backupSoftware,
-        lastBackup,
-        securitySoftware,
-        comments } = req.body;
+        equipmentType = null,
+        brand = null,
+        model = null,
+        serialNumber = null,
+        ipAddress = null,
+        processor = null,
+        ram = null,
+        storage = null,
+        os = null,
+        officeSuite = null,
+        softwareLicenses = null,
+        physicalState = null,
+        lastMaintenance = null,
+        currentIssues = null,
+        monitors = null,
+        keyboard = null,
+        mouse = null,
+        otherPeripherals = null,
+        antivirus = null,
+        backupSoftware = null,
+        lastBackup = null,
+        securitySoftware = null,
+        comments = null } = req.body;
     
     await EquipamientoModel.create({
         clienteId,
@@ -78,9 +78,9 @@ const postEquipamiento = async (req, res) => {
 
 const postUsuarioAsignado = async (req, res) => {
     const { equipamientoId,
-        name,
-        email,
-        phone } = req.body;
+        name = null,
+        email = null,
+        phone = null } = req.body;
     
     await UsuarioAsignadoModel.create({
         equipamientoId,
