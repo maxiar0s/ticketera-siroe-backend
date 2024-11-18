@@ -8,6 +8,15 @@ const crearUsuario = async (req, res) => {
         email,
         password
     } = req.body;
+
+    const usuarioExistente = await usuario.findOne({
+        where: {
+            email
+        }
+    });
+    if(usuarioExistente) {
+        return res.json({ resp: 'Correo electronico ya registrado.'});
+    }
     
     const hashed_password = await bcrypt.hash(password, 10);
     const Usuario = await usuario.create({
@@ -29,9 +38,9 @@ const login = async (req, res) => {
     if(!Usuario) {
         return res.json({resp: 'correo electronico o contraseña invalida'});
     }
-
-    if(await bcrypt.compare(password, Usuario.password) == true){
-        jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD);
+    const password_compare = await bcrypt.compare(password, Usuario.password);
+    if(password_compare){
+        // jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD);
         return res.json({resp: 'Ingresado correctamente', id: Usuario.id});
     } else {
         return res.json({resp: 'correo electronico o contraseña invalida'});
