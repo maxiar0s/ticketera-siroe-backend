@@ -1,4 +1,5 @@
-import { ClienteModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
+import equipamiento from "../models/Equipamiento.js";
+import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
 
 const postCliente = async (req, res) => {
     const { clientName,
@@ -93,13 +94,34 @@ const postUsuarioAsignado = async (req, res) => {
 }
 
 const getResults = async (req, res) => {
-    const clientes = await ClienteModel.findAll();
+    const clientes = await ClienteModel.findAll({
+        include: [
+            { model: CuentaModel },
+            { model: EquipamientoModel,
+                include: [
+                    { model: UsuarioAsignadoModel }
+                ]
+             }
+        ]
+    });
     res.json(clientes);
 }
 
 const getResult = async (req, res) => {
     const { id } = req.params;
-    const cliente = await ClienteModel.findOne({ where: {id} });
+    const cliente = await ClienteModel.findOne({ 
+        where: {
+            id
+        },
+        include: [
+            { model: CuentaModel },
+            { model: EquipamientoModel,
+                include: [
+                    { model: UsuarioAsignadoModel }
+                ]
+             }
+        ]
+    });
     if(!cliente) {
         return res.json({ resp: 'Cliente no encontrado.'});
     }
