@@ -1,19 +1,32 @@
-import { levantamiento } from "../models/index.js";
+import { ClienteModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
 
-const postForm = async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
+const postCliente = async (req, res) => {
     const { clientName,
         department,
         phone,
         generalInfo,
+        email,
+        location } = req.body;
+    
+    await ClienteModel.create({
+        clientName,
+        department,
+        phone,
+        generalInfo,
+        email,
+        location
+    });
+
+    res.json({ resp: 'Cliente creado satisfactoriamente.' });
+}
+
+const postEquipamiento = async (req, res) => {
+    const { clienteId,
         equipmentType,
         brand,
         model,
         serialNumber,
         ipAddress,
-        assignedUser,
-        email,
-        location,
         processor,
         ram,
         storage,
@@ -31,21 +44,15 @@ const postForm = async (req, res) => {
         backupSoftware,
         lastBackup,
         securitySoftware,
-        comments } = req.body;   
+        comments } = req.body;
     
-    const crearSolicitud = await levantamiento.create({
-        clientName,
-        department,
-        phone,
-        generalInfo,
+    await EquipamientoModel.create({
+        clienteId,
         equipmentType,
         brand,
         model,
         serialNumber,
         ipAddress,
-        assignedUser,
-        email,
-        location,
         processor,
         ram,
         storage,
@@ -66,24 +73,42 @@ const postForm = async (req, res) => {
         comments
     });
 
-    res.json(crearSolicitud);
+    res.json({ resp: `Equipamiento creado satisfactoriamente para Cliente: ${clienteId}`});
+}
+
+const postUsuarioAsignado = async (req, res) => {
+    const { equipamientoId,
+        name,
+        email,
+        phone } = req.body;
+    
+    await UsuarioAsignadoModel.create({
+        equipamientoId,
+        name,
+        email,
+        phone
+    });
+
+    res.json({ resp: `Usuario asignado creado satisfactoriamente para Equipamiento: ${equipamientoId}`});
 }
 
 const getResults = async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    const solicitudes = await levantamiento.findAll({});    
-    res.json(solicitudes);
+    const clientes = await ClienteModel.findAll();
+    res.json(clientes);
 }
 
 const getResult = async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
     const { id } = req.params;
-    const solicitudes = await levantamiento.findOne({ where: {id} });    
-    res.json(solicitudes);
+    const cliente = await ClienteModel.findOne({ where: {id} });
+    if(!cliente) {
+        return res.json({ resp: 'Cliente no encontrado.'});
+    }
+
+    res.json(cliente);
 }
 
 export {
-    postForm,
+    postCliente,
     getResults,
     getResult
 }

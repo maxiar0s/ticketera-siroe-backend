@@ -1,29 +1,33 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { usuario } from '../models/index.js';
+import { CuentaModel } from '../models/index.js';
 
 const crearUsuario = async (req, res) => {
     const {
         name,
         email,
+        telefono,
         password
     } = req.body;
 
-    const usuarioExistente = await usuario.findOne({
+    const emailRegistrado = await CuentaModel.findOne({
         where: {
             email
         }
     });
-    if(usuarioExistente) {
+
+    if(emailRegistrado) {
         return res.json({ resp: 'Correo electronico ya registrado.'});
     }
-    console.log('asdasdas')
+
     const hashed_password = await bcrypt.hash(password, 10);
-    const Usuario = await usuario.create({
+    const Usuario = await CuentaModel.create({
         name,
         email,
+        telefono,
         password: hashed_password
     });
+    
     return res.json({ resp: 'Usuario creado con exito.'});
 }
 
@@ -33,7 +37,7 @@ const login = async (req, res) => {
         password
     } = req.body;
 
-    const Usuario = await usuario.findOne({ where: { email }});
+    const Usuario = await CuentaModel.findOne({ where: { email }});
 
     if(!Usuario) {
         return res.json({resp: 'correo electronico o contraseña invalida'});
@@ -50,7 +54,7 @@ const login = async (req, res) => {
 const recuperarAcceso = async (req, res) => {
     const { email } = req.body;
 
-    const Usuario = await usuario.findOne({ where: { email }});
+    const Usuario = await CuentaModel.findOne({ where: { email }});
 
     if(!Usuario) {
         return res.json({resp: 'Correo electronico invalido'});

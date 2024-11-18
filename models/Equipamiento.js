@@ -1,83 +1,24 @@
 import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
-const levantamiento = db.define('Levantamientos', {
-    // clientName: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // dateTime: {
-    //     type: DataTypes.DATE,
-    //     allowNull: false
-    // },
-    // problemType: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // problemDescription: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // responsible: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // additionalNotes: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // }
-
-    clientName: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
-    department: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    phone: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    generalInfo: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    email: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    location: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-
-
-
+const equipamiento = db.define('Equipamientos', {
     equipmentType: {
         type: DataTypes.STRING,
         allowNull: true
     },
-
-
-
     brand: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     model: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     serialNumber: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     ipAddress: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    assignedUser: {
         type: DataTypes.STRING,
         allowNull: true
     },
@@ -86,8 +27,8 @@ const levantamiento = db.define('Levantamientos', {
         allowNull: true
     },
     ram: {
-        type: DataTypes.STRING,
-        allowNull: true
+        type: DataTypes.INTEGER,
+        allowNull: false
     },
     storage: {
         type: DataTypes.STRING,
@@ -119,45 +60,45 @@ const levantamiento = db.define('Levantamientos', {
     },
 
 
-    // Extras
+    // Campos Extras
     monitors: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     keyboard: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     mouse: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     otherPeripherals: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     antivirus: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     backupSoftware: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     lastBackup: {
         type: DataTypes.DATE,
-        allowNull: true
+        allowNull: false
     },
     securitySoftware: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     comments: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     }
-}, {
+},{
     timestamps: false
-})
+});
 
-export default levantamiento
+export default equipamiento;
