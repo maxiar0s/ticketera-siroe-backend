@@ -2,7 +2,8 @@ import equipamiento from "../models/Equipamiento.js";
 import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
 
 const postCliente = async (req, res) => {
-    const { clientName,
+    const { cuentaTecnicoId = null,
+        clientName,
         department,
         phone,
         generalInfo,
@@ -10,6 +11,7 @@ const postCliente = async (req, res) => {
         location } = req.body;
     
     await ClienteModel.create({
+        cuentaTecnicoId,
         clientName,
         department,
         phone,
@@ -22,7 +24,7 @@ const postCliente = async (req, res) => {
 }
 
 const postEquipamiento = async (req, res) => {
-    const { clienteId,
+    const { clienteId = null,
         equipmentType = null,
         brand = null,
         model = null,

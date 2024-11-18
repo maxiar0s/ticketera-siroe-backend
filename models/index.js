@@ -13,10 +13,13 @@ const EquipamientoModel = Equipamiento;
 const UsuarioAsignadoModel = UsuarioAsignado;
 
 ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
+// CuentaModel.belongsTo(ClienteModel, { foreignKey: 'clienteId' });
 
 EquipamientoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId' });
+// ClienteModel.belongsTo(EquipamientoModel, { foreignKey: 'EquipamientoId' });
 
 UsuarioAsignadoModel.belongsTo(EquipamientoModel, { foreignKey: 'equipamientoId' });
+// EquipamientoModel.belongsTo(UsuarioAsignadoModel, { foreignKey: 'UsuarioAsignadoId' });
 
 export {
     ClienteModel,
