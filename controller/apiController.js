@@ -109,6 +109,8 @@ const getResult = async (req, res) => {
 
 export {
     postCliente,
+    postEquipamiento,
+    postUsuarioAsignado,
     getResults,
     getResult
 }
