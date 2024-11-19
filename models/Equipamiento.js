@@ -4,19 +4,19 @@ import db from "../config/db.js";
 const equipamiento = db.define('Equipamientos', {
     equipmentType: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
     brand: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     model: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     serialNumber: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     ipAddress: {
         type: DataTypes.STRING,
@@ -28,7 +28,7 @@ const equipamiento = db.define('Equipamientos', {
     },
     ram: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: true
     },
     storage: {
         type: DataTypes.STRING,
@@ -44,14 +44,14 @@ const equipamiento = db.define('Equipamientos', {
     },
     softwareLicenses: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     physicalState: {
         type: DataTypes.STRING,
         allowNull: true
     },
     lastMaintenance: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: true
     },
     currentIssues: {
@@ -63,39 +63,39 @@ const equipamiento = db.define('Equipamientos', {
     // Campos Extras
     monitors: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     keyboard: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     mouse: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     otherPeripherals: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     antivirus: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     backupSoftware: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     lastBackup: {
-        type: DataTypes.DATE,
-        allowNull: false
+        type: DataTypes.DATEONLY,
+        allowNull: true
     },
     securitySoftware: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     comments: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     }
 },{
     timestamps: false
