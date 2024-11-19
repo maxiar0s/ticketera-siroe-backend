@@ -10,10 +10,6 @@ const cuenta = db.define('Cuentas', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    telefono: {
-        type: DataTypes.INTEGER,
-        allowNull: false
-    },
     password: {
         type: DataTypes.STRING,
         allowNull: false
