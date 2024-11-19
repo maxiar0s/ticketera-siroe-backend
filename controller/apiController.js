@@ -10,7 +10,7 @@ const postCliente = async (req, res) => {
         email,
         location } = req.body;
     
-    await ClienteModel.create({
+    const nuevoCliente = await ClienteModel.create({
         cuentaTecnicoId,
         clientName,
         department,
@@ -20,7 +20,7 @@ const postCliente = async (req, res) => {
         location
     });
 
-    res.json({ resp: 'Cliente creado satisfactoriamente.' });
+    res.json({ resp: 'Cliente creado satisfactoriamente.', id: nuevoCliente.id });
 }
 
 const postEquipamiento = async (req, res) => {
