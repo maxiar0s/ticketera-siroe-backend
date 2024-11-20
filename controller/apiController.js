@@ -1,13 +1,11 @@
 import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
 
 const postCliente = async (req, res) => {
-    const { cuentaTecnicoId } = req.body;
-
+    // TODO realizar luego de implementar JWT
+    // const { cuentaTecnicoId } = req.body;
     // if(!cuentaTecnicoId) {
     //     return res.json({ resp: 'Error al intentar crear cliente, intente nuevamente.' });
     // }
-
-    // TODO realizar luego de implementar JWT
     // const tecnico = await CuentaModel.findByPk(id);
     // const { cuentaTecnicoId } = tecnico;
     
