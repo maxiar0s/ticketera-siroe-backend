@@ -14,11 +14,11 @@ const UsuarioAsignadoModel = UsuarioAsignado;
 
 ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
 
-EquipamientoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId' });
-ClienteModel.hasMany(EquipamientoModel, { foreignKey: 'clienteId' });
+EquipamientoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
+ClienteModel.hasMany(EquipamientoModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 
-EquipamientoModel.hasMany(UsuarioAsignadoModel, { foreignKey: 'equipamientoId' });
-UsuarioAsignadoModel.belongsTo(EquipamientoModel, { foreignKey: 'equipamientoId' });
+EquipamientoModel.hasMany(UsuarioAsignadoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
+UsuarioAsignadoModel.belongsTo(EquipamientoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
 
 export {
     ClienteModel,
