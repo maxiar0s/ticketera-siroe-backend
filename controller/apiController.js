@@ -17,7 +17,7 @@ const postCliente = async (req, res) => {
         location } = req.body;
     
     const nuevoCliente = await ClienteModel.create({
-        cuentaTecnicoId,
+        // cuentaTecnicoId,
         clientName,
         department,
         phone,
