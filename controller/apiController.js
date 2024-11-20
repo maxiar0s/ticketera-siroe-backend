@@ -3,9 +3,9 @@ import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } fr
 const postCliente = async (req, res) => {
     const { cuentaTecnicoId } = req.body;
 
-    if(!cuentaTecnicoId) {
-        return res.json({ resp: 'Error al intentar crear cliente, intente nuevamente.' });
-    }
+    // if(!cuentaTecnicoId) {
+    //     return res.json({ resp: 'Error al intentar crear cliente, intente nuevamente.' });
+    // }
 
     // TODO realizar luego de implementar JWT
     // const tecnico = await CuentaModel.findByPk(id);
@@ -332,7 +332,7 @@ const getResults = async (req, res) => {
     res.json(clientes);
 }
 
-const getResult = async (req, res) => {
+const getResultById = async (req, res) => {
     const { id } = req.params;
     const cliente = await ClienteModel.findOne({ 
         where: {
@@ -368,5 +368,5 @@ export {
     postEliminarUsuarioAsignado,
 
     getResults,
-    getResult
+    getResultById
 }
