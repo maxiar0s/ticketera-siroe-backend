@@ -7,9 +7,9 @@ import {
 
 const router = express.Router();
 
-router.post('/ingresar-levantamiento', postCliente);
-router.post('/modificar-levantamiento/:id', postModificarCliente);
-router.post('/eliminar-levantamiento/:id', postEliminarCliente);
+router.post('/ingresar-cliente', postCliente);
+router.post('/modificar-cliente/:id', postModificarCliente);
+router.post('/eliminar-cliente/:id', postEliminarCliente);
 
 router.post('/ingresar-equipamiento', postEquipamiento);
 router.post('/modificar-equipamiento/:id', postModificarEquipamiento);

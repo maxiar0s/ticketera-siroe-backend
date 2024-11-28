@@ -12,7 +12,7 @@ const EquipamientoModel = Equipamiento;
 // Modelo de Usuarios Asignados a un Equipamiento
 const UsuarioAsignadoModel = UsuarioAsignado;
 
-ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
+// ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
 
 EquipamientoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 ClienteModel.hasMany(EquipamientoModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
