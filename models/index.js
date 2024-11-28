@@ -17,8 +17,8 @@ ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
 EquipamientoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 ClienteModel.hasMany(EquipamientoModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 
-EquipamientoModel.hasMany(UsuarioAsignadoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
-UsuarioAsignadoModel.belongsTo(EquipamientoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
+// EquipamientoModel.hasMany(UsuarioAsignadoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
+// UsuarioAsignadoModel.belongsTo(EquipamientoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
 
 export {
     ClienteModel,

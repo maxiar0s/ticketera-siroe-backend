@@ -2,27 +2,27 @@ import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
 const equipamiento = db.define('Equipamientos', {
-    equipmentType: {
+    tipo: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    brand: {
+    marca: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    model: {
+    modelo: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    serialNumber: {
+    numeroSerie: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    ipAddress: {
+    procesador: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    processor: {
+    velocidadProcesador: {
         type: DataTypes.STRING,
         allowNull: true
     },
@@ -30,50 +30,19 @@ const equipamiento = db.define('Equipamientos', {
         type: DataTypes.INTEGER,
         allowNull: true
     },
-    storage: {
+    tipoAlmacenamiento: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    os: {
+    cantidadAlmacenamiento: {
+        type: DataTypes.INTEGER,
+        allowNull: true
+    },
+    sistemaOperativo: {
         type: DataTypes.STRING,
         allowNull: true
     },
-    officeSuite: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    softwareLicenses: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    physicalState: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    lastMaintenance: {
-        type: DataTypes.DATEONLY,
-        allowNull: true
-    },
-    currentIssues: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-
-
-    // Campos Extras
-    monitors: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    keyboard: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    mouse: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    otherPeripherals: {
+    ofimatica: {
         type: DataTypes.STRING,
         allowNull: true
     },
@@ -81,19 +50,7 @@ const equipamiento = db.define('Equipamientos', {
         type: DataTypes.STRING,
         allowNull: true
     },
-    backupSoftware: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    lastBackup: {
-        type: DataTypes.DATEONLY,
-        allowNull: true
-    },
-    securitySoftware: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    comments: {
+    observaciones: {
         type: DataTypes.STRING,
         allowNull: true
     }
