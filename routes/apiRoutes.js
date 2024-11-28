@@ -1,7 +1,7 @@
 import express from "express";
 import { 
     postCliente, postModificarCliente, postEliminarCliente, 
-    postEquipamiento, postModificarEquipamiento, postEliminarEquipamiento, 
+    postEquipo, postModificarEquipo, postEliminarEquipo, 
     postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
     getResults, getResultById } from '../controller/apiController.js'
 
@@ -11,9 +11,9 @@ router.post('/ingresar-cliente', postCliente);
 router.post('/modificar-cliente/:id', postModificarCliente);
 router.post('/eliminar-cliente/:id', postEliminarCliente);
 
-router.post('/ingresar-equipamiento', postEquipamiento);
-router.post('/modificar-equipamiento/:id', postModificarEquipamiento);
-router.post('/eliminar-equipamiento/:id', postEliminarEquipamiento);
+router.post('/ingresar-equipo', postEquipo);
+router.post('/modificar-equipo/:id', postModificarEquipo);
+router.post('/eliminar-equipo/:id', postEliminarEquipo);
 
 router.post('/ingresar-usuario-asignado', postUsuarioAsignado);
 router.post('/modificar-usuario-asignado/:id', postModificarUsuarioAsignado);

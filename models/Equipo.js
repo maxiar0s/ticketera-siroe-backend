@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
-const equipamiento = db.define('Equipamientos', {
+const equipo = db.define('Equipos', {
     tipo: {
         type: DataTypes.STRING,
         allowNull: false
@@ -58,4 +58,4 @@ const equipamiento = db.define('Equipamientos', {
     timestamps: false
 });
 
-export default equipamiento;
+export default equipo;
