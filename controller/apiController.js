@@ -1,31 +1,152 @@
-import equipamiento from "../models/Equipamiento.js";
-import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } from "../models/index.js";
+import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from "../models/index.js";
 
 const postCliente = async (req, res) => {
-    const { cuentaTecnicoId = null,
-        clientName,
-        department,
-        phone,
-        generalInfo,
-        email,
-        location } = req.body;
-    
+    // TODO realizar luego de implementar JWT
+    // const { cuentaTecnicoId } = req.body;
+    // if(!cuentaTecnicoId) {
+    //     return res.json({ resp: 'Error al intentar crear cliente, intente nuevamente.' });
+    // }
+    // const tecnico = await CuentaModel.findByPk(id);
+    // const { cuentaTecnicoId } = tecnico;
+    console.log(req.body);
+    const { rut,
+        razonSocial,
+        encargadoGeneral,
+        correo,
+        telefonoEncargado } = req.body;
+
     const nuevoCliente = await ClienteModel.create({
-        cuentaTecnicoId,
-        clientName,
-        department,
-        phone,
-        generalInfo,
-        email,
-        location
+        rut,
+        razonSocial,
+        encargadoGeneral,
+        correo,
+        telefonoEncargado
     });
 
     res.json({ resp: 'Cliente creado satisfactoriamente.', id: nuevoCliente.id });
 }
 
-const postEquipamiento = async (req, res) => {
-    const { clienteId = null,
-        equipmentType = null,
+const postModificarCliente = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar modificar cliente' });
+    }
+
+    const cliente = await ClienteModel.findByPk(id);
+
+    if(!cliente) {
+        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
+    }
+
+    const { rut,
+        razonSocial,
+        encargadoGeneral,
+        correo,
+        telefonoEncargado } = req.body;
+
+    cliente.set({
+        rut,
+        razonSocial,
+        encargadoGeneral,
+        correo,
+        telefonoEncargado
+    })
+    cliente.save();
+
+    return res.json({ resp: 'Cliente modificado correctamente' });
+}
+
+const postEliminarCliente = async (req, res) => {
+    const { id } = req.params;
+    if(!id) {
+        return res.json({ resp: 'Error al intentar eliminar cliente' });
+    }
+
+    const cliente = await ClienteModel.findByPk(id,{
+        include: [
+            { model: CuentaModel },
+            { model: EquipoModel,
+                include: [
+                    { model: UsuarioAsignadoModel }
+                ]
+             }
+        ]
+    });
+
+    if(!cliente) {
+        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
+    }
+
+    for (const equipamiento of cliente.Equipamientos) {
+        await equipamiento.setUsuariosAsignados([]); 
+      
+        for (const usuario of equipamiento.UsuariosAsignados) {
+          await usuario.destroy();
+        }
+      
+        await equipamiento.destroy();
+      }
+      await cliente.destroy();
+
+    return res.json({ resp: 'Cliente eliminado correctamente' });
+}
+
+const postEquipo = async (req, res) => {
+    const { clienteId } = req.body;
+
+    if(!clienteId) {
+        return res.json({ resp: 'Error al intentar crear equipamiento, intente nuevamente.' });
+    }                                   
+
+    const { tipo,
+        marca = null,
+        modelo = null,
+        numeroSerie = null,
+        procesador = null,
+        velocidadProcesador = null,
+        ram = null,
+        tipoAlmacenamiento = null,
+        cantidadAlmacenamiento = null,
+        sistemaOperativo = null,
+        ofimatica = null,
+        antivirus = null,
+        observaciones = null } = req.body;
+    
+    await EquipoModel.create({
+        clienteId,
+        tipo,
+        marca,
+        modelo,
+        numeroSerie,
+        procesador,
+        velocidadProcesador,
+        ram,
+        tipoAlmacenamiento,
+        cantidadAlmacenamiento,
+        sistemaOperativo,
+        ofimatica,
+        antivirus,
+        observaciones
+    });
+
+    res.json({ resp: `Equipamiento creado satisfactoriamente para Cliente: ${clienteId}`});
+}
+
+const postModificarEquipo = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar modificar el equipo' });
+    }
+
+    const equipo = await EquipoModel.findByPk(id);
+
+    if(!equipo) {
+        return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
+    }
+
+    const { equipmentType,
         brand = null,
         model = null,
         serialNumber = null,
@@ -49,8 +170,7 @@ const postEquipamiento = async (req, res) => {
         securitySoftware = null,
         comments = null } = req.body;
     
-    await EquipamientoModel.create({
-        clienteId,
+    equipo.set({
         equipmentType,
         brand,
         model,
@@ -76,12 +196,42 @@ const postEquipamiento = async (req, res) => {
         comments
     });
 
-    res.json({ resp: `Equipamiento creado satisfactoriamente para Cliente: ${clienteId}`});
+    equipo.save();
+
+    return res.json({ resp: 'Equipo modificado correctamente' });
+}
+
+const postEliminarEquipo = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar eliminar equipo' });
+    }
+
+    const equipo = await EquipoModel.findByPk(id);
+
+    if(!equipo) {
+        return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
+    }
+
+    await equipo.setUsuariosAsignados([]); 
+      
+    for (const usuario of equipo.UsuariosAsignados) {
+        await usuario.destroy();
+    }
+    await equipo.destroy();
+
+    return res.json({ resp: 'Equipo eliminado correctamente' });
 }
 
 const postUsuarioAsignado = async (req, res) => {
-    const { equipamientoId,
-        name = null,
+    const { equipamientoId } = req.body;
+
+    if(!equipamientoId) {
+        return res.json({ resp: 'Error al asignar un usuario, intente nuevamente.' });
+    }
+
+    const { name = null,
         email = null,
         phone = null } = req.body;
     
@@ -95,11 +245,57 @@ const postUsuarioAsignado = async (req, res) => {
     res.json({ resp: `Usuario asignado creado satisfactoriamente para Equipamiento: ${equipamientoId}`});
 }
 
+const postModificarUsuarioAsignado = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar modificar el usuario asignado' });
+    }
+
+    const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
+
+    if(!usuarioAsignado) {
+        return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
+    }
+
+    const { name,
+        email,
+        phone } = req.body;
+
+    usuarioAsignado.set({
+        name,
+        email,
+        phone
+    })
+
+    usuarioAsignado.save();
+
+    return res.json({ resp: 'Usuario asignado modificado correctamente' });
+}
+
+const postEliminarUsuarioAsignado = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar eliminar el usuario asignado' });
+    }
+
+    const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
+
+    if(!usuarioAsignado) {
+        return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
+    }
+
+    usuarioAsignado.destroy();
+
+    return res.json({ resp: 'Usuario asignado eliminado correctamente' });
+}
+
 const getResults = async (req, res) => {
     const clientes = await ClienteModel.findAll({
         include: [
             { model: CuentaModel },
-            { model: EquipamientoModel,
+            { model: EquipoModel,
                 include: [
                     { model: UsuarioAsignadoModel }
                 ]
@@ -109,7 +305,7 @@ const getResults = async (req, res) => {
     res.json(clientes);
 }
 
-const getResult = async (req, res) => {
+const getResultById = async (req, res) => {
     const { id } = req.params;
     const cliente = await ClienteModel.findOne({ 
         where: {
@@ -117,7 +313,7 @@ const getResult = async (req, res) => {
         },
         include: [
             { model: CuentaModel },
-            { model: EquipamientoModel,
+            { model: EquipoModel,
                 include: [
                     { model: UsuarioAsignadoModel }
                 ]
@@ -133,8 +329,17 @@ const getResult = async (req, res) => {
 
 export {
     postCliente,
-    postEquipamiento,
+    postModificarCliente,
+    postEliminarCliente,
+
+    postEquipo,
+    postModificarEquipo,
+    postEliminarEquipo,
+
     postUsuarioAsignado,
+    postModificarUsuarioAsignado,
+    postEliminarUsuarioAsignado,
+
     getResults,
-    getResult
+    getResultById
 }

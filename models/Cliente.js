@@ -2,30 +2,32 @@ import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
 const cliente = db.define('Clientes', {
-    clientName: {
+    id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        allowNull: false,
+        primaryKey: true
+    },
+    rut: {
         type: DataTypes.STRING,
         allowNull: false
     },
-    department: {
+    razonSocial: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
-    phone: {
+    encargadoGeneral: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
-    generalInfo: {
+    correo: {
         type: DataTypes.STRING,
-        allowNull: true
+        allowNull: false
     },
-    email: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
-    location: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
+    telefonoEncargado: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    }
 }, {
     timestamps: false
 });
