@@ -4,7 +4,7 @@ import Cuentas from './Cuenta.js'
 import UsuariosAsignados from './UsuarioAsignado.js'
 import Equipamientos from './Equipamiento.js'
 import db from '../config/db.js'
-import { ClienteModel, CuentaModel, EquipamientoModel, UsuarioAsignadoModel } from '../models/index.js'
+import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from '../models/index.js'
 
 const importarDatos = async () => {
     try {
@@ -13,7 +13,7 @@ const importarDatos = async () => {
 
         await CuentaModel.bulkCreate(Cuentas);
         await ClienteModel.bulkCreate(Clientes);
-        await EquipamientoModel.bulkCreate(Equipamientos);
+        await EquipoModel.bulkCreate(Equipamientos);
         await UsuarioAsignadoModel.bulkCreate(UsuariosAsignados);
 
         console.log('datos importados');

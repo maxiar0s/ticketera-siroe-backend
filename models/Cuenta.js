@@ -19,7 +19,7 @@ const cuenta = db.define('Cuentas', {
         allowNull: false
     },
     habilitado: {
-        type: DataTypes.NUMBER,
+        type: DataTypes.BOOLEAN,
         allowNull: false
     },
     token: {
