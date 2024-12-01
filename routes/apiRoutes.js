@@ -11,11 +11,11 @@ const router = express.Router();
 
 // Login
 router.post('/login', login)
-router.post('/modificar-cuenta/:id', postModificarCuenta)
-router.post('/eliminar-cuenta/:id', postEliminarCuenta)
 
 // Administrador
 router.post('/crear-cuenta', postCuenta)
+router.post('/modificar-cuenta/:id', postModificarCuenta)
+router.post('/eliminar-cuenta/:id', postEliminarCuenta)
 
 router.post('/ingresar-cliente', postCliente);
 router.post('/modificar-cliente/:id', postModificarCliente);

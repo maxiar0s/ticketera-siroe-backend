@@ -1,4 +1,4 @@
-import { jwt } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
 
@@ -34,7 +34,8 @@ const postCuenta = async (req, res) => {
         name,
         telefono,
         email,
-        password: hashed_password
+        password: hashed_password,
+        habilitado: 1
     });
 
     return res.json({ resp: 'Usuario creado exitosamente'});
