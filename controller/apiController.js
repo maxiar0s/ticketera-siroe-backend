@@ -4,7 +4,6 @@ import bcrypt from 'bcrypt';
 
 
 const login = async (req, res) => {
-    console.log(email);
     const { email, password } = req.body;
 
     const user = await CuentaModel.findOne({ where: { email }});
