@@ -18,6 +18,10 @@ const cuenta = db.define('Cuentas', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    habilitado: {
+        type: DataTypes.NUMBER,
+        allowNull: false
+    },
     token: {
         type: DataTypes.STRING,
         allowNull: true

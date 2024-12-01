@@ -1,4 +1,110 @@
+import { jwt } from "jsonwebtoken";
 import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from "../models/index.js";
+import bcrypt from 'bcrypt';
+
+
+const login = async (req, res) => {
+    const { correo, password } = req.body;
+
+    const user = await CuentaModel.findOne({ where: { correo }});
+
+    if(!user) return res.json({ resp: 'Usuario no encontrado.'});;
+
+    const matchPassword = await bcrypt.compare(password, user.password);
+    if(!matchPassword) return res.json({ resp: 'Correo electronico o contraseña incorrecta.'});
+
+    const userData = {
+        name: user.name,
+        telefono: user.telefono,
+        email: user.email
+    };
+    console.log(userData);
+
+    const token = jwt.sign({ userData }, 'Secret_S1r03_S0p0rt3_Password');
+    console.log(token);
+    return res.json({token});
+}
+
+const postCuenta = async (req, res) => {
+    const { name, telefono, email, password } = req.body;
+
+    const hashed_password = await bcrypt.hash(password, 10);
+
+    const cuenta = await CuentaModel.create({
+        name,
+        telefono,
+        email,
+        password: hashed_password
+    });
+
+    return res.json({ resp: 'Usuario creado exitosamente'});
+}
+
+const postModificarCuenta = async (req, res) => {
+    const { id } = req.params;
+
+    if(!id) {
+        return res.json({ resp: 'Error al intentar modificar cuenta' });
+    }
+
+    const cuenta = await CuentaModel.findByPk(id);
+
+    if(!cuenta) {
+        return res.json({ resp: 'Cuenta no encontrado, intente nuevamente' });
+    }
+
+    const { name,
+        telefono,
+        email,
+        password } = req.body;
+
+    const hashed_password = await bcrypt.hash(password, 10);
+
+    cuenta.set({
+        name,
+        telefono,
+        email,
+        password: hashed_password
+    })
+    cuenta.save();
+
+    return res.json({ resp: 'Cuenta modificado correctamente' });
+}
+
+const postEliminarCuenta = async (req, res) => {
+    const { id } = req.params;
+    if(!id) {
+        return res.json({ resp: 'Error al intentar eliminar cuenta' });
+    }
+
+    const cuenta = await CuentaModel.findByPk(id,{
+        include: [
+            { model: CuentaModel },
+            { model: EquipoModel,
+                include: [
+                    { model: UsuarioAsignadoModel }
+                ]
+             }
+        ]
+    });
+
+    if(!cliente) {
+        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
+    }
+
+    for (const equipamiento of cliente.Equipamientos) {
+        await equipamiento.setUsuariosAsignados([]); 
+      
+        for (const usuario of equipamiento.UsuariosAsignados) {
+          await usuario.destroy();
+        }
+      
+        await equipamiento.destroy();
+      }
+      await cliente.destroy();
+
+    return res.json({ resp: 'Cliente eliminado correctamente' });
+}
 
 const postCliente = async (req, res) => {
     // TODO realizar luego de implementar JWT
@@ -328,6 +434,12 @@ const getResultById = async (req, res) => {
 }
 
 export {
+    postCuenta,
+    postModificarCuenta,
+    postEliminarCuenta,
+
+    login,
+
     postCliente,
     postModificarCliente,
     postEliminarCliente,
