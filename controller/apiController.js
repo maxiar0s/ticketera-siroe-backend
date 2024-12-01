@@ -8,10 +8,10 @@ const login = async (req, res) => {
 
     const user = await CuentaModel.findOne({ where: { email }});
 
-    if(!user) return res.json({ resp: 'Usuario no encontrado.'});;
+    if(!user) return;
 
     const matchPassword = await bcrypt.compare(password, user.password);
-    if(!matchPassword) return res.json({ resp: 'Correo electronico o contraseña incorrecta.'});
+    if(!matchPassword) return;
 
     const userData = {
         name: user.name,
