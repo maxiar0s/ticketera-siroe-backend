@@ -228,10 +228,10 @@ const postEliminarSucursal = (req, res) => {
 }
 
 const postEquipo = async (req, res) => {
-    const { clienteId } = req.body;
+    const { clienteId = null, sucursalId = null } = req.body;
 
-    if(!clienteId) {
-        return res.json({ resp: 'Error al intentar crear equipamiento, intente nuevamente.' });
+    if(!clienteId && !sucursalId) {
+        return res.json({error: 'error'});
     }                                   
 
     const { tipo,
@@ -250,6 +250,7 @@ const postEquipo = async (req, res) => {
     
     await EquipoModel.create({
         clienteId,
+        sucursalId,
         tipo,
         marca,
         modelo,
