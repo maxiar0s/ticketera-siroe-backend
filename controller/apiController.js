@@ -199,7 +199,6 @@ const postEliminarCliente = async (req, res) => {
 }
 
 const postSucursal = async (req, res) => {
-    console.log(req.body);
     const {
         encargadoSucursal,
         correoSucursal,
@@ -207,17 +206,18 @@ const postSucursal = async (req, res) => {
         sucursal,
         direccion,
         clienteId } = req.body;
-    
-    const nuevoCliente = await SucursalModel.create({
+
+    const nuevaSucursal = await SucursalModel.create({
         encargadoSucursal,
         correoSucursal,
         telefonoSucursal,
         sucursal,
         direccion,
+        habilitado: 1,
         clienteId
     });
 
-    res.json({ resp: 'Sucursal creado satisfactoriamente.', id: nuevoCliente.id });
+    res.json({ resp: 'Sucursal creado satisfactoriamente.', id: nuevaSucursal.id });
 }
 
 const postModificarSucursal = (req, res) => {

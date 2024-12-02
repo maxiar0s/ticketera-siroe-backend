@@ -50,12 +50,29 @@ const sucursal = db.define('Sucursales', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    fechaIngreso: {
+        type: DataTypes.DATEONLY,
+        // allowNull: false
+    },
     direccion: {
         type: DataTypes.STRING,
         allowNull: false
+    },
+    habilitado: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false
     }
 }, {
-    timestamps: false
+    timestamps: false,
+    hooks: {
+        beforeCreate(sucursal) {
+          const fecha = new Date();
+          const dia = String(fecha.getDate()).padStart(2, '0');
+          const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+          const anio = fecha.getFullYear();
+          sucursal.fechaIngreso = `${dia}/${mes}/${anio}`;
+        },
+      },
 });
 
 export default sucursal;
