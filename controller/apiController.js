@@ -447,26 +447,22 @@ const getSucursales = async (req, res) => {
     res.json(sucursales);
 }
 
-const getResultById = async (req, res) => {
+const getSucursalById = async (req, res) => {
     const { id } = req.params;
     const sucursal = await SucursalModel.findOne({ 
         where: {
             id
         },
         include: [
-            { model: CuentaModel },
-            { model: EquipoModel,
-                include: [
-                    { model: UsuarioAsignadoModel }
-                ]
-             }
+            { model: ClienteModel },
+            { model: EquipoModel }
         ]
     });
-    if(!cliente) {
-        return res.json({ resp: 'Cliente no encontrado.'});
+    if(!sucursal) {
+        return;
     }
 
-    res.json(cliente);
+    res.json(sucursal);
 }
 
 export {
@@ -494,5 +490,5 @@ export {
 
     getResults,
     getSucursales,
-    getResultById
+    getSucursalById
 }
