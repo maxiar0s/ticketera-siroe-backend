@@ -3,9 +3,10 @@ import {
     postCuenta, postModificarCuenta, postEliminarCuenta,
     login,
     postCliente, postModificarCliente, postEliminarCliente, 
+    postSucursal, postModificarSucursal, postEliminarSucursal, 
     postEquipo, postModificarEquipo, postEliminarEquipo, 
     postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
-    getResults, getResultById } from '../controller/apiController.js'
+    getResults, getSucursales, getResultById } from '../controller/apiController.js'
 
 const router = express.Router();
 
@@ -21,8 +22,11 @@ router.post('/ingresar-cliente', postCliente);
 router.post('/modificar-cliente/:id', postModificarCliente);
 router.post('/eliminar-cliente/:id', postEliminarCliente);
 
+router.post('/ingresar-sucursal', postSucursal);
+router.post('/modificar-sucursal/:id', postModificarSucursal);
+router.post('/eliminar-sucursal/:id', postEliminarSucursal);
 
-// Tecnico
+// Administrador y Tecnico
 router.post('/ingresar-equipo', postEquipo);
 router.post('/modificar-equipo/:id', postModificarEquipo);
 router.post('/eliminar-equipo/:id', postEliminarEquipo);
@@ -30,7 +34,9 @@ router.post('/ingresar-usuario-asignado', postUsuarioAsignado);
 router.post('/modificar-usuario-asignado/:id', postModificarUsuarioAsignado);
 router.post('/eliminar-usuario-asignado/:id', postEliminarUsuarioAsignado);
 
+// Routes de obtención de datos
 router.get('/clientes', getResults);
-router.get('/cliente/:id', getResultById);
+router.get('/cliente/:id/sucursales', getSucursales);
+router.get('/sucursal/:id', getResultById);
 
 export default router

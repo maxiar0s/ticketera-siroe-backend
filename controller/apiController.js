@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from "../models/index.js";
+import { ClienteModel, CuentaModel, EquipoModel, SucursalModel, UsuarioAsignadoModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
 
 
@@ -115,7 +115,6 @@ const postCliente = async (req, res) => {
     // }
     // const tecnico = await CuentaModel.findByPk(id);
     // const { cuentaTecnicoId } = tecnico;
-    console.log(req.body);
     const { rut,
         razonSocial,
         encargadoGeneral,
@@ -197,6 +196,35 @@ const postEliminarCliente = async (req, res) => {
       await cliente.destroy();
 
     return res.json({ resp: 'Cliente eliminado correctamente' });
+}
+
+const postSucursal = async (req, res) => {
+    console.log(req.body);
+    const {
+        encargadoSucursal,
+        correoSucursal,
+        telefonoSucursal,
+        sucursal,
+        direccion,
+        clienteId } = req.body;
+    
+    const nuevoCliente = await SucursalModel.create({
+        encargadoSucursal,
+        correoSucursal,
+        telefonoSucursal,
+        sucursal,
+        direccion,
+        clienteId
+    });
+
+    res.json({ resp: 'Sucursal creado satisfactoriamente.', id: nuevoCliente.id });
+}
+
+const postModificarSucursal = (req, res) => {
+
+}
+const postEliminarSucursal = (req, res) => {
+
 }
 
 const postEquipo = async (req, res) => {
@@ -407,9 +435,21 @@ const getResults = async (req, res) => {
     res.json(clientes);
 }
 
+const getSucursales = async (req, res) => {
+    const { id: clienteId } = req.params
+    if(!clienteId) return;
+    const sucursales = await SucursalModel.findAll({
+        where: { clienteId },
+        include: [
+            { model: ClienteModel }
+        ]
+    });
+    res.json(sucursales);
+}
+
 const getResultById = async (req, res) => {
     const { id } = req.params;
-    const cliente = await ClienteModel.findOne({ 
+    const sucursal = await SucursalModel.findOne({ 
         where: {
             id
         },
@@ -440,6 +480,10 @@ export {
     postModificarCliente,
     postEliminarCliente,
 
+    postSucursal,
+    postModificarSucursal,
+    postEliminarSucursal,
+
     postEquipo,
     postModificarEquipo,
     postEliminarEquipo,
@@ -449,5 +493,6 @@ export {
     postEliminarUsuarioAsignado,
 
     getResults,
+    getSucursales,
     getResultById
 }
