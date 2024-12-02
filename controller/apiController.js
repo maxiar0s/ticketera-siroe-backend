@@ -401,12 +401,7 @@ const postEliminarUsuarioAsignado = async (req, res) => {
 const getResults = async (req, res) => {
     const clientes = await ClienteModel.findAll({
         include: [
-            { model: CuentaModel },
-            { model: EquipoModel,
-                include: [
-                    { model: UsuarioAsignadoModel }
-                ]
-             }
+            { model: EquipoModel }
         ]
     });
     res.json(clientes);
