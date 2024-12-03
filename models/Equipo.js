@@ -2,7 +2,22 @@ import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
 const equipo = db.define('Equipos', {
+    codigoId: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
     tipo: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    fechaIngreso: {
+        type: DataTypes.DATEONLY,
+    },
+    departamento: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    usuario: {
         type: DataTypes.STRING,
         allowNull: false
     },
@@ -55,7 +70,16 @@ const equipo = db.define('Equipos', {
         allowNull: true
     }
 },{
-    timestamps: false
+    timestamps: false,
+    hooks: {
+        beforeCreate(sucursal) {
+          const fecha = new Date();
+          const dia = String(fecha.getDate()).padStart(2, '0');
+          const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+          const anio = fecha.getFullYear();
+          sucursal.fechaIngreso = `${dia}/${mes}/${anio}`;
+        },
+    },
 });
 
 export default equipo;

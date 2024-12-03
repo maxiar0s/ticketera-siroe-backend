@@ -52,7 +52,6 @@ const sucursal = db.define('Sucursales', {
     },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
-        // allowNull: false
     },
     direccion: {
         type: DataTypes.STRING,

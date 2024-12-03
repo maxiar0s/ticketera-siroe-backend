@@ -237,6 +237,9 @@ const postEquipo = async (req, res) => {
     const { tipo,
         marca = null,
         modelo = null,
+        codigoId = null,
+        departamento = null,
+        usuario = null,
         numeroSerie = null,
         procesador = null,
         velocidadProcesador = null,
@@ -254,6 +257,9 @@ const postEquipo = async (req, res) => {
         tipo,
         marca,
         modelo,
+        codigoId,
+        departamento,
+        usuario,
         numeroSerie,
         procesador,
         velocidadProcesador,
@@ -462,9 +468,41 @@ const getSucursalById = async (req, res) => {
     if(!sucursal) {
         return;
     }
-
     res.json(sucursal);
 }
+
+const getEquipmentsByCasaMatriz = async (req, res) => {
+    const { id } = req.params;
+    const equipos = await EquipoModel.findAll({ 
+        where: {
+            clienteId: id
+        },
+        include: [
+            { model: ClienteModel }
+        ]
+    });
+    if(!equipos) {
+        return;
+    }
+    res.json(equipos);
+}
+
+const getEquipmentsBySucursal = async (req, res) => {
+    const { id } = req.params;
+    const equipos = await EquipoModel.findAll({ 
+        where: {
+            sucursalId: id
+        },
+        include: [
+            { model: ClienteModel }
+        ]
+    });
+    if(!equipos) {
+        return;
+    }
+    res.json(equipos);
+}
+
 
 export {
     postCuenta,
@@ -491,5 +529,7 @@ export {
 
     getResults,
     getSucursales,
-    getSucursalById
+    getSucursalById,
+    getEquipmentsByCasaMatriz,
+    getEquipmentsBySucursal
 }
