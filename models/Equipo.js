@@ -2,6 +2,10 @@ import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
 const equipo = db.define('Equipos', {
+    numeroSecuencial: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+      },
     codigoId: {
         type: DataTypes.STRING,
         allowNull: false

@@ -235,21 +235,25 @@ const postEquipo = async (req, res) => {
     }
     
     let equipo;
-    let maxNumero;
     if(sucursalId) {
-        equipo = await EquipoModel.findOne({ sucursalId })
-            .sort({ codigoId: -1 })
-            .exec();
-        maxNumero = equipo ? equipo.codigoId : 0;
+        equipo = await EquipoModel.findOne({
+            where: { sucursalId },
+            order: [['numeroSecuencial', 'DESC']],
+        });
     }
     else {
-        equipo = await EquipoModel.findOne({ clienteId })
-            .sort({ codigoId: -1 })
-            .exec();
-        maxNumero = equipo ? equipo.codigoId : 0;
+        equipo = await EquipoModel.findOne({
+            where: { clienteId },
+            order: [['numeroSecuencial', 'DESC']],
+        });
     }
+
+    const maxNumero = equipo ? equipo.numeroSecuencial : 0;
+    const nextNumero = maxNumero + 1;
     
-    const deptCode = departamento.substring(0, 3).toUpperCase();
+    const { departamento } = req.body;
+
+    const deptCode = departamento.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, '0');
     const codigoId = `SIRO${deptCode}${numeroPadded}`;
     console.log(codigoId);
@@ -257,7 +261,6 @@ const postEquipo = async (req, res) => {
     const { tipo,
         marca = null,
         modelo = null,
-        departamento = null,
         usuario = null,
         numeroSerie = null,
         procesador = null,
@@ -271,6 +274,7 @@ const postEquipo = async (req, res) => {
         observaciones = null } = req.body;
     
     await EquipoModel.create({
+        numeroSecuencial: nextNumero,
         clienteId,
         sucursalId,
         tipo,
