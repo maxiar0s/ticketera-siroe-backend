@@ -238,15 +238,15 @@ const postEquipo = async (req, res) => {
     let maxNumero;
     if(sucursalId) {
         equipo = await EquipoModel.findOne({ sucursalId })
-            .sort({ numeroSecuencial: -1 })
+            .sort({ codigoId: -1 })
             .exec();
-        maxNumero = equipo ? equipo.numeroSecuencial : 0;
+        maxNumero = equipo ? equipo.codigoId : 0;
     }
     else {
         equipo = await EquipoModel.findOne({ clienteId })
-            .sort({ numeroSecuencial: -1 })
+            .sort({ codigoId: -1 })
             .exec();
-        maxNumero = equipo ? equipo.numeroSecuencial : 0;
+        maxNumero = equipo ? equipo.codigoId : 0;
     }
     
     const deptCode = departamento.substring(0, 3).toUpperCase();
