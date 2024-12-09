@@ -526,6 +526,21 @@ const getEquipmentsBySucursal = async (req, res) => {
     res.json(equipos);
 }
 
+const getEquipmentById = async (req, res) => {
+    const { id } = req.params;
+    const equipo = await EquipoModel.findByPk(id, {
+        include: [
+            { model: ClienteModel },
+            { model: SucursalModel }
+        ]
+    });
+
+    if(!equipo) {
+        return;
+    }
+    res.json(equipo);
+}
+
 
 export {
     postCuenta,
@@ -554,5 +569,6 @@ export {
     getSucursales,
     getSucursalById,
     getEquipmentsByCasaMatriz,
-    getEquipmentsBySucursal
+    getEquipmentsBySucursal,
+    getEquipmentById
 }
