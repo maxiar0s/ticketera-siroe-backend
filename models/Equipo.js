@@ -19,7 +19,7 @@ const equipo = db.define('Equipos', {
     },
     usuario: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true
     },
     marca: {
         type: DataTypes.STRING,

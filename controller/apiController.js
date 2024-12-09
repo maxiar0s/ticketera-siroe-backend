@@ -228,11 +228,11 @@ const postEliminarSucursal = (req, res) => {
 }
 
 const postEquipo = async (req, res) => {
-    const { clienteId = null, sucursalId = null } = req.body;
+    // const { clienteId = null, sucursalId = null } = req.body;
 
-    if(!clienteId && !sucursalId) {
-        return res.json({error: 'error'});
-    }                                   
+    // if(!clienteId && !sucursalId) {
+    //     return res.json({error: 'error'});
+    // }                                   
 
     const { tipo,
         marca = null,
@@ -257,7 +257,7 @@ const postEquipo = async (req, res) => {
         tipo,
         marca,
         modelo,
-        codigoId,
+        codigoId: 222,
         departamento,
         usuario,
         numeroSerie,
