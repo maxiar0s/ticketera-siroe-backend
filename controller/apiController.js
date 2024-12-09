@@ -232,12 +232,31 @@ const postEquipo = async (req, res) => {
 
     if(!clienteId && !sucursalId) {
         return res.json({error: 'error'});
-    }                                   
+    }
+    
+    let equipo;
+    let maxNumero;
+    if(sucursalId) {
+        equipo = await EquipoModel.findOne({ sucursalId })
+            .sort({ numeroSecuencial: -1 })
+            .exec();
+        maxNumero = equipo ? equipo.numeroSecuencial : 0;
+    }
+    else {
+        equipo = await EquipoModel.findOne({ clienteId })
+            .sort({ numeroSecuencial: -1 })
+            .exec();
+        maxNumero = equipo ? equipo.numeroSecuencial : 0;
+    }
+    
+    const deptCode = departamento.substring(0, 3).toUpperCase();
+    const numeroPadded = nextNumero.toString().padStart(3, '0');
+    const codigoId = `SIRO${deptCode}${numeroPadded}`;
+    console.log(codigoId);
 
     const { tipo,
         marca = null,
         modelo = null,
-        codigoId = null,
         departamento = null,
         usuario = null,
         numeroSerie = null,
@@ -257,7 +276,7 @@ const postEquipo = async (req, res) => {
         tipo,
         marca,
         modelo,
-        codigoId: 222,
+        codigoId,
         departamento,
         usuario,
         numeroSerie,
