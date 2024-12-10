@@ -311,54 +311,36 @@ const postModificarEquipo = async (req, res) => {
         return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
     }
 
-    const { equipmentType,
-        brand = null,
-        model = null,
-        serialNumber = null,
-        ipAddress = null,
-        processor = null,
+    const {
+        usuario = null,
+        marca = null,
+        modelo = null,
+        numeroSerie = null,
+        procesador = null,
+        velocidadProcesador = null,
         ram = null,
-        storage = null,
-        os = null,
-        officeSuite = null,
-        softwareLicenses = null,
-        physicalState = null,
-        lastMaintenance = null,
-        currentIssues = null,
-        monitors = null,
-        keyboard = null,
-        mouse = null,
-        otherPeripherals = null,
+        tipoAlmacenamiento = null,
+        cantidadAlmacenamiento = null,
+        sistemaOperativo = null,
+        ofimatica = null,
         antivirus = null,
-        backupSoftware = null,
-        lastBackup = null,
-        securitySoftware = null,
-        comments = null } = req.body;
+        observaciones = null
+        } = req.body;
     
     equipo.set({
-        equipmentType,
-        brand,
-        model,
-        serialNumber,
-        ipAddress,
-        processor,
+        usuario,
+        marca,
+        modelo,
+        numeroSerie,
+        procesador,
+        velocidadProcesador,
         ram,
-        storage,
-        os,
-        officeSuite,
-        softwareLicenses,
-        physicalState,
-        lastMaintenance,
-        currentIssues,
-        monitors,
-        keyboard,
-        mouse,
-        otherPeripherals,
+        tipoAlmacenamiento,
+        cantidadAlmacenamiento,
+        sistemaOperativo,
+        ofimatica,
         antivirus,
-        backupSoftware,
-        lastBackup,
-        securitySoftware,
-        comments
+        observaciones
     });
 
     equipo.save();
