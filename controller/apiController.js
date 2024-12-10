@@ -300,7 +300,7 @@ const postEquipo = async (req, res) => {
 
 const postModificarEquipo = async (req, res) => {
     const { id } = req.params;
-
+    
     if(!id) {
         return res.json({ resp: 'Error al intentar modificar el equipo' });
     }
@@ -540,7 +540,6 @@ const getEquipmentById = async (req, res) => {
     }
     res.json(equipo);
 }
-
 
 export {
     postCuenta,
