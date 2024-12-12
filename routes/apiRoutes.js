@@ -5,8 +5,8 @@ import {
     postCliente, postModificarCliente, postEliminarCliente, 
     postSucursal, postModificarSucursal, postEliminarSucursal, 
     postEquipo, postModificarEquipo, postEliminarEquipo, 
-    postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
-    getResults, getSucursales, getSucursalById, getEquipmentsByCasaMatriz, getEquipmentsBySucursal, getEquipmentById } from '../controller/apiController.js'
+    // postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
+    getResults, getClient, getSucursales, getSucursalById, getEquipmentsByCasaMatriz, getEquipmentsBySucursal, getEquipmentById } from '../controller/apiController.js'
 
 const router = express.Router();
 
@@ -30,12 +30,13 @@ router.post('/eliminar-sucursal/:id', postEliminarSucursal);
 router.post('/ingresar-equipo', postEquipo);
 router.post('/modificar-equipo/:id', postModificarEquipo);
 router.post('/eliminar-equipo/:id', postEliminarEquipo);
-router.post('/ingresar-usuario-asignado', postUsuarioAsignado);
-router.post('/modificar-usuario-asignado/:id', postModificarUsuarioAsignado);
-router.post('/eliminar-usuario-asignado/:id', postEliminarUsuarioAsignado);
+// router.post('/ingresar-usuario-asignado', postUsuarioAsignado);
+// router.post('/modificar-usuario-asignado/:id', postModificarUsuarioAsignado);
+// router.post('/eliminar-usuario-asignado/:id', postEliminarUsuarioAsignado);
 
 // Routes de obtención de datos
 router.get('/clientes', getResults);
+router.get('/cliente/:id', getClient);
 router.get('/cliente/:id/sucursales', getSucursales);
 router.get('/sucursal/:id', getSucursalById);
 router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);

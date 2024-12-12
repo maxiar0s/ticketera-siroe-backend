@@ -312,19 +312,19 @@ const postModificarEquipo = async (req, res) => {
     }
 
     const {
-        usuario = null,
-        marca = null,
-        modelo = null,
-        numeroSerie = null,
-        procesador = null,
-        velocidadProcesador = null,
-        ram = null,
-        tipoAlmacenamiento = null,
-        cantidadAlmacenamiento = null,
-        sistemaOperativo = null,
-        ofimatica = null,
-        antivirus = null,
-        observaciones = null
+        usuario,
+        marca,
+        modelo,
+        numeroSerie,
+        procesador,
+        velocidadProcesador,
+        ram,
+        tipoAlmacenamiento,
+        cantidadAlmacenamiento,
+        sistemaOperativo,
+        ofimatica,
+        antivirus,
+        observaciones
         } = req.body;
     
     equipo.set({
@@ -361,82 +361,77 @@ const postEliminarEquipo = async (req, res) => {
         return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
     }
 
-    await equipo.setUsuariosAsignados([]); 
-      
-    for (const usuario of equipo.UsuariosAsignados) {
-        await usuario.destroy();
-    }
     await equipo.destroy();
 
     return res.json({ resp: 'Equipo eliminado correctamente' });
 }
 
-const postUsuarioAsignado = async (req, res) => {
-    const { equipamientoId } = req.body;
+// const postUsuarioAsignado = async (req, res) => {
+//     const { equipamientoId } = req.body;
 
-    if(!equipamientoId) {
-        return res.json({ resp: 'Error al asignar un usuario, intente nuevamente.' });
-    }
+//     if(!equipamientoId) {
+//         return res.json({ resp: 'Error al asignar un usuario, intente nuevamente.' });
+//     }
 
-    const { name = null,
-        email = null,
-        phone = null } = req.body;
+//     const { name ,
+//         email ,
+//         phone  } = req.body;
     
-    await UsuarioAsignadoModel.create({
-        equipamientoId,
-        name,
-        email,
-        phone
-    });
+//     await UsuarioAsignadoModel.create({
+//         equipamientoId,
+//         name,
+//         email,
+//         phone
+//     });
 
-    res.json({ resp: `Usuario asignado creado satisfactoriamente para Equipamiento: ${equipamientoId}`});
-}
+//     res.json({ resp: `Usuario asignado creado satisfactoriamente para Equipamiento: ${equipamientoId}`});
+// }
 
-const postModificarUsuarioAsignado = async (req, res) => {
-    const { id } = req.params;
+// const postModificarUsuarioAsignado = async (req, res) => {
+//     const { id } = req.params;
 
-    if(!id) {
-        return res.json({ resp: 'Error al intentar modificar el usuario asignado' });
-    }
+//     if(!id) {
+//         return res.json({ resp: 'Error al intentar modificar el usuario asignado' });
+//     }
 
-    const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
+//     const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
 
-    if(!usuarioAsignado) {
-        return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
-    }
+//     if(!usuarioAsignado) {
+//         return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
+//     }
 
-    const { name,
-        email,
-        phone } = req.body;
+//     const { name,
+//         email,
+//         phone } = req.body;
 
-    usuarioAsignado.set({
-        name,
-        email,
-        phone
-    })
+//     usuarioAsignado.set({
+//         name,
+//         email,
+//         phone
+//     })
 
-    usuarioAsignado.save();
+//     usuarioAsignado.save();
 
-    return res.json({ resp: 'Usuario asignado modificado correctamente' });
-}
+//     return res.json({ resp: 'Usuario asignado modificado correctamente' });
+// }
 
-const postEliminarUsuarioAsignado = async (req, res) => {
-    const { id } = req.params;
+// const postEliminarUsuarioAsignado = async (req, res) => {
+//     const { id } = req.params;
 
-    if(!id) {
-        return res.json({ resp: 'Error al intentar eliminar el usuario asignado' });
-    }
+//     if(!id) {
+//         return res.json({ resp: 'Error al intentar eliminar el usuario asignado' });
+//     }
 
-    const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
+//     const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
 
-    if(!usuarioAsignado) {
-        return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
-    }
+//     if(!usuarioAsignado) {
+//         return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
+//     }
 
-    usuarioAsignado.destroy();
+//     usuarioAsignado.destroy();
 
-    return res.json({ resp: 'Usuario asignado eliminado correctamente' });
-}
+//     return res.json({ resp: 'Usuario asignado eliminado correctamente' });
+// }
 
 const getResults = async (req, res) => {
     const clientes = await ClienteModel.findAll({
@@ -445,6 +440,16 @@ const getResults = async (req, res) => {
         ]
     });
     res.json(clientes);
+}
+
+const getClient = async (req, res) => {
+    const { id } = req.params;
+    const cliente = await ClienteModel.findByPk(id, { 
+    });
+    if(!cliente) {
+        return;
+    }
+    res.json(cliente);
 }
 
 const getSucursales = async (req, res) => {
@@ -523,6 +528,8 @@ const getEquipmentById = async (req, res) => {
     res.json(equipo);
 }
 
+
+
 export {
     postCuenta,
     postModificarCuenta,
@@ -542,11 +549,12 @@ export {
     postModificarEquipo,
     postEliminarEquipo,
 
-    postUsuarioAsignado,
-    postModificarUsuarioAsignado,
-    postEliminarUsuarioAsignado,
+    // postUsuarioAsignado,
+    // postModificarUsuarioAsignado,
+    // postEliminarUsuarioAsignado,
 
     getResults,
+    getClient,
     getSucursales,
     getSucursalById,
     getEquipmentsByCasaMatriz,
