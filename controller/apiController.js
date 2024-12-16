@@ -18,10 +18,8 @@ const login = async (req, res) => {
         telefono: user.telefono,
         email: user.email
     };
-    console.log(userData);
 
     const token = jwt.sign({ userData }, 'Secret_S1r03_S0p0rt3_Password');
-    console.log(token);
     return res.json({token});
 }
 
@@ -434,12 +432,37 @@ const postEliminarEquipo = async (req, res) => {
 // }
 
 const getResults = async (req, res) => {
-    const clientes = await ClienteModel.findAll({
-        include: [
-            { model: EquipoModel }
-        ]
-    });
-    res.json(clientes);
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 4
+    const offset = ((paginaActual*limit) - limit)
+
+    const [clientes, total] = await Promise.all([
+        ClienteModel.findAll({
+            limit,
+            offset,
+            include: [
+                { model: EquipoModel }
+            ]
+        }),
+        ClienteModel.count({
+            limit,
+            offset,
+            include: [
+                { model: EquipoModel }
+            ]
+        }),
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    res.json({clientes, total, limit, offset, paginas , paginaActual});
 }
 
 const getClient = async (req, res) => {
@@ -453,15 +476,120 @@ const getClient = async (req, res) => {
 }
 
 const getSucursales = async (req, res) => {
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 5
+    const offset = ((paginaActual*limit) - limit)
+
     const { id: clienteId } = req.params
     if(!clienteId) return;
-    const sucursales = await SucursalModel.findAll({
-        where: { clienteId },
-        include: [
-            { model: ClienteModel }
-        ]
-    });
-    res.json(sucursales);
+
+    const [sucursales, total] = await Promise.all([
+        SucursalModel.findAll({
+            limit,
+            offset,
+            where: { clienteId },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        SucursalModel.count({
+            limit,
+            offset,
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({sucursales, total, limit, offset, paginas , paginaActual});
+}
+
+const getSucursalesPendientes = async (req, res) => {
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 5
+    const offset = ((paginaActual*limit) - limit)
+
+    const { id: clienteId } = req.params
+    if(!clienteId) return;
+
+    const [sucursales, total] = await Promise.all([
+        SucursalModel.findAll({
+            limit,
+            offset,
+            where: { clienteId },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        SucursalModel.count({
+            limit,
+            offset,
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({sucursales, total, limit, offset, paginas , paginaActual});
+}
+
+const getSucursalesTerminadas = async (req, res) => {
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 5
+    const offset = ((paginaActual*limit) - limit)
+
+    const { id: clienteId } = req.params
+    if(!clienteId) return;
+
+    const [sucursales, total] = await Promise.all([
+        SucursalModel.findAll({
+            limit,
+            offset,
+            where: { clienteId },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        SucursalModel.count({
+            limit,
+            offset,
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({sucursales, total, limit, offset, paginas , paginaActual});
 }
 
 const getSucursalById = async (req, res) => {
@@ -555,7 +683,11 @@ export {
 
     getResults,
     getClient,
+    
     getSucursales,
+    getSucursalesPendientes,
+    getSucursalesTerminadas,
+
     getSucursalById,
     getEquipmentsByCasaMatriz,
     getEquipmentsBySucursal,

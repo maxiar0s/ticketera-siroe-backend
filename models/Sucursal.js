@@ -8,31 +8,6 @@ const sucursal = db.define('Sucursales', {
         allowNull: false,
         primaryKey: true
     },
-    // razonSocial: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // rut: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // idCliente: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // // Datos encargado general
-    // encargadoGeneral: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // correoEncargado: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
-    // telefonoEncargado: {
-    //     type: DataTypes.INTEGER,
-    //     allowNull: false
-    // },
     // Datos encargado sucursal
     encargadoSucursal: {
         type: DataTypes.STRING,
@@ -69,7 +44,8 @@ const sucursal = db.define('Sucursales', {
           const dia = String(fecha.getDate()).padStart(2, '0');
           const mes = String(fecha.getMonth() + 1).padStart(2, '0');
           const anio = fecha.getFullYear();
-          sucursal.fechaIngreso = `${dia}/${mes}/${anio}`;
+          console.log(`${dia}/${mes}/${anio}`);
+          sucursal.fechaIngreso = `${anio}-${mes}-${dia}`;
         },
       },
 });

@@ -6,7 +6,7 @@ import {
     postSucursal, postModificarSucursal, postEliminarSucursal, 
     postEquipo, postModificarEquipo, postEliminarEquipo, 
     // postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
-    getResults, getClient, getSucursales, getSucursalById, getEquipmentsByCasaMatriz, getEquipmentsBySucursal, getEquipmentById } from '../controller/apiController.js'
+    getResults, getClient, getSucursales, getSucursalesPendientes, getSucursalesTerminadas, getSucursalById, getEquipmentsByCasaMatriz, getEquipmentsBySucursal, getEquipmentById } from '../controller/apiController.js'
 
 const router = express.Router();
 
@@ -37,7 +37,11 @@ router.post('/eliminar-equipo/:id', postEliminarEquipo);
 // Routes de obtención de datos
 router.get('/clientes', getResults);
 router.get('/cliente/:id', getClient);
+
 router.get('/cliente/:id/sucursales', getSucursales);
+router.get('/cliente/:id/sucursales/pendientes', getSucursalesPendientes);
+router.get('/cliente/:id/sucursales/terminados', getSucursalesTerminadas);
+
 router.get('/sucursal/:id', getSucursalById);
 router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);
 router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);

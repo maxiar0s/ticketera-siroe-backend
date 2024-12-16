@@ -76,12 +76,12 @@ const equipo = db.define('Equipos', {
 },{
     timestamps: false,
     hooks: {
-        beforeCreate(sucursal) {
+        beforeCreate(equipo) {
           const fecha = new Date();
           const dia = String(fecha.getDate()).padStart(2, '0');
           const mes = String(fecha.getMonth() + 1).padStart(2, '0');
           const anio = fecha.getFullYear();
-          sucursal.fechaIngreso = `${dia}/${mes}/${anio}`;
+          equipo.fechaIngreso = `${anio}-${mes}-${dia}`;
         },
     },
 });
