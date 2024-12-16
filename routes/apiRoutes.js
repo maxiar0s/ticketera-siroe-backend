@@ -1,12 +1,18 @@
 import express from "express";
 import { 
+    // Metodos Post
     postCuenta, postModificarCuenta, postEliminarCuenta,
     login,
     postCliente, postModificarCliente, postEliminarCliente, 
     postSucursal, postModificarSucursal, postEliminarSucursal, 
     postEquipo, postModificarEquipo, postEliminarEquipo, 
     // postUsuarioAsignado, postModificarUsuarioAsignado, postEliminarUsuarioAsignado,
-    getResults, getClient, getSucursales, getSucursalesPendientes, getSucursalesTerminadas, getSucursalById, getEquipmentsByCasaMatriz, getEquipmentsBySucursal, getEquipmentById } from '../controller/apiController.js'
+    // Metodos Get
+    getResults, 
+    getClient, 
+    getSucursales, getSucursalesPendientes, getSucursalesTerminadas,
+    getEquipmentsBySucursal, getEquipmentsPendientesBySucursal, getEquipmentsTerminadosBySucursal, 
+    getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById } from '../controller/apiController.js'
 
 const router = express.Router();
 
@@ -38,13 +44,19 @@ router.post('/eliminar-equipo/:id', postEliminarEquipo);
 router.get('/clientes', getResults);
 router.get('/cliente/:id', getClient);
 
+    // Para obtener sucursales con el respectivo estado
 router.get('/cliente/:id/sucursales', getSucursales);
 router.get('/cliente/:id/sucursales/pendientes', getSucursalesPendientes);
 router.get('/cliente/:id/sucursales/terminados', getSucursalesTerminadas);
 
+    // Para obtener los equipos de las sucursales con el respectivo estado
+router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);
+router.get('/sucursal/:id/equipos/pendientes', getEquipmentsPendientesBySucursal);
+router.get('/sucursal/:id/equipos/terminados', getEquipmentsTerminadosBySucursal);
+
+
 router.get('/sucursal/:id', getSucursalById);
 router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);
-router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);
 router.get('/equipo/:id', getEquipmentById);
 
 export default router

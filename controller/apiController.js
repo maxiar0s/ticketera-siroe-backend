@@ -249,14 +249,37 @@ const postEquipo = async (req, res) => {
     const maxNumero = equipo ? equipo.numeroSecuencial : 0;
     const nextNumero = maxNumero + 1;
     
-    const { departamento } = req.body;
+    const { departamento, tipo } = req.body;
+    const diccionarioEquipos = {
+        "Televisor": "TV",
+        "Celular": "CL",
+        "Notebook": "NT",
+        "Data Show": "DS",
+        "Tablet": "TB",
+        "Pantalla": "PA",
+        "Periferico": "PE",
+        "Pizarra interactiva": "PI",
+        "Sistema de audio": "SA",
+        "Aire acondicionado": "AA",
+        "All in one": "AO",
+        "Impresora": "IP"
+    };
+    
+    const normalizarLlave = (tipo) => tipo.trim().toLowerCase();
+    const buscarEquipo = (tipo) => {
+        const claveNormalizada = Object.keys(diccionarioEquipos).find(
+            (key) => key.toLowerCase() === normalizarLlave(tipo)
+        );
+        return claveNormalizada ? diccionarioEquipos[claveNormalizada] : undefined;
+    };
+    
+    const tipoEquipo = buscarEquipo(tipo);
 
     const deptCode = departamento.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, '0');
-    const codigoId = `SIRO${deptCode}${numeroPadded}`;
-    console.log(codigoId);
+    const codigoId = `SI${deptCode}${tipoEquipo}${numeroPadded}`;
 
-    const { tipo,
+    const {
         marca = null,
         modelo = null,
         usuario = null,
@@ -292,7 +315,6 @@ const postEquipo = async (req, res) => {
         antivirus,
         observaciones
     });
-
     res.json({ resp: `Equipamiento creado satisfactoriamente para Cliente: ${clienteId}`});
 }
 
@@ -451,18 +473,12 @@ const getResults = async (req, res) => {
                 { model: EquipoModel }
             ]
         }),
-        ClienteModel.count({
-            limit,
-            offset,
-            include: [
-                { model: EquipoModel }
-            ]
-        }),
+        ClienteModel.count()
     ])
 
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
-    res.json({clientes, total, limit, offset, paginas , paginaActual});
+    res.json({clientes, total, paginas, paginaActual});
 }
 
 const getClient = async (req, res) => {
@@ -500,18 +516,14 @@ const getSucursales = async (req, res) => {
             ]
         }),
         SucursalModel.count({
-            limit,
-            offset,
-            include: [
-                { model: ClienteModel }
-            ]
+            where: { clienteId },
         }),
     ])
 
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
     
-    res.json({sucursales, total, limit, offset, paginas , paginaActual});
+    res.json({sucursales, total, paginas, paginaActual});
 }
 
 const getSucursalesPendientes = async (req, res) => {
@@ -627,20 +639,115 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
 
 const getEquipmentsBySucursal = async (req, res) => {
     const { id } = req.params;
-    const equipos = await EquipoModel.findAll({ 
-        where: {
-            sucursalId: id
-        },
-        include: [
-            { model: ClienteModel }
-        ]
-    });
-    if(!equipos) {
+
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
         return;
     }
-    res.json(equipos);
-}
 
+    // Limites y Offset para el paginador
+    const limit = 8
+    const offset = ((paginaActual*limit) - limit)
+
+    const [equipos, total] = await Promise.all([
+        EquipoModel.findAll({ 
+            limit,
+            offset,
+            where: {
+                sucursalId: id
+            },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        EquipoModel.count({
+            where: {
+                sucursalId: id
+            }
+        })
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({equipos, total, paginas, paginaActual});
+}
+const getEquipmentsPendientesBySucursal = async (req, res) => {
+    const { id } = req.params;
+
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 8
+    const offset = ((paginaActual*limit) - limit)
+
+    const [equipos, total] = await Promise.all([
+        EquipoModel.findAll({ 
+            limit,
+            offset,
+            where: {
+                sucursalId: id
+            },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        EquipoModel.count({
+            where: {
+                sucursalId: id
+            }
+        })
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({equipos, total, paginas, paginaActual});
+}
+const getEquipmentsTerminadosBySucursal = async (req, res) => {
+    const { id } = req.params;
+
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        return;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 8
+    const offset = ((paginaActual*limit) - limit)
+
+    const [equipos, total] = await Promise.all([
+        EquipoModel.findAll({ 
+            limit,
+            offset,
+            where: {
+                sucursalId: id
+            },
+            include: [
+                { model: ClienteModel }
+            ]
+        }),
+        EquipoModel.count({
+            where: {
+                sucursalId: id
+            }
+        })
+    ])
+
+    const paginas = Math.ceil(total / limit);
+    paginaActual = Number(paginaActual);
+    
+    res.json({equipos, total, paginas, paginaActual});
+}
 const getEquipmentById = async (req, res) => {
     const { id } = req.params;
     const equipo = await EquipoModel.findByPk(id, {
@@ -688,8 +795,11 @@ export {
     getSucursalesPendientes,
     getSucursalesTerminadas,
 
+    getEquipmentsBySucursal,
+    getEquipmentsPendientesBySucursal,
+    getEquipmentsTerminadosBySucursal,
+
     getSucursalById,
     getEquipmentsByCasaMatriz,
-    getEquipmentsBySucursal,
     getEquipmentById
 }
