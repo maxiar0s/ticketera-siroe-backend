@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { ClienteModel, CuentaModel, EquipoModel, SucursalModel, UsuarioAsignadoModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
+import { col, fn } from "sequelize";
 
 
 const login = async (req, res) => {
@@ -512,8 +513,19 @@ const getSucursales = async (req, res) => {
             offset,
             where: { clienteId },
             include: [
-                { model: ClienteModel }
-            ]
+                { model: ClienteModel },
+                {
+                    model: EquipoModel,
+                    attributes: []
+                }
+            ],
+            attributes: {
+                include: [
+                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                ]
+            },
+            group: ['Sucursales.id', 'Cliente.id'],
+            subQuery: false
         }),
         SucursalModel.count({
             where: { clienteId },
