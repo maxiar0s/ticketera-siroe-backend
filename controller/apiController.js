@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { ClienteModel, CuentaModel, EquipoModel, SucursalModel } from "../models/index.js";
+import { CasaMatrizModel, CuentaModel, EquipoModel, SucursalModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
 import { col, fn } from "sequelize";
 
@@ -114,7 +114,7 @@ const postCliente = async (req, res) => {
         correo,
         telefonoEncargado } = req.body;
 
-    const nuevoCliente = await ClienteModel.create({
+    const nuevoCliente = await CasaMatrizModel.create({
         rut,
         razonSocial,
         encargadoGeneral,
@@ -132,7 +132,7 @@ const postModificarCliente = async (req, res) => {
         return res.json({ resp: 'Error al intentar modificar cliente' });
     }
 
-    const cliente = await ClienteModel.findByPk(id);
+    const cliente = await CasaMatrizModel.findByPk(id);
 
     if(!cliente) {
         return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
@@ -162,7 +162,7 @@ const postEliminarCliente = async (req, res) => {
         return res.json({ resp: 'Error al intentar eliminar cliente' });
     }
 
-    const cliente = await ClienteModel.findByPk(id,{
+    const cliente = await CasaMatrizModel.findByPk(id,{
         include: [
             { model: CuentaModel },
             { model: EquipoModel,
@@ -198,7 +198,7 @@ const postSucursal = async (req, res) => {
         telefonoSucursal,
         sucursal,
         direccion,
-        clienteId } = req.body;
+        casaMatrizId } = req.body;
 
     const nuevaSucursal = await SucursalModel.create({
         encargadoSucursal,
@@ -207,7 +207,7 @@ const postSucursal = async (req, res) => {
         telefonoSucursal,
         sucursal,
         direccion,
-        clienteId
+        casaMatrizId
     });
 
     res.json({ resp: 'Sucursal creado satisfactoriamente.', id: nuevaSucursal.id });
@@ -395,24 +395,21 @@ const getResults = async (req, res) => {
     const offset = ((paginaActual*limit) - limit)
 
     const [clientes, total] = await Promise.all([
-        ClienteModel.findAll({
+        CasaMatrizModel.findAll({
             limit,
             offset,
-            include: [
-                { model: EquipoModel }
-            ]
         }),
-        ClienteModel.count()
+        CasaMatrizModel.count()
     ])
 
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
-    res.json({clientes, total, paginas, paginaActual});
+    res.json({clientes, paginas, paginaActual});
 }
 
 const getClient = async (req, res) => {
     const { id } = req.params;
-    const cliente = await ClienteModel.findByPk(id, { 
+    const cliente = await CasaMatrizModel.findByPk(id, { 
     });
     if(!cliente) {
         return;
@@ -432,34 +429,36 @@ const getSucursales = async (req, res) => {
     const limit = 5
     const offset = ((paginaActual*limit) - limit)
 
-    const { id: clienteId } = req.params
-    if(!clienteId) return;
+    const { id: casaMatrizId } = req.params
+    if(!casaMatrizId) return;
 
     const [sucursales, total] = await Promise.all([
         SucursalModel.findAll({
             limit,
             offset,
-            where: { clienteId },
+            where: { casaMatrizId },
             include: [
-                { model: ClienteModel },
+                { model: CasaMatrizModel, as: 'casaMatriz' },
                 {
-                    model: EquipoModel,
+                    model: EquipoModel, as: 'equipos',
                     attributes: []
                 }
             ],
             order: [['fechaIngreso', 'DESC']],
             attributes: {
                 include: [
-                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                    [fn("COUNT", col("equipos.id")), "equiposCount"]
                 ]
             },
-            group: ['Sucursales.id', 'Cliente.id'],
+            group: ['Sucursales.id', 'casaMatriz.id'],
             subQuery: false
         }),
         SucursalModel.count({
-            where: { clienteId },
+            where: { casaMatrizId },
         }),
     ])
+
+    if(!sucursales) return;
 
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
@@ -479,39 +478,35 @@ const getSucursalesPendientes = async (req, res) => {
     const limit = 5
     const offset = ((paginaActual*limit) - limit)
 
-    const { id: clienteId } = req.params
-    if(!clienteId) return;
+    const { id: casaMatrizId } = req.params
+    if(!casaMatrizId) return;
 
     const [sucursales, total] = await Promise.all([
         SucursalModel.findAll({
             limit,
             offset,
             where: { 
-                clienteId,
+                casaMatrizId,
                 estado: 2,
             },
             include: [
-                { model: ClienteModel },
+                { model: CasaMatrizModel, as: 'casaMatriz' },
                 {
-                    model: EquipoModel,
+                    model: EquipoModel, as: 'equipos', 
                     attributes: []
                 }
             ],
             order: [['fechaIngreso', 'DESC']],
             attributes: {
                 include: [
-                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                    [fn("COUNT", col("equipos.id")), "equiposCount"]
                 ]
             },
-            group: ['Sucursales.id', 'Cliente.id'],
+            group: ['Sucursales.id', 'casaMatriz.id'],
             subQuery: false
         }),
         SucursalModel.count({
-            limit,
-            offset,
-            include: [
-                { model: ClienteModel }
-            ]
+            where: { casaMatrizId },
         }),
     ])
 
@@ -533,48 +528,44 @@ const getSucursalesTerminadas = async (req, res) => {
     const limit = 5
     const offset = ((paginaActual*limit) - limit)
 
-    const { id: clienteId } = req.params
-    if(!clienteId) return;
+    const { id: casaMatrizId } = req.params
+    if(!casaMatrizId) return;
 
     const [sucursales, total] = await Promise.all([
         SucursalModel.findAll({
             limit,
             offset,
             where: {
-                clienteId,
+                casaMatrizId,
                 estado: 3,
             },
             include: [
                 { model: 
-                    ClienteModel,
+                    CasaMatrizModel, as: 'casaMatriz'
                 },
                 {
-                    model: EquipoModel,
+                    model: EquipoModel, as: 'equipos',
                     attributes: []
                 }
             ],
             order: [['fechaIngreso', 'DESC']],
             attributes: {
                 include: [
-                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                    [fn("COUNT", col("equipos.id")), "equiposCount"]
                 ]
             },
-            group: ['Sucursales.id', 'Cliente.id'],
+            group: ['Sucursales.id', 'casaMatriz.id'],
             subQuery: false
         }),
         SucursalModel.count({
-            limit,
-            offset,
-            include: [
-                { model: ClienteModel }
-            ]
+            where: { casaMatrizId },
         }),
     ])
 
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
     
-    res.json({sucursales, total, limit, offset, paginas , paginaActual});
+    res.json({sucursales, total, paginas});
 }
 
 const getSucursalById = async (req, res) => {
@@ -584,7 +575,7 @@ const getSucursalById = async (req, res) => {
             id
         },
         include: [
-            { model: ClienteModel },
+            { model: CasaMatrizModel, as: 'casaMatriz' },
         ]
     });
     
@@ -595,10 +586,10 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
     const { id } = req.params;
     const equipos = await EquipoModel.findAll({ 
         where: {
-            clienteId: id
+            casaMatrizId: id
         },
         include: [
-            { model: ClienteModel }
+            { model: CasaMatrizModel, as: 'casaMatriz' }
         ]
     });
     if(!equipos) {
@@ -668,7 +659,8 @@ const getEquipmentsPendientesBySucursal = async (req, res) => {
         }),
         EquipoModel.count({
             where: {
-                sucursalId: id
+                sucursalId: id,
+                estado: 2,
             }
         })
     ])
@@ -704,7 +696,8 @@ const getEquipmentsTerminadosBySucursal = async (req, res) => {
         }),
         EquipoModel.count({
             where: {
-                sucursalId: id
+                sucursalId: id,
+                estado: 3,
             }
         })
     ])
@@ -718,8 +711,8 @@ const getEquipmentById = async (req, res) => {
     const { id } = req.params;
     const equipo = await EquipoModel.findByPk(id, {
         include: [
-            { model: ClienteModel },
-            { model: SucursalModel }
+            { model: CasaMatrizModel, as: 'casaMatriz' },
+            { model: SucursalModel, as: 'sucursal' }
         ]
     });
 

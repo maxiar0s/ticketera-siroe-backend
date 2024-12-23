@@ -34,7 +34,8 @@ const casaMatriz = db.define('CasasMatrices', {
         allowNull: false
     }
 }, {
-    timestamps: false
+    timestamps: false,
+    name: 'CasasMatrices'
 });
 
 export default casaMatriz;
