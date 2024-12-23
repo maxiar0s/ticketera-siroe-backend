@@ -35,29 +35,29 @@ router.post('/modificar-sucursal/:id', postModificarSucursal);
 router.post('/eliminar-sucursal/:id', postEliminarSucursal);
 
 // Administrador y Tecnico
-router.post('/ingresar-equipo', protegerRutaTecnico, postEquipo);
-router.post('/modificar-equipo/:id', protegerRutaTecnico, postModificarEquipo);
-router.post('/eliminar-equipo/:id', protegerRutaTecnico, postEliminarEquipo);
+router.post('/ingresar-equipo', postEquipo);
+router.post('/modificar-equipo/:id', postModificarEquipo);
+router.post('/eliminar-equipo/:id', postEliminarEquipo);
 
 // Routes de obtención de datos
-router.get('/clientes', protegerRuta, getResults);
-router.get('/cliente/:id', protegerRuta, getClient);
+router.get('/clientes', getResults);
+router.get('/cliente/:id', getClient);
 
 // Para obtener sucursales con el respectivo estado
-router.get('/cliente/:id/sucursales', protegerRuta, getSucursales);
-router.get('/cliente/:id/sucursales/pendientes', protegerRuta, getSucursalesPendientes);
-router.get('/cliente/:id/sucursales/terminados', protegerRuta, getSucursalesTerminadas);
+router.get('/cliente/:id/sucursales', getSucursales);
+router.get('/cliente/:id/sucursales/pendientes', getSucursalesPendientes);
+router.get('/cliente/:id/sucursales/terminados', getSucursalesTerminadas);
 
 // Para obtener la sucursal por la ID
-router.get('/sucursal/:id', protegerRuta, getSucursalById);
+router.get('/sucursal/:id', getSucursalById);
 
 // Para obtener los equipos de las sucursales con el respectivo estado
-router.get('/sucursal/:id/equipos', protegerRuta, getEquipmentsBySucursal);
-router.get('/sucursal/:id/equipos/pendientes', protegerRuta, getEquipmentsPendientesBySucursal);
-router.get('/sucursal/:id/equipos/terminados', protegerRuta, getEquipmentsTerminadosBySucursal);
+router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);
+router.get('/sucursal/:id/equipos/pendientes', getEquipmentsPendientesBySucursal);
+router.get('/sucursal/:id/equipos/terminados', getEquipmentsTerminadosBySucursal);
 
 // Para obtener un equipo basado en su ID
-router.get('/equipo/:id', protegerRuta, getEquipmentById);
+router.get('/equipo/:id', getEquipmentById);
 
 router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);
 
