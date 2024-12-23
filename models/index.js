@@ -1,38 +1,39 @@
-import Cliente from "./Cliente.js";
+import CasaMatriz from "./CasaMatriz.js";
 import Cuenta from "./Cuenta.js";
-import UsuarioAsignado from "./UsuarioAsignado.js";
 import Equipo from "./Equipo.js";
-import Sucursal from './Sucursal.js'
+import Sucursal from './Sucursal.js';
+import tipoCuenta from "./TipoCuenta.js";
 
 // Modelo de Cliente
-const ClienteModel = Cliente;
-// Modelo de Usuario (Técnicos)
+const ClienteModel = CasaMatriz;
+// Modelo de Usuario (Técnicos, Mesa Ayuda)
 const CuentaModel = Cuenta;
+// Modelo de Tipo de Cuentas
+const TipoCuentaModel = tipoCuenta;
 // Modelo de Equipamiento de un Cliente
 const EquipoModel = Equipo;
-// Modelo de Usuarios Asignados a un Equipamiento
-const UsuarioAsignadoModel = UsuarioAsignado;
 // Modelo de Sucursal
 const SucursalModel = Sucursal;
 
-// ClienteModel.belongsTo(CuentaModel, { foreignKey: 'cuentaTecnicoId' });
+// Relacion que un Tipo de Cuenta pertenece a una Cuenta
+CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId' })
 
+// Relacion de un Equipo pertenece a una Casa Matriz
 EquipoModel.belongsTo(ClienteModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 ClienteModel.hasMany(EquipoModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' });
 
+// Relacion que una Sucursal pertenece a una Casa Matriz
 SucursalModel.belongsTo(ClienteModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' })
 ClienteModel.hasMany(SucursalModel, { foreignKey: 'clienteId', onDelete: 'CASCADE' })
 
+// Relacion que un Equipo pertenece a una Sucursal
 EquipoModel.belongsTo(SucursalModel, { foreignKey: 'sucursalId', onDelete: 'CASCADE' });
 SucursalModel.hasMany(EquipoModel, { foreignKey: 'sucursalId', onDelete: 'CASCADE' });
-
-// EquipoModel.hasMany(UsuarioAsignadoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
-// UsuarioAsignadoModel.belongsTo(EquipoModel, { foreignKey: 'equipamientoId', onDelete: 'CASCADE' });
 
 export {
     ClienteModel,
     CuentaModel,
     EquipoModel,
-    UsuarioAsignadoModel,
-    SucursalModel
+    TipoCuentaModel,
+    SucursalModel,
 }

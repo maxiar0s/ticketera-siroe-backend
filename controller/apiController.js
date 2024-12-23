@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { ClienteModel, CuentaModel, EquipoModel, SucursalModel, UsuarioAsignadoModel } from "../models/index.js";
+import { ClienteModel, CuentaModel, EquipoModel, SucursalModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
 import { col, fn } from "sequelize";
 
@@ -25,7 +25,7 @@ const login = async (req, res) => {
 }
 
 const postCuenta = async (req, res) => {
-    const { name, telefono, email, password } = req.body;
+    const { name, telefono, email, password, tipoCuenta } = req.body;
 
     const hashed_password = await bcrypt.hash(password, 10);
 
@@ -33,8 +33,8 @@ const postCuenta = async (req, res) => {
         name,
         telefono,
         email,
+        tipoCuenta,
         password: hashed_password,
-        habilitado: 1
     });
 
     return res.json({ resp: 'Usuario creado exitosamente'});
@@ -634,6 +634,7 @@ const getEquipmentsBySucursal = async (req, res) => {
             where: {
                 sucursalId: id,
             },
+            order: [['fechaIngreso', 'DESC']],
         }),
         EquipoModel.count({
             where: {
@@ -669,6 +670,7 @@ const getEquipmentsPendientesBySucursal = async (req, res) => {
                 sucursalId: id,
                 estado: 2,
             },
+            order: [['fechaIngreso', 'DESC']],
         }),
         EquipoModel.count({
             where: {
@@ -704,6 +706,7 @@ const getEquipmentsTerminadosBySucursal = async (req, res) => {
                 sucursalId: id,
                 estado: 3,
             },
+            order: [['fechaIngreso', 'DESC']],
         }),
         EquipoModel.count({
             where: {

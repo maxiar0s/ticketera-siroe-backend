@@ -1,12 +1,17 @@
 import { DataTypes } from "sequelize";
+import { nanoid } from "nanoid";
 import db from "../config/db.js";
 
-const cliente = db.define('Clientes', {
+const casaMatriz = db.define('CasasMatrices', {
     id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
+        type: DataTypes.STRING,
+        primaryKey: true,
         allowNull: false,
-        primaryKey: true
+        defaultValue: () => nanoid(12),
+    },
+    logo: {
+        type: DataTypes.STRING,
+        allowNull: true,
     },
     rut: {
         type: DataTypes.STRING,
@@ -32,4 +37,4 @@ const cliente = db.define('Clientes', {
     timestamps: false
 });
 
-export default cliente;
+export default casaMatriz;

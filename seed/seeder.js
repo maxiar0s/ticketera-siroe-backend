@@ -1,16 +1,17 @@
 import { exit } from 'node:process'
-import Clientes from './Cliente.js'
+import Clientes from './CasaMatriz.js'
 import Cuentas from './Cuenta.js'
 import UsuariosAsignados from './UsuarioAsignado.js'
 import Equipamientos from './Equipamiento.js'
+import TipoCuentas from './TipoCuenta.js'
 import db from '../config/db.js'
-import { ClienteModel, CuentaModel, EquipoModel, UsuarioAsignadoModel } from '../models/index.js'
+import { ClienteModel, TipoCuentaModel, CuentaModel, EquipoModel } from '../models/index.js'
 
 const importarDatos = async () => {
     try {
         await db.authenticate();
         await db.sync();
-
+        await TipoCuentaModel.bulkCreate(TipoCuentas);
         await CuentaModel.bulkCreate(Cuentas);
         await ClienteModel.bulkCreate(Clientes);
         await EquipoModel.bulkCreate(Equipamientos);

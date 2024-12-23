@@ -1,12 +1,13 @@
 import { DataTypes } from "sequelize";
+import { nanoid } from "nanoid";
 import db from "../config/db.js";
 
 const sucursal = db.define('Sucursales', {
     id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
+        type: DataTypes.STRING,
+        primaryKey: true,
         allowNull: false,
-        primaryKey: true
+        defaultValue: () => nanoid(12),
     },
     estado: {
         type: DataTypes.INTEGER,

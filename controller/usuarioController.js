@@ -7,7 +7,8 @@ const crearUsuario = async (req, res) => {
         name,
         email,
         telefono,
-        password
+        tipo,
+        password,
     } = req.body;
 
     const emailRegistrado = await CuentaModel.findOne({
@@ -25,6 +26,7 @@ const crearUsuario = async (req, res) => {
         name,
         email,
         telefono,
+        tipo,
         password: hashed_password
     });
     
@@ -44,7 +46,7 @@ const login = async (req, res) => {
     }
     const password_compare = await bcrypt.compare(password, Usuario.password);
     if(password_compare){
-        const token = jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD);
+        const token = jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD, { expiresIn: '30d' });
         return res.json({resp: 'Ingresado correctamente', token});
     } else {
         return res.json({resp: 'correo electronico o contraseña invalida'});

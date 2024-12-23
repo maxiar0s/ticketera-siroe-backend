@@ -3,7 +3,10 @@ import { crearUsuario, login, recuperarAcceso } from '../controller/usuarioContr
 
 const router = express.Router();
 
+// Admin
 router.post('/crear-usuario', crearUsuario);
+
+// Sin proteccion
 router.post('/login', login);
 router.post('/recuperar-acceso', recuperarAcceso);
 

@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { CuentaModel } from '../models/index.js'
 
-const protegerRuta = async (req, res, next) => {
+const protegerRutaTecnico = async (req, res, next) => {
     const header = req.headers['token'];
     const token = header && header.split(' ')[1];
     if(!token) return;
@@ -11,6 +11,7 @@ const protegerRuta = async (req, res, next) => {
         const { id } = decoded;
         const cuenta = await CuentaModel.findByPk(id);
         if(!cuenta) return;
+        console.log(cuenta);
         req.usuario = cuenta;
         next();
     } catch (error) {
@@ -18,4 +19,4 @@ const protegerRuta = async (req, res, next) => {
     }
 }
 
-export default protegerRuta
+export default protegerRutaTecnico
