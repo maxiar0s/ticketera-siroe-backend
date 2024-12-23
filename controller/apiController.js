@@ -108,12 +108,6 @@ const postEliminarCuenta = async (req, res) => {
 
 const postCliente = async (req, res) => {
     // TODO realizar luego de implementar JWT
-    // const { cuentaTecnicoId } = req.body;
-    // if(!cuentaTecnicoId) {
-    //     return;
-    // }
-    // const tecnico = await CuentaModel.findByPk(id);
-    // const { cuentaTecnicoId } = tecnico;
     const { rut,
         razonSocial,
         encargadoGeneral,
