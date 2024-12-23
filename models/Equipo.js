@@ -10,6 +10,11 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    estado: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
+    // Campos a rellenar por usuario
     tipo: {
         type: DataTypes.STRING,
         allowNull: false

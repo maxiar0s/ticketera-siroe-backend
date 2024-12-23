@@ -110,7 +110,7 @@ const postCliente = async (req, res) => {
     // TODO realizar luego de implementar JWT
     // const { cuentaTecnicoId } = req.body;
     // if(!cuentaTecnicoId) {
-    //     return res.json({ resp: 'Error al intentar crear cliente, intente nuevamente.' });
+    //     return;
     // }
     // const tecnico = await CuentaModel.findByPk(id);
     // const { cuentaTecnicoId } = tecnico;
@@ -209,10 +209,10 @@ const postSucursal = async (req, res) => {
     const nuevaSucursal = await SucursalModel.create({
         encargadoSucursal,
         correoSucursal,
+        estado: 1,
         telefonoSucursal,
         sucursal,
         direccion,
-        habilitado: 1,
         clienteId
     });
 
@@ -299,6 +299,7 @@ const postEquipo = async (req, res) => {
         numeroSecuencial: nextNumero,
         clienteId,
         sucursalId,
+        estado: 1,
         tipo,
         marca,
         modelo,
@@ -316,7 +317,7 @@ const postEquipo = async (req, res) => {
         antivirus,
         observaciones
     });
-    res.json({ resp: `Equipamiento creado satisfactoriamente para Cliente: ${clienteId}`});
+    res.json({ resp: `Equipo creado satisfactoriamente.`});
 }
 
 const postModificarEquipo = async (req, res) => {
@@ -366,7 +367,7 @@ const postModificarEquipo = async (req, res) => {
 
     equipo.save();
 
-    return res.json({ resp: 'Equipo modificado correctamente' });
+    return res.json({ resp: 'Equipo modificado correctamente.' });
 }
 
 const postEliminarEquipo = async (req, res) => {
@@ -386,73 +387,6 @@ const postEliminarEquipo = async (req, res) => {
 
     return res.json({ resp: 'Equipo eliminado correctamente' });
 }
-
-// const postUsuarioAsignado = async (req, res) => {
-//     const { equipamientoId } = req.body;
-
-//     if(!equipamientoId) {
-//         return res.json({ resp: 'Error al asignar un usuario, intente nuevamente.' });
-//     }
-
-//     const { name ,
-//         email ,
-//         phone  } = req.body;
-    
-//     await UsuarioAsignadoModel.create({
-//         equipamientoId,
-//         name,
-//         email,
-//         phone
-//     });
-
-//     res.json({ resp: `Usuario asignado creado satisfactoriamente para Equipamiento: ${equipamientoId}`});
-// }
-
-// const postModificarUsuarioAsignado = async (req, res) => {
-//     const { id } = req.params;
-
-//     if(!id) {
-//         return res.json({ resp: 'Error al intentar modificar el usuario asignado' });
-//     }
-
-//     const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
-
-//     if(!usuarioAsignado) {
-//         return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
-//     }
-
-//     const { name,
-//         email,
-//         phone } = req.body;
-
-//     usuarioAsignado.set({
-//         name,
-//         email,
-//         phone
-//     })
-
-//     usuarioAsignado.save();
-
-//     return res.json({ resp: 'Usuario asignado modificado correctamente' });
-// }
-
-// const postEliminarUsuarioAsignado = async (req, res) => {
-//     const { id } = req.params;
-
-//     if(!id) {
-//         return res.json({ resp: 'Error al intentar eliminar el usuario asignado' });
-//     }
-
-//     const usuarioAsignado = await UsuarioAsignadoModel.findByPk(id);
-
-//     if(!usuarioAsignado) {
-//         return res.json({ resp: 'Usuario asignado no encontrado, intente nuevamente' });
-//     }
-
-//     usuarioAsignado.destroy();
-
-//     return res.json({ resp: 'Usuario asignado eliminado correctamente' });
-// }
 
 const getResults = async (req, res) => {
     let paginaActual = parseInt(req.query.pagina)
@@ -519,6 +453,7 @@ const getSucursales = async (req, res) => {
                     attributes: []
                 }
             ],
+            order: [['fechaIngreso', 'DESC']],
             attributes: {
                 include: [
                     [fn("COUNT", col("Equipos.id")), "equiposCount"]
@@ -557,10 +492,25 @@ const getSucursalesPendientes = async (req, res) => {
         SucursalModel.findAll({
             limit,
             offset,
-            where: { clienteId },
+            where: { 
+                clienteId,
+                estado: 2,
+            },
             include: [
-                { model: ClienteModel }
-            ]
+                { model: ClienteModel },
+                {
+                    model: EquipoModel,
+                    attributes: []
+                }
+            ],
+            order: [['fechaIngreso', 'DESC']],
+            attributes: {
+                include: [
+                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                ]
+            },
+            group: ['Sucursales.id', 'Cliente.id'],
+            subQuery: false
         }),
         SucursalModel.count({
             limit,
@@ -596,10 +546,27 @@ const getSucursalesTerminadas = async (req, res) => {
         SucursalModel.findAll({
             limit,
             offset,
-            where: { clienteId },
+            where: {
+                clienteId,
+                estado: 3,
+            },
             include: [
-                { model: ClienteModel }
-            ]
+                { model: 
+                    ClienteModel,
+                },
+                {
+                    model: EquipoModel,
+                    attributes: []
+                }
+            ],
+            order: [['fechaIngreso', 'DESC']],
+            attributes: {
+                include: [
+                    [fn("COUNT", col("Equipos.id")), "equiposCount"]
+                ]
+            },
+            group: ['Sucursales.id', 'Cliente.id'],
+            subQuery: false
         }),
         SucursalModel.count({
             limit,
@@ -624,12 +591,9 @@ const getSucursalById = async (req, res) => {
         },
         include: [
             { model: ClienteModel },
-            { model: EquipoModel }
         ]
     });
-    if(!sucursal) {
-        return;
-    }
+    
     res.json(sucursal);
 }
 
@@ -668,11 +632,8 @@ const getEquipmentsBySucursal = async (req, res) => {
             limit,
             offset,
             where: {
-                sucursalId: id
+                sucursalId: id,
             },
-            include: [
-                { model: ClienteModel }
-            ]
         }),
         EquipoModel.count({
             where: {
@@ -705,11 +666,9 @@ const getEquipmentsPendientesBySucursal = async (req, res) => {
             limit,
             offset,
             where: {
-                sucursalId: id
+                sucursalId: id,
+                estado: 2,
             },
-            include: [
-                { model: ClienteModel }
-            ]
         }),
         EquipoModel.count({
             where: {
@@ -742,11 +701,9 @@ const getEquipmentsTerminadosBySucursal = async (req, res) => {
             limit,
             offset,
             where: {
-                sucursalId: id
+                sucursalId: id,
+                estado: 3,
             },
-            include: [
-                { model: ClienteModel }
-            ]
         }),
         EquipoModel.count({
             where: {

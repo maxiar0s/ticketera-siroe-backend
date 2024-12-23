@@ -8,6 +8,10 @@ const sucursal = db.define('Sucursales', {
         allowNull: false,
         primaryKey: true
     },
+    estado: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+    },
     // Datos encargado sucursal
     encargadoSucursal: {
         type: DataTypes.STRING,
@@ -32,10 +36,6 @@ const sucursal = db.define('Sucursales', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    habilitado: {
-        type: DataTypes.BOOLEAN,
-        allowNull: false
-    }
 }, {
     timestamps: false,
     hooks: {
