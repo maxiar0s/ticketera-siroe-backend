@@ -41,16 +41,14 @@ const login = async (req, res) => {
 
     const Usuario = await CuentaModel.findOne({ where: { email }});
 
-    if(!Usuario) {
-        return res.json({resp: 'correo electronico o contraseña invalida'});
-    }
+    if(!Usuario) return res.json({resp: 'Usuario incorrecto'});
+
     const password_compare = await bcrypt.compare(password, Usuario.password);
+
     if(password_compare){
-        const token = jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD, { expiresIn: '30d' });
-        return res.json({resp: 'Ingresado correctamente', token});
-    } else {
-        return res.json({resp: 'correo electronico o contraseña invalida'});
-    }
+        const token = jwt.sign({ id: Usuario.id }, process.env.JWT_SECRETPASSWORD, { expiresIn: '7d' });
+        return res.json({token: token});
+    } else return res.json({resp: 'Usuario incorrecto'});
 }
 
 const recuperarAcceso = async (req, res) => {

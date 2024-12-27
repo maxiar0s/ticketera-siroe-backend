@@ -15,6 +15,7 @@ const login = async (req, res) => {
     if(!matchPassword) return;
 
     const userData = {
+        id: user.id,
         name: user.name,
         telefono: user.telefono,
         email: user.email
