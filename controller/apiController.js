@@ -1,7 +1,8 @@
 import jwt from "jsonwebtoken";
-import { CasaMatrizModel, CuentaModel, EquipoModel, SucursalModel } from "../models/index.js";
 import bcrypt from 'bcrypt';
 import { col, fn } from "sequelize";
+
+import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
 
 
 const login = async (req, res) => {
@@ -245,40 +246,43 @@ const postEquipo = async (req, res) => {
     const maxNumero = equipo ? equipo.numeroSecuencial : 0;
     const nextNumero = maxNumero + 1;
     
-    const { departamento, tipo } = req.body;
-    const diccionarioEquipos = {
-        "Televisor": "TV",
-        "Celular": "CL",
-        "Notebook": "NT",
-        "Data Show": "DS",
-        "Tablet": "TB",
-        "Pantalla": "PA",
-        "Periferico": "PE",
-        "Pizarra interactiva": "PI",
-        "Sistema de audio": "SA",
-        "Aire acondicionado": "AA",
-        "All in one": "AO",
-        "Impresora": "IP"
-    };
+    const { departamento, tipoEquipoId } = req.body;
+    // const diccionarioEquipos = {
+    //     "Televisor": "TV",
+    //     "Celular": "CL",
+    //     "Notebook": "NT",
+    //     "Data Show": "DS",
+    //     "Tablet": "TB",
+    //     "Pizarra interactiva": "PI",
+    //     "Sistema de audio": "SA",
+    //     "Aire acondicionado": "AA",
+    //     "All in one": "AO",
+    //     "Impresora": "IP"
+    // };
+
+    const tipoEquipo = await TipoEquipoModel.findOne({
+        where: {
+            id: tipoEquipoId
+        }
+    });
     
-    const normalizarLlave = (tipo) => tipo.trim().toLowerCase();
-    const buscarEquipo = (tipo) => {
-        const claveNormalizada = Object.keys(diccionarioEquipos).find(
-            (key) => key.toLowerCase() === normalizarLlave(tipo)
-        );
-        return claveNormalizada ? diccionarioEquipos[claveNormalizada] : undefined;
-    };
-    
-    const tipoEquipo = buscarEquipo(tipo);
+    // const normalizarLlave = (tipo) => tipo.trim().toLowerCase();
+    // const buscarEquipo = (tipo) => {
+    //     const claveNormalizada = Object.keys(diccionarioEquipos).find(
+    //         (key) => key.toLowerCase() === normalizarLlave(tipo)
+    //     );
+    //     return claveNormalizada ? diccionarioEquipos[claveNormalizada] : undefined;
+    // };
+
+    // const tipoEquipo = buscarEquipo(tipo);
 
     const deptCode = departamento.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, '0');
-    const codigoId = `SI${deptCode}${tipoEquipo}${numeroPadded}`;
+    const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
 
     const {
         marca = null,
         modelo = null,
-        usuario = null,
         numeroSerie = null,
         procesador = null,
         velocidadProcesador = null,
@@ -287,20 +291,17 @@ const postEquipo = async (req, res) => {
         cantidadAlmacenamiento = null,
         sistemaOperativo = null,
         ofimatica = null,
-        antivirus = null,
-        observaciones = null } = req.body;
+        antivirus = null } = req.body;
     
     await EquipoModel.create({
         numeroSecuencial: nextNumero,
         clienteId,
         sucursalId,
         estado: 1,
-        tipo,
         marca,
         modelo,
         codigoId,
         departamento,
-        usuario,
         numeroSerie,
         procesador,
         velocidadProcesador,
@@ -310,7 +311,7 @@ const postEquipo = async (req, res) => {
         sistemaOperativo,
         ofimatica,
         antivirus,
-        observaciones
+        tipoEquipoId: tipoEquipo.id
     });
     res.json({ resp: `Equipo creado satisfactoriamente.`});
 }
@@ -599,6 +600,43 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
     res.json(equipos);
 }
 
+const getTypeEquipments = async (req, res) => {
+    const tipos = await TipoEquipoModel.findAll();
+
+    res.json(tipos);
+}
+
+const getEquipmentForm = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const campos = await TipoEquipoCampoModel.findAll({
+            where: {
+                 tipoEquipoId: id 
+            },
+            include: [
+                { model: CampoModel, as: 'campo' },
+            ]
+        });
+        
+        const camposTransformados = campos.map(({ campo }) => ({
+            id: campo.id,
+            name: campo.name,
+            label: campo.label,
+            type: campo.type,
+            placeholder: campo.placeholder,
+            required: campo.required,
+        }));
+
+
+        res.json(camposTransformados);
+        } 
+    catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al obtener los campos' });
+    }
+}
+
 const getEquipmentsBySucursal = async (req, res) => {
     const { id } = req.params;
 
@@ -617,10 +655,13 @@ const getEquipmentsBySucursal = async (req, res) => {
         EquipoModel.findAll({ 
             limit,
             offset,
+            include: [
+                { model: TipoEquipoModel, as: 'tipoEquipo' }
+            ],
             where: {
                 sucursalId: id,
             },
-            order: [['fechaIngreso', 'DESC']],
+            order: [['numeroSecuencial', 'ASC']],
         }),
         EquipoModel.count({
             where: {
@@ -634,6 +675,7 @@ const getEquipmentsBySucursal = async (req, res) => {
     
     res.json({equipos, total, paginas, paginaActual});
 }
+
 const getEquipmentsPendientesBySucursal = async (req, res) => {
     const { id } = req.params;
 
@@ -652,11 +694,14 @@ const getEquipmentsPendientesBySucursal = async (req, res) => {
         EquipoModel.findAll({ 
             limit,
             offset,
+            include: [
+                { model: TipoEquipoModel, as: 'tipoEquipo' }
+            ],
             where: {
                 sucursalId: id,
                 estado: 2,
             },
-            order: [['fechaIngreso', 'DESC']],
+            order: [['numeroSecuencial', 'ASC']],
         }),
         EquipoModel.count({
             where: {
@@ -671,6 +716,7 @@ const getEquipmentsPendientesBySucursal = async (req, res) => {
     
     res.json({equipos, total, paginas, paginaActual});
 }
+
 const getEquipmentsTerminadosBySucursal = async (req, res) => {
     const { id } = req.params;
 
@@ -689,11 +735,14 @@ const getEquipmentsTerminadosBySucursal = async (req, res) => {
         EquipoModel.findAll({ 
             limit,
             offset,
+            include: [
+                { model: TipoEquipoModel, as: 'tipoEquipo' }
+            ],
             where: {
                 sucursalId: id,
                 estado: 3,
             },
-            order: [['fechaIngreso', 'DESC']],
+            order: [['numeroSecuencial', 'ASC']],
         }),
         EquipoModel.count({
             where: {
@@ -708,10 +757,12 @@ const getEquipmentsTerminadosBySucursal = async (req, res) => {
     
     res.json({equipos, total, paginas, paginaActual});
 }
+
 const getEquipmentById = async (req, res) => {
     const { id } = req.params;
     const equipo = await EquipoModel.findByPk(id, {
         include: [
+            { model: TipoEquipoModel, as: 'tipoEquipo' },
             { model: CasaMatrizModel, as: 'casaMatriz' },
             { model: SucursalModel, as: 'sucursal' }
         ]
@@ -754,6 +805,9 @@ export {
     getSucursales,
     getSucursalesPendientes,
     getSucursalesTerminadas,
+
+    getTypeEquipments,
+    getEquipmentForm,
 
     getEquipmentsBySucursal,
     getEquipmentsPendientesBySucursal,

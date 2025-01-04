@@ -1,21 +1,68 @@
-import { exit } from 'node:process'
-import Clientes from './CasaMatriz.js'
-import Cuentas from './Cuenta.js'
-import UsuariosAsignados from './UsuarioAsignado.js'
-import Equipamientos from './Equipamiento.js'
-import TipoCuentas from './TipoCuenta.js'
-import db from '../config/db.js'
-import { ClienteModel, TipoCuentaModel, CuentaModel, EquipoModel } from '../models/index.js'
+import { exit } from 'node:process';
+import { nanoid } from "nanoid";
+
+import { 
+    CuentaModel, 
+    TipoCuentaModel, 
+
+    CasaMatrizModel,
+    SucursalModel,
+
+    EquipoModel,
+    TipoEquipoModel,
+    TipoEquipoCampoModel,
+    CampoModel
+} from '../models/index.js';
+
+import Cuentas from './Cuenta.js';
+import TipoCuentas from './TipoCuenta.js';
+
+import CasasMatrices from './CasaMatriz.js';
+// import Sucursal from './Sucursal.js';
+
+import TipoEquipo from './TipoEquipo.js';
+import TipoEquipoCampo from './TipoEquipoCampo.js';
+import Campos from './Campo.js';
+
+
+import db from '../config/db.js';
 
 const importarDatos = async () => {
     try {
         await db.authenticate();
         await db.sync();
-        await TipoCuentaModel.bulkCreate(TipoCuentas);
-        await CuentaModel.bulkCreate(Cuentas);
-        await ClienteModel.bulkCreate(Clientes);
-        await EquipoModel.bulkCreate(Equipamientos);
-        await UsuarioAsignadoModel.bulkCreate(UsuariosAsignados);
+
+        await Promise.all([
+            TipoCuentaModel.bulkCreate(TipoCuentas),
+            CasaMatrizModel.bulkCreate(CasasMatrices),
+        ])
+
+        const casaMatriz = await CasaMatrizModel.findAll();
+
+        const idCasaMatriz = casaMatriz[0].dataValues.id;
+
+        const Sucursales = [
+            {
+                id: nanoid(12),
+                estado: 1,
+                encargadoSucursal: 'Roberto Osses',
+                correoSucursal: 'rosses@siroe.cl',
+                telefonoSucursal: '92812422',
+                sucursal: 'Sucursal Plaza de Maipu',
+                fechaIngreso: new Date('2024/05/02'),
+                direccion: 'Plaza de Maipu',
+                casaMatrizId: idCasaMatriz,
+            }
+        ]
+        
+        await Promise.all([
+            CuentaModel.bulkCreate(Cuentas),
+            CampoModel.bulkCreate(Campos),
+            SucursalModel.bulkCreate(Sucursales),
+            TipoEquipoModel.bulkCreate(TipoEquipo),
+        ])
+        await TipoEquipoCampoModel.bulkCreate(TipoEquipoCampo);
+        
 
         console.log('datos importados');
         exit();

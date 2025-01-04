@@ -9,7 +9,7 @@ const casaMatriz = db.define('CasasMatrices', {
         allowNull: false,
         defaultValue: () => nanoid(12),
     },
-    logo: {
+    imagen: {
         type: DataTypes.STRING,
         allowNull: true,
     },

@@ -3,8 +3,8 @@ import bcrypt from 'bcrypt';
 const Cuentas = [
     {
         name: 'Jonathan',
-        email: 'jonathan@siroe.com',
-        telefono: 32156942,
+        email: 'jmunoz@siroe.cl',
+        telefono: 968708503,
         password: bcrypt.hashSync('password', 10),
         tipoCuentaId: 1,
     },

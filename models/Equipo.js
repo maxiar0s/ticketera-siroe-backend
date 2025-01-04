@@ -5,7 +5,7 @@ const equipo = db.define('Equipos', {
     numeroSecuencial: {
         type: DataTypes.INTEGER,
         allowNull: false,
-      },
+    },
     codigoId: {
         type: DataTypes.STRING,
         allowNull: false
@@ -15,10 +15,10 @@ const equipo = db.define('Equipos', {
         allowNull: false
     },
     // Campos a rellenar por usuario
-    tipo: {
-        type: DataTypes.STRING,
-        allowNull: false
-    },
+    // tipo: {
+    //     type: DataTypes.STRING,
+    //     allowNull: false
+    // },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
     },
@@ -27,6 +27,10 @@ const equipo = db.define('Equipos', {
         allowNull: false
     },
     usuario: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    imagen: {
         type: DataTypes.STRING,
         allowNull: true
     },

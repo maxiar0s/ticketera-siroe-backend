@@ -1,11 +1,15 @@
-const Clientes = [
+import { nanoid } from "nanoid";
+
+const CasasMatricez = [
     {
+        id: nanoid(12),
+        imagen: '',
         rut: '',
         razonSocial: 'Siroe Prueba',
+        encargadoGeneral: 'Roberto Osses',
         telefonoEncargado: 68738215,
-        correo: 'siroe@siroe.cl',
-        location: 'Padre Hurtado'
+        correo: 'siroe@siroe.cl'
     }
 ]
 
-export default Clientes
+export default CasasMatricez

@@ -12,9 +12,10 @@ import {
     // Metodos Get
     getResults, 
     getClient, 
-    getSucursales, getSucursalesPendientes, getSucursalesTerminadas,
+    getSucursales, getSucursalesPendientes, getSucursalesTerminadas, 
+    getTypeEquipments, getEquipmentForm,
     getEquipmentsBySucursal, getEquipmentsPendientesBySucursal, getEquipmentsTerminadosBySucursal, 
-    getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById } from '../controller/apiController.js'
+    getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById } from '../controller/apiController.js';
 
 const router = express.Router();
 
@@ -22,9 +23,9 @@ const router = express.Router();
 // router.post('/login', login)
 
 // Administrador
-router.post('/crear-cuenta', postCuenta)
-router.post('/modificar-cuenta/:id', postModificarCuenta)
-router.post('/eliminar-cuenta/:id', postEliminarCuenta)
+router.post('/crear-cuenta', postCuenta);
+router.post('/modificar-cuenta/:id', postModificarCuenta);
+router.post('/eliminar-cuenta/:id', postEliminarCuenta);
 
 router.post('/ingresar-cliente', postCliente);
 router.post('/modificar-cliente/:id', postModificarCliente);
@@ -50,6 +51,10 @@ router.get('/cliente/:id/sucursales/terminados', getSucursalesTerminadas);
 
 // Para obtener la sucursal por la ID
 router.get('/sucursal/:id', getSucursalById);
+
+// Para obtener todos los tipos de equipos y su formulario
+router.get('/tipos-equipos', getTypeEquipments);
+router.get('/obtener-formulario/:id', getEquipmentForm);
 
 // Para obtener los equipos de las sucursales con el respectivo estado
 router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);
