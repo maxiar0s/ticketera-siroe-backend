@@ -5,6 +5,7 @@ import CasaMatriz from "./CasaMatriz.js";
 import Sucursal from './Sucursal.js';
 
 import Equipo from "./Equipo.js";
+import Observacion from './Observacion.js';
 import TipoEquipo from './TipoEquipo.js'
 import TipoEquipoCampo from "./TipoEquipoCampo.js";
 import Campo from "./Campos.js";
@@ -21,6 +22,8 @@ const SucursalModel = Sucursal;
 
 // Modelo de Equipamiento de un Cliente
 const EquipoModel = Equipo;
+// Modelo de Observaciones de los Equipos
+const ObservacionModel = Observacion;
 // Modelo de Tipo de Equipo
 const TipoEquipoModel = TipoEquipo;
 // Modelo de Campos
@@ -49,10 +52,13 @@ SucursalModel.hasMany(EquipoModel, { foreignKey: 'sucursalId', as: 'equipos', on
 EquipoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });
 TipoEquipoModel.hasMany(EquipoModel, { foreignKey: 'tipoEquipoId', as: 'equipos' });
 
+// Relación Observación - Equipo
+ObservacionModel.belongsTo(EquipoModel, { foreignKey: 'equipoId', as: 'equipo' })
+EquipoModel.hasMany(ObservacionModel, { foreignKey: 'equipoId', as: 'equipo' })
+
 // Relación TipoEquipo - Campo (muchos a muchos)
 TipoEquipoCampoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });
 TipoEquipoCampoModel.belongsTo(CampoModel, { foreignKey: 'campoId', as: 'campo' });
-
 CampoModel.hasMany(TipoEquipoCampoModel, { foreignKey: 'campoId', as: 'tipoEquipoCampos' });
 TipoEquipoModel.hasMany(TipoEquipoCampoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipoCampos' });
 
@@ -64,6 +70,7 @@ export {
     SucursalModel,
     
     EquipoModel,
+    ObservacionModel,
     TipoEquipoModel,
     CampoModel,
     TipoEquipoCampoModel,

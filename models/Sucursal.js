@@ -45,10 +45,9 @@ const sucursal = db.define('Sucursales', {
           const dia = String(fecha.getDate()).padStart(2, '0');
           const mes = String(fecha.getMonth() + 1).padStart(2, '0');
           const anio = fecha.getFullYear();
-          console.log(`${dia}/${mes}/${anio}`);
           sucursal.fechaIngreso = `${anio}-${mes}-${dia}`;
         },
-      },
+    },
 });
 
 export default sucursal;

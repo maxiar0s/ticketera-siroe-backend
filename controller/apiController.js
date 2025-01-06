@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
 import { col, fn } from "sequelize";
 
-import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
+import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, ObservacionModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
 
 
 const login = async (req, res) => {
@@ -316,6 +316,18 @@ const postEquipo = async (req, res) => {
     res.json({ resp: `Equipo creado satisfactoriamente.`});
 }
 
+const postObservacion = async (req, res) => {
+    const { id } = req.params;
+    const { text } = req.body;
+
+    const observacion = await ObservacionModel.create({
+        text,
+        equipoId: id
+    });
+
+    return res.json(observacion);
+}
+
 const postModificarEquipo = async (req, res) => {
     const { id } = req.params;
     
@@ -330,7 +342,6 @@ const postModificarEquipo = async (req, res) => {
     }
 
     const {
-        usuario,
         marca,
         modelo,
         numeroSerie,
@@ -342,11 +353,28 @@ const postModificarEquipo = async (req, res) => {
         sistemaOperativo,
         ofimatica,
         antivirus,
-        observaciones
         } = req.body;
+    console.log(req.uploadedFile);
+    if(req.uploadedFile) {
+        const imagenName = req.uploadedFile
+
+        equipo.set({
+            marca,
+            modelo,
+            imagen: imagenName,
+            numeroSerie,
+            procesador,
+            velocidadProcesador,
+            ram,
+            tipoAlmacenamiento,
+            cantidadAlmacenamiento,
+            sistemaOperativo,
+            ofimatica,
+            antivirus
+        });
+    }
     
     equipo.set({
-        usuario,
         marca,
         modelo,
         numeroSerie,
@@ -357,8 +385,7 @@ const postModificarEquipo = async (req, res) => {
         cantidadAlmacenamiento,
         sistemaOperativo,
         ofimatica,
-        antivirus,
-        observaciones
+        antivirus
     });
 
     equipo.save();
@@ -628,7 +655,6 @@ const getEquipmentForm = async (req, res) => {
             required: campo.required,
         }));
 
-
         res.json(camposTransformados);
         } 
     catch (error) {
@@ -792,6 +818,7 @@ export {
     postEliminarSucursal,
 
     postEquipo,
+    postObservacion,
     postModificarEquipo,
     postEliminarEquipo,
 

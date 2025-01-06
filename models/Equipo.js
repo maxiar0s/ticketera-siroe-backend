@@ -26,10 +26,6 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: false
     },
-    usuario: {
-        type: DataTypes.STRING,
-        allowNull: true
-    },
     imagen: {
         type: DataTypes.STRING,
         allowNull: true
@@ -78,10 +74,6 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: true
     },
-    observaciones: {
-        type: DataTypes.STRING,
-        allowNull: true
-    }
 },{
     timestamps: false,
     hooks: {

@@ -1,14 +1,15 @@
 import express from "express";
+import { handleUpload, processFile } from '../middleware/imagenes.js'
 // import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
-import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
-import protegerRuta from "../middleware/protegerRuta.js";
+// import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
+// import protegerRuta from "../middleware/protegerRuta.js";
 import { 
     // Metodos Post
     postCuenta, postModificarCuenta, postEliminarCuenta,
     login,
     postCliente, postModificarCliente, postEliminarCliente, 
     postSucursal, postModificarSucursal, postEliminarSucursal, 
-    postEquipo, postModificarEquipo, postEliminarEquipo, 
+    postEquipo, postObservacion, postModificarEquipo, postEliminarEquipo, 
     // Metodos Get
     getResults, 
     getClient, 
@@ -37,7 +38,8 @@ router.post('/eliminar-sucursal/:id', postEliminarSucursal);
 
 // Administrador y Tecnico
 router.post('/ingresar-equipo', postEquipo);
-router.post('/modificar-equipo/:id', postModificarEquipo);
+router.post('/ingresar-observacion/:id', postObservacion)
+router.post('/modificar-equipo/:id', handleUpload, processFile, postModificarEquipo);
 router.post('/eliminar-equipo/:id', postEliminarEquipo);
 
 // Routes de obtención de datos
