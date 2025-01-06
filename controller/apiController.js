@@ -446,6 +446,7 @@ const getResults = async (req, res) => {
         CasaMatrizModel.count()
     ])
 
+    
     const paginas = Math.ceil(total / limit);
     paginaActual = Number(paginaActual);
     res.json({clientes, paginas, paginaActual});
