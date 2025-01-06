@@ -1,9 +1,23 @@
 import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
 import { col, fn } from "sequelize";
+import bucket from '../config/gcs.js';
 
 import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, ObservacionModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
 
+const generateSignedUrl = async (fileName) => {
+    try {
+        const file = bucket.file(fileName);
+        const [url] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+        });
+        return url;
+      } catch (error) {
+        console.error(error);
+        throw error;
+      }
+  };
 
 const login = async (req, res) => {
     const { email, password } = req.body;
@@ -115,10 +129,11 @@ const postCliente = async (req, res) => {
         encargadoGeneral,
         correo,
         telefonoEncargado } = req.body;
-
+    const imagenName = req.uploadedFile
     const nuevoCliente = await CasaMatrizModel.create({
         rut,
         razonSocial,
+        imagen: imagenName,
         encargadoGeneral,
         correo,
         telefonoEncargado
@@ -354,7 +369,7 @@ const postModificarEquipo = async (req, res) => {
         ofimatica,
         antivirus,
         } = req.body;
-    console.log(req.uploadedFile);
+
     if(req.uploadedFile) {
         const imagenName = req.uploadedFile
 
@@ -800,7 +815,15 @@ const getEquipmentById = async (req, res) => {
     res.json(equipo);
 }
 
-
+const generarUrl = async (req, res) => {
+    try {
+        const { fileName } = req.params;
+        const signedUrl = await generateSignedUrl(fileName);
+        res.json({ signedUrl });
+      } catch (error) {
+        res.status(500).json({ error: 'No se pudo generar el signed URL.' });
+      }
+}
 
 export {
     postCuenta,
@@ -842,5 +865,7 @@ export {
 
     getSucursalById,
     getEquipmentsByCasaMatriz,
-    getEquipmentById
+    getEquipmentById,
+
+    generarUrl
 }

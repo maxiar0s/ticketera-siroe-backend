@@ -16,7 +16,8 @@ import {
     getSucursales, getSucursalesPendientes, getSucursalesTerminadas, 
     getTypeEquipments, getEquipmentForm,
     getEquipmentsBySucursal, getEquipmentsPendientesBySucursal, getEquipmentsTerminadosBySucursal, 
-    getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById } from '../controller/apiController.js';
+    getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById,
+    generarUrl } from '../controller/apiController.js';
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ router.post('/crear-cuenta', postCuenta);
 router.post('/modificar-cuenta/:id', postModificarCuenta);
 router.post('/eliminar-cuenta/:id', postEliminarCuenta);
 
-router.post('/ingresar-cliente', postCliente);
+router.post('/ingresar-cliente', handleUpload, processFile, postCliente);
 router.post('/modificar-cliente/:id', postModificarCliente);
 router.post('/eliminar-cliente/:id', postEliminarCliente);
 
@@ -68,5 +69,7 @@ router.get('/equipo/:id', getEquipmentById);
 
 router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);
 
+// Consumo de imagenes Google Cloud Storage
+router.get('/api/generar-url/:fileName', generarUrl)
 
 export default router
