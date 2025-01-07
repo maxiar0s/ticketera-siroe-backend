@@ -455,9 +455,6 @@ const getClient = async (req, res) => {
     const { id } = req.params;
     const cliente = await CasaMatrizModel.findByPk(id, { 
     });
-    if(!cliente) {
-        return;
-    }
     res.json(cliente);
 }
 
@@ -473,8 +470,7 @@ const getSucursales = async (req, res) => {
     const limit = 5
     const offset = ((paginaActual*limit) - limit)
 
-    const { id: casaMatrizId } = req.params
-    if(!casaMatrizId) return;
+    const { id: casaMatrizId } = req.params;
 
     const [sucursales, total] = await Promise.all([
         SucursalModel.findAll({

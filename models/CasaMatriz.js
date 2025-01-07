@@ -32,10 +32,22 @@ const casaMatriz = db.define('CasasMatrices', {
     telefonoEncargado: {
         type: DataTypes.INTEGER,
         allowNull: false
-    }
+    },
+    fechaIngreso: {
+        type: DataTypes.DATEONLY,
+    },
 }, {
     timestamps: false,
-    name: 'CasasMatrices'
+    name: 'CasasMatrices',
+    hooks: {
+        beforeCreate(sucursal) {
+          const fecha = new Date();
+          const dia = String(fecha.getDate()).padStart(2, '0');
+          const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+          const anio = fecha.getFullYear();
+          sucursal.fechaIngreso = `${anio}-${mes}-${dia}`;
+        },
+    },
 });
 
 export default casaMatriz;
