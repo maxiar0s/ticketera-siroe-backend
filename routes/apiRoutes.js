@@ -12,10 +12,8 @@ import {
     postEquipo, postObservacion, postModificarEquipo, postEliminarEquipo, 
     // Metodos Get
     getResults, 
-    getClient, 
-    getSucursales, getSucursalesPendientes, getSucursalesTerminadas, 
+    getClientById, 
     getTypeEquipments, getEquipmentForm,
-    getEquipmentsBySucursal, getEquipmentsPendientesBySucursal, getEquipmentsTerminadosBySucursal, 
     getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById,
     generarUrl } from '../controller/apiController.js';
 
@@ -45,12 +43,7 @@ router.post('/eliminar-equipo/:id', postEliminarEquipo);
 
 // Routes de obtención de datos
 router.get('/clientes', getResults);
-router.get('/cliente/:id', getClient);
-
-// Para obtener sucursales con el respectivo estado
-router.get('/cliente/:id/sucursales', getSucursales);
-router.get('/cliente/:id/sucursales/pendientes', getSucursalesPendientes);
-router.get('/cliente/:id/sucursales/terminados', getSucursalesTerminadas);
+router.get('/cliente/:id', getClientById);
 
 // Para obtener la sucursal por la ID
 router.get('/sucursal/:id', getSucursalById);
@@ -58,11 +51,6 @@ router.get('/sucursal/:id', getSucursalById);
 // Para obtener todos los tipos de equipos y su formulario
 router.get('/tipos-equipos', getTypeEquipments);
 router.get('/obtener-formulario/:id', getEquipmentForm);
-
-// Para obtener los equipos de las sucursales con el respectivo estado
-router.get('/sucursal/:id/equipos', getEquipmentsBySucursal);
-router.get('/sucursal/:id/equipos/pendientes', getEquipmentsPendientesBySucursal);
-router.get('/sucursal/:id/equipos/terminados', getEquipmentsTerminadosBySucursal);
 
 // Para obtener un equipo basado en su ID
 router.get('/equipo/:id', getEquipmentById);

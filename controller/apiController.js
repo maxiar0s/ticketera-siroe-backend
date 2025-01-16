@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
-import { col, fn } from "sequelize";
+import { col, fn, Op } from "sequelize";
 import bucket from '../config/gcs.js';
 
 import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, ObservacionModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
@@ -262,34 +262,12 @@ const postEquipo = async (req, res) => {
     const nextNumero = maxNumero + 1;
     
     const { departamento, tipoEquipoId } = req.body;
-    // const diccionarioEquipos = {
-    //     "Televisor": "TV",
-    //     "Celular": "CL",
-    //     "Notebook": "NT",
-    //     "Data Show": "DS",
-    //     "Tablet": "TB",
-    //     "Pizarra interactiva": "PI",
-    //     "Sistema de audio": "SA",
-    //     "Aire acondicionado": "AA",
-    //     "All in one": "AO",
-    //     "Impresora": "IP"
-    // };
 
     const tipoEquipo = await TipoEquipoModel.findOne({
         where: {
             id: tipoEquipoId
         }
     });
-    
-    // const normalizarLlave = (tipo) => tipo.trim().toLowerCase();
-    // const buscarEquipo = (tipo) => {
-    //     const claveNormalizada = Object.keys(diccionarioEquipos).find(
-    //         (key) => key.toLowerCase() === normalizarLlave(tipo)
-    //     );
-    //     return claveNormalizada ? diccionarioEquipos[claveNormalizada] : undefined;
-    // };
-
-    // const tipoEquipo = buscarEquipo(tipo);
 
     const deptCode = departamento.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, '0');
@@ -446,180 +424,128 @@ const getResults = async (req, res) => {
         CasaMatrizModel.count()
     ])
 
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    res.json({clientes, paginas, paginaActual});
+    let paginas = Math.ceil(total / limit);
+    if(total == 0) {
+        paginas = 1
+    }
+    
+    res.json({ clientes, paginas });
 }
 
-const getClient = async (req, res) => {
+const getClientById = async (req, res) => {
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
+
+    if(!expresion.test(paginaActual)) {
+        paginaActual = 1;
+    }
+
+    // Limites y Offset para el paginador
+    const limit = 5
+    const offset = ((paginaActual*limit) - limit)
+
     const { id } = req.params;
-    const cliente = await CasaMatrizModel.findByPk(id, { 
-    });
-    res.json(cliente);
-}
-
-const getSucursales = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
+    const { option } = req.query;
+    let estado = { [Op.in]: [1, 2, 3] };
+    if(option === "Terminados") {
+        estado = 3;
+    } else if (option === "Pendientes") {
+        estado = 2;
     }
 
-    // Limites y Offset para el paginador
-    const limit = 5
-    const offset = ((paginaActual*limit) - limit)
-
-    const { id: casaMatrizId } = req.params;
-
-    const [sucursales, total] = await Promise.all([
-        SucursalModel.findAll({
-            limit,
-            offset,
-            where: { casaMatrizId },
+    const [cliente, total] = await Promise.all([
+        CasaMatrizModel.findByPk(id, {
             include: [
-                { model: CasaMatrizModel, as: 'casaMatriz' },
-                {
-                    model: EquipoModel, as: 'equipos',
-                    attributes: []
-                }
-            ],
-            order: [['fechaIngreso', 'DESC']],
-            attributes: {
-                include: [
-                    [fn("COUNT", col("equipos.id")), "equiposCount"]
-                ]
-            },
-            group: ['Sucursales.id', 'casaMatriz.id'],
-            subQuery: false
+                { model: SucursalModel, as: 'sucursales',
+                    limit,
+                    offset,
+                    where: { estado },
+                    include: [
+                        { model: EquipoModel, as: 'equipos', attributes: [] },
+                    ],
+                    order: [['fechaIngreso', 'DESC']],
+                    attributes: {
+                        include: [
+                            [fn("COUNT", col("equipos.id")), "equiposCount"]
+                        ]
+                    },
+                    group: ['Sucursales.id'],
+                    subQuery: false
+                 }
+            ]
         }),
-        SucursalModel.count({
-            where: { casaMatrizId },
+        CasaMatrizModel.count({
+            where: { id },
+            include: [
+                { model: SucursalModel, as: 'sucursales',
+                    where: { estado }      
+                }
+            ]
         }),
     ])
 
-    if(!sucursales) return;
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({sucursales, total, paginas, paginaActual});
-}
-
-const getSucursalesPendientes = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
+    let paginas = Math.ceil(total / limit);
+    if(total == 0) {
+        paginas = 1
     }
 
-    // Limites y Offset para el paginador
-    const limit = 5
-    const offset = ((paginaActual*limit) - limit)
-
-    const { id: casaMatrizId } = req.params
-    if(!casaMatrizId) return;
-
-    const [sucursales, total] = await Promise.all([
-        SucursalModel.findAll({
-            limit,
-            offset,
-            where: { 
-                casaMatrizId,
-                estado: 2,
-            },
-            include: [
-                { model: CasaMatrizModel, as: 'casaMatriz' },
-                {
-                    model: EquipoModel, as: 'equipos', 
-                    attributes: []
-                }
-            ],
-            order: [['fechaIngreso', 'DESC']],
-            attributes: {
-                include: [
-                    [fn("COUNT", col("equipos.id")), "equiposCount"]
-                ]
-            },
-            group: ['Sucursales.id', 'casaMatriz.id'],
-            subQuery: false
-        }),
-        SucursalModel.count({
-            where: { casaMatrizId },
-        }),
-    ])
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({sucursales, total, limit, offset, paginas , paginaActual});
-}
-
-const getSucursalesTerminadas = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
-    }
-
-    // Limites y Offset para el paginador
-    const limit = 5
-    const offset = ((paginaActual*limit) - limit)
-
-    const { id: casaMatrizId } = req.params
-    if(!casaMatrizId) return;
-
-    const [sucursales, total] = await Promise.all([
-        SucursalModel.findAll({
-            limit,
-            offset,
-            where: {
-                casaMatrizId,
-                estado: 3,
-            },
-            include: [
-                { model: 
-                    CasaMatrizModel, as: 'casaMatriz'
-                },
-                {
-                    model: EquipoModel, as: 'equipos',
-                    attributes: []
-                }
-            ],
-            order: [['fechaIngreso', 'DESC']],
-            attributes: {
-                include: [
-                    [fn("COUNT", col("equipos.id")), "equiposCount"]
-                ]
-            },
-            group: ['Sucursales.id', 'casaMatriz.id'],
-            subQuery: false
-        }),
-        SucursalModel.count({
-            where: { casaMatrizId },
-        }),
-    ])
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({sucursales, total, paginas});
+    return res.json({cliente, paginas});
 }
 
 const getSucursalById = async (req, res) => {
-    const { id } = req.params;
-    const sucursal = await SucursalModel.findOne({ 
-        where: {
-            id
-        },
-        include: [
-            { model: CasaMatrizModel, as: 'casaMatriz' },
-        ]
-    });
+    let paginaActual = parseInt(req.query.pagina)
+    const expresion = /^[1-999]$/
     
-    res.json(sucursal);
+    if(!expresion.test(paginaActual)) {
+        paginaActual = 1;
+    }
+    
+    // Limites y Offset para el paginador
+    const limit = 8
+    const offset = ((paginaActual*limit) - limit)
+    
+    const { id } = req.params;
+    const { option } = req.query;
+    let estado = { [Op.in]: [1, 2, 3] };
+    if(option === "Terminados") {
+        estado = 3;
+    } else if (option === "Pendientes") {
+        estado = 2;
+    }
+
+    const [sucursal, total] = await Promise.all([
+        SucursalModel.findByPk(id, { 
+            include: [
+                { model: CasaMatrizModel, as: 'casaMatriz' },
+                { model: EquipoModel, as: 'equipos',
+                    limit,
+                    offset,
+                    include: [
+                        { model: TipoEquipoModel, as: 'tipoEquipo' }
+                    ],
+                    where: { estado },
+                    order: [['numeroSecuencial', 'ASC']],
+                }
+            ]
+        }),
+        SucursalModel.count({
+            where: {
+                id,
+            },
+            include: [
+                { model: EquipoModel, as: 'equipos',
+                    where: { estado }
+                }
+            ]
+        })
+    ])
+
+    let paginas = Math.ceil(total / limit);
+    if(total == 0) {
+        paginas = 1
+    }
+
+    return res.json({sucursal, paginas});
 }
 
 const getEquipmentsByCasaMatriz = async (req, res) => {
@@ -674,127 +600,6 @@ const getEquipmentForm = async (req, res) => {
     }
 }
 
-const getEquipmentsBySucursal = async (req, res) => {
-    const { id } = req.params;
-
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
-    }
-
-    // Limites y Offset para el paginador
-    const limit = 8
-    const offset = ((paginaActual*limit) - limit)
-
-    const [equipos, total] = await Promise.all([
-        EquipoModel.findAll({ 
-            limit,
-            offset,
-            include: [
-                { model: TipoEquipoModel, as: 'tipoEquipo' }
-            ],
-            where: {
-                sucursalId: id,
-            },
-            order: [['numeroSecuencial', 'ASC']],
-        }),
-        EquipoModel.count({
-            where: {
-                sucursalId: id
-            }
-        })
-    ])
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({equipos, total, paginas, paginaActual});
-}
-
-const getEquipmentsPendientesBySucursal = async (req, res) => {
-    const { id } = req.params;
-
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
-    }
-
-    // Limites y Offset para el paginador
-    const limit = 8
-    const offset = ((paginaActual*limit) - limit)
-
-    const [equipos, total] = await Promise.all([
-        EquipoModel.findAll({ 
-            limit,
-            offset,
-            include: [
-                { model: TipoEquipoModel, as: 'tipoEquipo' }
-            ],
-            where: {
-                sucursalId: id,
-                estado: 2,
-            },
-            order: [['numeroSecuencial', 'ASC']],
-        }),
-        EquipoModel.count({
-            where: {
-                sucursalId: id,
-                estado: 2,
-            }
-        })
-    ])
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({equipos, total, paginas, paginaActual});
-}
-
-const getEquipmentsTerminadosBySucursal = async (req, res) => {
-    const { id } = req.params;
-
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-
-    if(!expresion.test(paginaActual)) {
-        return;
-    }
-
-    // Limites y Offset para el paginador
-    const limit = 8
-    const offset = ((paginaActual*limit) - limit)
-
-    const [equipos, total] = await Promise.all([
-        EquipoModel.findAll({ 
-            limit,
-            offset,
-            include: [
-                { model: TipoEquipoModel, as: 'tipoEquipo' }
-            ],
-            where: {
-                sucursalId: id,
-                estado: 3,
-            },
-            order: [['numeroSecuencial', 'ASC']],
-        }),
-        EquipoModel.count({
-            where: {
-                sucursalId: id,
-                estado: 3,
-            }
-        })
-    ])
-
-    const paginas = Math.ceil(total / limit);
-    paginaActual = Number(paginaActual);
-    
-    res.json({equipos, total, paginas, paginaActual});
-}
-
 const getEquipmentById = async (req, res) => {
     const { id } = req.params;
     const equipo = await EquipoModel.findByPk(id, {
@@ -841,23 +646,11 @@ export {
     postModificarEquipo,
     postEliminarEquipo,
 
-    // postUsuarioAsignado,
-    // postModificarUsuarioAsignado,
-    // postEliminarUsuarioAsignado,
-
     getResults,
-    getClient,
-    
-    getSucursales,
-    getSucursalesPendientes,
-    getSucursalesTerminadas,
+    getClientById,
 
     getTypeEquipments,
     getEquipmentForm,
-
-    getEquipmentsBySucursal,
-    getEquipmentsPendientesBySucursal,
-    getEquipmentsTerminadosBySucursal,
 
     getSucursalById,
     getEquipmentsByCasaMatriz,

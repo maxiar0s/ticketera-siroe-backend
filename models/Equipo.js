@@ -26,6 +26,10 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: false
     },
+    usuario: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     imagen: {
         type: DataTypes.STRING,
         allowNull: true
