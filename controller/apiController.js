@@ -1,9 +1,9 @@
-import jwt from "jsonwebtoken";
 import bcrypt from 'bcrypt';
 import { col, fn, Op } from "sequelize";
 import bucket from '../config/gcs.js';
 
-import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, ObservacionModel, SucursalModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
+import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, EstadoCuentaModel, ObservacionModel, SucursalModel, TipoCuentaModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
+import EstadoCuenta from "../models/EstadoCuenta.js";
 
 const generateSignedUrl = async (fileName) => {
     try {
@@ -17,43 +17,103 @@ const generateSignedUrl = async (fileName) => {
         console.error(error);
         throw error;
       }
-  };
-
-const login = async (req, res) => {
-    const { email, password } = req.body;
-
-    const user = await CuentaModel.findOne({ where: { email }});
-
-    if(!user) return;
-
-    const matchPassword = await bcrypt.compare(password, user.password);
-    if(!matchPassword) return;
-
-    const userData = {
-        id: user.id,
-        name: user.name,
-        telefono: user.telefono,
-        email: user.email
-    };
-
-    const token = jwt.sign({ userData }, 'Secret_S1r03_S0p0rt3_Password');
-    return res.json({token});
-}
+};
 
 const postCuenta = async (req, res) => {
-    const { name, telefono, email, password, tipoCuenta } = req.body;
-
+    const { name, telefono, email, password, tipoCuentaId } = req.body;
     const hashed_password = await bcrypt.hash(password, 10);
+    const { id } = req.body;
+    
+    if(id) {
+        let cuenta = await CuentaModel.findByPk(id, {
+            include: [
+                { model: TipoCuentaModel, as: 'tipoCuenta' },
+                { model: EstadoCuentaModel, as: 'estadoCuenta' },
+            ]
+        });
 
-    const cuenta = await CuentaModel.create({
-        name,
-        telefono,
-        email,
-        tipoCuenta,
-        password: hashed_password,
-    });
+        const { estadoCuentaId } = req.body;
 
-    return res.json({ resp: 'Usuario creado exitosamente'});
+        if(password == ""){
+            cuenta.set({
+                name,
+                telefono,
+                tipoCuentaId,
+                estadoCuentaId,
+            });
+
+            await cuenta.save();
+
+            cuenta = await CuentaModel.findByPk(id, {
+                include: [
+                    { model: TipoCuentaModel, as: 'tipoCuenta' },
+                    { model: EstadoCuentaModel, as: 'estadoCuenta' },
+                ]
+            });
+
+            return res.json(cuenta);
+        } else {
+            cuenta.set({
+                name,
+                telefono,
+                tipoCuentaId,
+                password: hashed_password,
+                estadoCuentaId,
+            });
+
+            await save();
+            
+            cuenta = await CuentaModel.findByPk(id, {
+                include: [
+                    { model: TipoCuentaModel, as: 'tipoCuenta' },
+                    { model: EstadoCuentaModel, as: 'estadoCuenta' },
+                ]
+            });
+
+            return res.json(cuenta);
+        }
+    }
+    
+    else {
+        const correoExistente = await CuentaModel.findOne({
+            where: {
+                email
+            }
+        })
+    
+        if(correoExistente) {
+            return res.json({ error: 'Correo electrónico ya registrado.'});
+        }
+
+        else {
+            const cuenta = await CuentaModel.create({
+                name,
+                telefono,
+                email,
+                tipoCuentaId,
+                password: hashed_password,
+                estadoCuentaId: 1,
+            });
+            
+            return res.json(cuenta);
+        }
+    }
+}
+
+const getVerificarCorreo = async (req, res) => {
+    const { correo } = req.query;
+
+    const usuarioExistente = await CuentaModel.findOne({
+        where: {
+            email: correo
+        }
+    })
+
+    if (usuarioExistente) {
+        return res.json({ isTaken: true });
+    } else {
+        return res.json({ isTaken: false });
+    }
 }
 
 const postModificarCuenta = async (req, res) => {
@@ -87,56 +147,113 @@ const postModificarCuenta = async (req, res) => {
     return res.json({ resp: 'Cuenta modificado correctamente' });
 }
 
-const postEliminarCuenta = async (req, res) => {
+const getEliminarCuenta = async (req, res) => {
     const { id } = req.params;
     if(!id) {
-        return res.json({ resp: 'Error al intentar eliminar cuenta' });
+        return res.json({ resp: 'No se ha encontrado un identificador unico' });
     }
 
-    const cuenta = await CuentaModel.findByPk(id,{
-        include: [
-            { model: CuentaModel },
-            { model: EquipoModel,
-                include: [
-                    { model: UsuarioAsignadoModel }
-                ]
-             }
-        ]
-    });
+    const cuenta = await CuentaModel.findByPk(id);
 
-    if(!cliente) {
+    if(!cuenta) {
         return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
     }
 
-    for (const equipamiento of cliente.Equipamientos) {
-        await equipamiento.setUsuariosAsignados([]); 
-      
-        for (const usuario of equipamiento.UsuariosAsignados) {
-          await usuario.destroy();
-        }
-      
-        await equipamiento.destroy();
-      }
-      await cliente.destroy();
+    await cuenta.destroy();
 
     return res.json({ resp: 'Cliente eliminado correctamente' });
 }
 
+const getUsuarios = async (req, res) => {
+    let paginaActual = parseInt(req.query.pagina);
+    const expresion = /^[1-999]$/;
+    
+    if(!expresion.test(paginaActual)) {
+        paginaActual = 1;
+    }
+    
+    // Limites y Offset para el paginador
+    const limit = 12;
+    const offset = ((paginaActual*limit) - limit);
+    
+    const { option } = req.query;
+    let tipoCuentaId = { [Op.in]: [1, 2, 3] };
+    if(option === "Mesa de ayuda") {
+        tipoCuentaId = 3;
+    } else if (option === "Técnico de soporte") {
+        tipoCuentaId = 2;
+    } else if (option === "Administrador") {
+        tipoCuentaId = 1;
+    }
+
+    const [cuentas, total] = await Promise.all([
+        CuentaModel.scope('eliminarCampos').findAll({
+            limit,
+            offset,
+            where: { tipoCuentaId },
+            include: [
+                { model: TipoCuentaModel, as: 'tipoCuenta' },
+                { model: EstadoCuenta, as: 'estadoCuenta' },
+            ],
+            order: [['id', 'ASC']]
+        }),
+        CuentaModel.count({
+            where: { tipoCuentaId },
+        })
+    ]);
+
+    let paginas = Math.ceil(total / limit);
+    if(total == 0) {
+        paginas = 1;
+    }
+
+    return res.json({cuentas, paginas});
+}
+
+const getUsuario = async (req, res) => {
+    const { id } = req.params;
+
+    const usuario = await CuentaModel.scope('eliminarCampos').findByPk(id, {
+        include: [
+            { model: TipoCuentaModel, as: 'tipoCuenta'},
+            { model: EstadoCuentaModel, as: 'estadoCuenta'},
+        ]
+    });
+
+    if(!usuario) {
+        return;
+    }
+
+    return res.json(usuario);
+}
+
 const postCliente = async (req, res) => {
-    // TODO realizar luego de implementar JWT
     const { rut,
         razonSocial,
         encargadoGeneral,
         correo,
         telefonoEncargado } = req.body;
     const imagenName = req.uploadedFile
+
+    const clienteExistente = await CasaMatrizModel.findOne({
+        where: {
+            rut
+        }
+    })
+
+    if(clienteExistente) return;
+
+    const telefonoSinEspacios = telefonoEncargado.replace(/\s+/g, '');
+    const telefonoEncargadoFormateado = telefonoSinEspacios.toString().slice(0, 9);
+    const rutCasaMatriz = rut.toString().slice(0, 10); 
+
     const nuevoCliente = await CasaMatrizModel.create({
-        rut,
+        rut: rutCasaMatriz,
         razonSocial,
         imagen: imagenName,
         encargadoGeneral,
         correo,
-        telefonoEncargado
+        telefonoEncargado: telefonoEncargadoFormateado
     });
 
     res.json({ resp: 'Cliente creado satisfactoriamente.', id: nuevoCliente.id });
@@ -215,26 +332,71 @@ const postSucursal = async (req, res) => {
         telefonoSucursal,
         sucursal,
         direccion,
+        sucursalId,
         casaMatrizId } = req.body;
 
-    const nuevaSucursal = await SucursalModel.create({
-        encargadoSucursal,
-        correoSucursal,
-        estado: 1,
-        telefonoSucursal,
-        sucursal,
-        direccion,
-        casaMatrizId
-    });
+    const telefonoSinEspacios = telefonoSucursal.replace(/\s+/g, '');
+    const telefonoSucursalFormateado = telefonoSinEspacios.toString().slice(0, 9);
+    const sucursalNombre = sucursal;
+    
+    if(!casaMatrizId && !sucursalId) return;
 
-    res.json({ resp: 'Sucursal creado satisfactoriamente.', id: nuevaSucursal.id });
+    if(sucursalId) {
+        const sucursal = await SucursalModel.findByPk(sucursalId);
+
+        sucursal.set({
+            sucursal: sucursalNombre,
+            encargadoSucursal,
+            correoSucursal,
+            telefonoSucursal: telefonoSucursalFormateado,
+            direccion,
+        })
+
+        await sucursal.save();
+
+        const sucursalModificada = await SucursalModel.findByPk(sucursalId, {
+            include: [
+                { model: EquipoModel, as: 'equipos', attributes: [] },
+            ],
+            attributes: {
+                include: [
+                    [fn("COUNT", col("equipos.id")), "equiposCount"]
+                ]
+            },
+            group: ['Sucursales.id'],
+            subQuery: false
+        })
+
+        return res.json({resp: 'mod', sucursal: sucursalModificada});
+    }
+
+    else {
+        const nuevaSucursal = await SucursalModel.create({
+            encargadoSucursal,
+            correoSucursal,
+            estado: 1,
+            telefonoSucursal: telefonoSucursalFormateado,
+            sucursal,
+            direccion,
+            casaMatrizId
+        });
+    
+        return res.json({resp: 'creada', sucursal: nuevaSucursal});
+    }
 }
 
-const postModificarSucursal = (req, res) => {
+const getEliminarSucursal = async (req, res) => {
+    const { id } = req.params;
 
-}
-const postEliminarSucursal = (req, res) => {
+    if(!id) return;
 
+    const sucursal = await SucursalModel.findByPk(id);
+
+    if(!sucursal) return;
+
+    await sucursal.destroy();
+
+    return res.json({resp: 'Sucursal eliminada exitosamente.'});
 }
 
 const postEquipo = async (req, res) => {
@@ -288,6 +450,7 @@ const postEquipo = async (req, res) => {
     
     await EquipoModel.create({
         numeroSecuencial: nextNumero,
+        casaMatrizId: null,
         clienteId,
         sucursalId,
         estado: 1,
@@ -338,6 +501,7 @@ const postModificarEquipo = async (req, res) => {
         marca,
         modelo,
         numeroSerie,
+        usuario,
         procesador,
         velocidadProcesador,
         ram,
@@ -355,6 +519,7 @@ const postModificarEquipo = async (req, res) => {
             marca,
             modelo,
             imagen: imagenName,
+            usuario,
             numeroSerie,
             procesador,
             velocidadProcesador,
@@ -524,7 +689,7 @@ const getSucursalById = async (req, res) => {
                         { model: TipoEquipoModel, as: 'tipoEquipo' }
                     ],
                     where: { estado },
-                    order: [['numeroSecuencial', 'ASC']],
+                    order: [['numeroSecuencial', 'DESC']],
                 }
             ]
         }),
@@ -628,18 +793,19 @@ const generarUrl = async (req, res) => {
 
 export {
     postCuenta,
+    getVerificarCorreo,
     postModificarCuenta,
-    postEliminarCuenta,
+    getEliminarCuenta,
 
-    login,
+    getUsuarios,
+    getUsuario,
 
     postCliente,
     postModificarCliente,
     postEliminarCliente,
 
     postSucursal,
-    postModificarSucursal,
-    postEliminarSucursal,
+    getEliminarSucursal,
 
     postEquipo,
     postObservacion,

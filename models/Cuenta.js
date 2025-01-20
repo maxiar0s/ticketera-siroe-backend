@@ -23,7 +23,14 @@ const cuenta = db.define('Cuentas', {
         allowNull: true
     }
 }, {
-    timestamps: false,  
+    timestamps: false,
+    scopes: {
+        eliminarCampos: {
+            attributes: {
+                exclude: ['password', 'token']
+            }
+        }
+    }
 });
 
 export default cuenta;

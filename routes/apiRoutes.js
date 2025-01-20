@@ -1,63 +1,72 @@
 import express from "express";
-import { handleUpload, processFile } from '../middleware/imagenes.js'
-// import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
-// import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
-// import protegerRuta from "../middleware/protegerRuta.js";
+import { handleUpload, processFile } from '../middleware/imagenes.js';
+import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
+import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
+import protegerRuta from "../middleware/protegerRuta.js";
 import { 
-    // Metodos Post
-    postCuenta, postModificarCuenta, postEliminarCuenta,
-    login,
+    // Admin
+    postCuenta, getVerificarCorreo, getEliminarCuenta,
+    getUsuarios, getUsuario,
     postCliente, postModificarCliente, postEliminarCliente, 
-    postSucursal, postModificarSucursal, postEliminarSucursal, 
-    postEquipo, postObservacion, postModificarEquipo, postEliminarEquipo, 
-    // Metodos Get
+    postSucursal, getEliminarSucursal,
+    
+    // Admin y Técnico
+    postEquipo, postModificarEquipo, postEliminarEquipo, 
+    getTypeEquipments, getEquipmentForm,
+    // Genericos
+    postObservacion,
     getResults, 
     getClientById, 
-    getTypeEquipments, getEquipmentForm,
     getSucursalById, getEquipmentsByCasaMatriz, getEquipmentById,
     generarUrl } from '../controller/apiController.js';
 
 const router = express.Router();
 
-// Login
-// router.post('/login', login)
+// Permisos de Administrador
+    // Usuarios
+router.post('/crear-modificar-cuenta', protegerRutaAdmin, postCuenta);
+router.get('/verificar-correo', protegerRutaAdmin, getVerificarCorreo);
+router.get('/eliminar-cuenta/:id', protegerRutaAdmin, getEliminarCuenta);
 
-// Administrador
-router.post('/crear-cuenta', postCuenta);
-router.post('/modificar-cuenta/:id', postModificarCuenta);
-router.post('/eliminar-cuenta/:id', postEliminarCuenta);
+    // Para obtener todos los usuarios
+router.get('/usuarios', protegerRutaAdmin, getUsuarios);
+    // Para obtener 1 usuario por ID
+router.get('/usuario/:id', protegerRutaAdmin, getUsuario);
+    // Casas matricez
+router.post('/ingresar-cliente', protegerRutaAdmin, handleUpload, processFile, postCliente);
+router.post('/modificar-cliente/:id', protegerRutaAdmin, postModificarCliente);
+router.post('/eliminar-cliente/:id', protegerRutaAdmin, postEliminarCliente);
 
-router.post('/ingresar-cliente', handleUpload, processFile, postCliente);
-router.post('/modificar-cliente/:id', postModificarCliente);
-router.post('/eliminar-cliente/:id', postEliminarCliente);
+    // Sucursales
+router.post('/ingresar-sucursal', protegerRutaAdmin, postSucursal);
+router.get('/eliminar-sucursal/:id', protegerRutaAdmin, getEliminarSucursal);
 
-router.post('/ingresar-sucursal', postSucursal);
-router.post('/modificar-sucursal/:id', postModificarSucursal);
-router.post('/eliminar-sucursal/:id', postEliminarSucursal);
+// Permisos de Administrador y Tecnico
+router.post('/ingresar-equipo', protegerRutaTecnico, postEquipo);
+router.post('/modificar-equipo/:id', protegerRutaTecnico, handleUpload, processFile, postModificarEquipo);
+router.post('/eliminar-equipo/:id', protegerRutaTecnico, postEliminarEquipo);
 
-// Administrador y Tecnico
-router.post('/ingresar-equipo', postEquipo);
-router.post('/ingresar-observacion/:id', postObservacion)
-router.post('/modificar-equipo/:id', handleUpload, processFile, postModificarEquipo);
-router.post('/eliminar-equipo/:id', postEliminarEquipo);
+    // Para obtener todos los tipos de equipos y su formulario
+router.get('/tipos-equipos', protegerRutaTecnico, getTypeEquipments);
+router.get('/obtener-formulario/:id', protegerRutaTecnico, getEquipmentForm);
 
-// Routes de obtención de datos
-router.get('/clientes', getResults);
-router.get('/cliente/:id', getClientById);
+// Permisos genericos para cualquier cuenta
+router.post('/ingresar-observacion/:id', protegerRuta, postObservacion)
 
-// Para obtener la sucursal por la ID
-router.get('/sucursal/:id', getSucursalById);
+    // Routes de obtención de datos
+router.get('/clientes', protegerRuta, getResults);
+router.get('/cliente/:id', protegerRuta, getClientById);
+router.get('/cliente/:id/equipos', protegerRuta, getEquipmentsByCasaMatriz);
 
-// Para obtener todos los tipos de equipos y su formulario
-router.get('/tipos-equipos', getTypeEquipments);
-router.get('/obtener-formulario/:id', getEquipmentForm);
+    // Para obtener la sucursal por la ID
+router.get('/sucursal/:id', protegerRuta, getSucursalById);
 
-// Para obtener un equipo basado en su ID
-router.get('/equipo/:id', getEquipmentById);
 
-router.get('/cliente/:id/equipos', getEquipmentsByCasaMatriz);
+    // Para obtener un equipo basado en su ID
+router.get('/equipo/:id', protegerRuta, getEquipmentById);
 
-// Consumo de imagenes Google Cloud Storage
-router.get('/api/generar-url/:fileName', generarUrl)
+    // Consumo de imagenes Google Cloud Storage
+router.get('/api/generar-url/:fileName', protegerRuta, generarUrl)
+
 
 export default router

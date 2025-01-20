@@ -3,6 +3,7 @@ const Campos = [
     { name: 'modelo', label: 'Modelo', type: 'text', placeholder: 'Escribe el modelo', required: 0, },
     { name: 'placaMadre', label: 'Placa madre', type: 'text', placeholder: 'Escribe la placa madre', required: 0, },
     { name: 'fuenteDePoder', label: 'Fuente de poder', type: 'text', placeholder: 'Escribe la fuente de poder', required: 0, },
+    { name: 'usuario', label: 'Usuario', type: 'text', placeholder: 'Escribe el usuario', required: 0, },
     { name: 'imagen', label: 'Registro fotográfico', type: 'file', placeholder: 'Toma o sube una foto del equipo', required: 0, },
     { name: 'numeroSerie', label: 'Número de Serie', type: 'text', placeholder: 'Introduce el número de serie', required: 0, },
     { name: 'procesador', label: 'Procesador', type: 'text', placeholder: 'Específica el procesador', required: 0 },

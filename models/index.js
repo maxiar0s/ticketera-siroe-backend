@@ -1,17 +1,20 @@
-import Cuenta from "./Cuenta.js";
-import TipoCuenta from "./TipoCuenta.js";
+import Cuenta from './Cuenta.js';
+import EstadoCuenta from './EstadoCuenta.js'; 
+import TipoCuenta from './TipoCuenta.js';
 
-import CasaMatriz from "./CasaMatriz.js";
+import CasaMatriz from './CasaMatriz.js';
 import Sucursal from './Sucursal.js';
 
-import Equipo from "./Equipo.js";
+import Equipo from './Equipo.js';
 import Observacion from './Observacion.js';
 import TipoEquipo from './TipoEquipo.js'
-import TipoEquipoCampo from "./TipoEquipoCampo.js";
-import Campo from "./Campos.js";
+import TipoEquipoCampo from './TipoEquipoCampo.js';
+import Campo from './Campos.js';
 
 // Modelo de Tipo de Cuentas
 const CuentaModel = Cuenta;
+// Modelo de los estados de la cuenta
+const EstadoCuentaModel = EstadoCuenta;
 // Modelo de Usuario (Técnicos, Mesa Ayuda)
 const TipoCuentaModel = TipoCuenta;
 
@@ -34,6 +37,10 @@ const TipoEquipoCampoModel = TipoEquipoCampo
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
 TipoCuentaModel.hasMany(CuentaModel, { foreignKey: 'tipoCuentaId', as: 'cuentas' });
+
+// Relacion
+CuentaModel.belongsTo(EstadoCuentaModel, { foreignKey: 'estadoCuentaId', as:'estadoCuenta' });
+EstadoCuentaModel.hasMany(CuentaModel, { foreignKey: 'estadoCuentaId', as: 'estadoCuentas' });
 
 // Relacion de un Equipo pertenece a una Casa Matriz
 EquipoModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' });
@@ -65,6 +72,7 @@ TipoEquipoModel.hasMany(TipoEquipoCampoModel, { foreignKey: 'tipoEquipoId', as: 
 export {
     CuentaModel,
     TipoCuentaModel,
+    EstadoCuentaModel,
     
     CasaMatrizModel,
     SucursalModel,

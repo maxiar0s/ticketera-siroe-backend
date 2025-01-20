@@ -7,6 +7,7 @@ const Cuentas = [
         telefono: 968708503,
         password: bcrypt.hashSync('password', 10),
         tipoCuentaId: 1,
+        estadoCuentaId: 1
     },
 ]
 

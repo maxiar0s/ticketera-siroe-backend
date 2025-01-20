@@ -4,6 +4,7 @@ import { nanoid } from "nanoid";
 import { 
     CuentaModel, 
     TipoCuentaModel, 
+    EstadoCuentaModel,
 
     CasaMatrizModel,
     SucursalModel,
@@ -26,6 +27,7 @@ import Campos from './Campo.js';
 
 
 import db from '../config/db.js';
+import estadoCuenta from './EstadoCuenta.js';
 
 const importarDatos = async () => {
     try {
@@ -33,6 +35,7 @@ const importarDatos = async () => {
         await db.sync();
 
         await Promise.all([
+            EstadoCuentaModel.bulkCreate(estadoCuenta),
             TipoCuentaModel.bulkCreate(TipoCuentas),
             CasaMatrizModel.bulkCreate(CasasMatrices),
         ])
