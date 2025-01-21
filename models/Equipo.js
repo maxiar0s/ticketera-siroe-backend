@@ -34,6 +34,14 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    placaMadre: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    fuenteDePoder: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     marca: {
         type: DataTypes.STRING,
         allowNull: true

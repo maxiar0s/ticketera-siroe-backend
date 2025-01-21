@@ -61,7 +61,7 @@ TipoEquipoModel.hasMany(EquipoModel, { foreignKey: 'tipoEquipoId', as: 'equipos'
 
 // Relación Observación - Equipo
 ObservacionModel.belongsTo(EquipoModel, { foreignKey: 'equipoId', as: 'equipo' })
-EquipoModel.hasMany(ObservacionModel, { foreignKey: 'equipoId', as: 'equipo' })
+EquipoModel.hasMany(ObservacionModel, { foreignKey: 'equipoId', as: 'observaciones' })
 
 // Relación TipoEquipo - Campo (muchos a muchos)
 TipoEquipoCampoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });

@@ -686,7 +686,8 @@ const getSucursalById = async (req, res) => {
                     limit,
                     offset,
                     include: [
-                        { model: TipoEquipoModel, as: 'tipoEquipo' }
+                        { model: TipoEquipoModel, as: 'tipoEquipo' },
+                        { model: ObservacionModel, as: 'observaciones' },
                     ],
                     where: { estado },
                     order: [['numeroSecuencial', 'DESC']],
