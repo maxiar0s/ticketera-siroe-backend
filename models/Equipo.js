@@ -14,11 +14,6 @@ const equipo = db.define('Equipos', {
         type: DataTypes.INTEGER,
         allowNull: false
     },
-    // Campos a rellenar por usuario
-    // tipo: {
-    //     type: DataTypes.STRING,
-    //     allowNull: false
-    // },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
     },

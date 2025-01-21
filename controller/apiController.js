@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import { col, fn, Op } from "sequelize";
+import db from '../config/db.js';
 import bucket from '../config/gcs.js';
 
 import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, EstadoCuentaModel, ObservacionModel, SucursalModel, TipoCuentaModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
@@ -242,7 +243,7 @@ const postCliente = async (req, res) => {
     })
 
     if(clienteExistente) return;
-
+    console.log(telefonoEncargado);
     const telefonoSinEspacios = telefonoEncargado.replace(/\s+/g, '');
     const telefonoEncargadoFormateado = telefonoSinEspacios.toString().slice(0, 9);
     const rutCasaMatriz = rut.toString().slice(0, 10); 
@@ -400,77 +401,79 @@ const getEliminarSucursal = async (req, res) => {
 }
 
 const postEquipo = async (req, res) => {
-    const { clienteId = null, sucursalId = null } = req.body;
+    const { clienteId = null, sucursalId = null, departamento, tipoEquipoId } = req.body;
 
-    if(!clienteId && !sucursalId) {
-        return res.json({error: 'error'});
+    if (!clienteId && !sucursalId) {
+        return res.status(400).json({ error: 'Debe proporcionar un clienteId o sucursalId' });
     }
-    
-    let equipo;
-    if(sucursalId) {
-        equipo = await EquipoModel.findOne({
-            where: { sucursalId },
+
+    const t = await db.transaction();
+
+    try {
+        const lockCondition = sucursalId
+            ? { sucursalId }
+            : { clienteId };
+
+        const ultimoEquipo = await EquipoModel.findOne({
+            where: lockCondition,
             order: [['numeroSecuencial', 'DESC']],
+            lock: true,
+            skipLocked: false,
+            transaction: t,
         });
-    }
-    else {
-        equipo = await EquipoModel.findOne({
-            where: { clienteId },
-            order: [['numeroSecuencial', 'DESC']],
+
+        const maxNumero = ultimoEquipo ? ultimoEquipo.numeroSecuencial : 0;
+        const nextNumero = maxNumero + 1;
+
+        const tipoEquipo = await TipoEquipoModel.findOne({
+            where: { id: tipoEquipoId },
+            transaction: t,
         });
-    }
 
-    const maxNumero = equipo ? equipo.numeroSecuencial : 0;
-    const nextNumero = maxNumero + 1;
-    
-    const { departamento, tipoEquipoId } = req.body;
-
-    const tipoEquipo = await TipoEquipoModel.findOne({
-        where: {
-            id: tipoEquipoId
+        if (!tipoEquipo) {
+            throw new Error('El tipo de equipo no existe');
         }
-    });
 
-    const deptCode = departamento.substring(0, 4).toUpperCase();
-    const numeroPadded = nextNumero.toString().padStart(3, '0');
-    const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
+        // Crear el código del equipo
+        const deptCode = departamento.substring(0, 4).toUpperCase();
+        const numeroPadded = nextNumero.toString().padStart(3, '0');
+        const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
 
-    const {
-        marca = null,
-        modelo = null,
-        numeroSerie = null,
-        procesador = null,
-        velocidadProcesador = null,
-        ram = null,
-        tipoAlmacenamiento = null,
-        cantidadAlmacenamiento = null,
-        sistemaOperativo = null,
-        ofimatica = null,
-        antivirus = null } = req.body;
-    
-    await EquipoModel.create({
-        numeroSecuencial: nextNumero,
-        casaMatrizId: null,
-        clienteId,
-        sucursalId,
-        estado: 1,
-        marca,
-        modelo,
-        codigoId,
-        departamento,
-        numeroSerie,
-        procesador,
-        velocidadProcesador,
-        ram,
-        tipoAlmacenamiento,
-        cantidadAlmacenamiento,
-        sistemaOperativo,
-        ofimatica,
-        antivirus,
-        tipoEquipoId: tipoEquipo.id
-    });
-    res.json({ resp: `Equipo creado satisfactoriamente.`});
-}
+        // Crear el nuevo equipo
+        const nuevoEquipo = await EquipoModel.create({
+            numeroSecuencial: nextNumero,
+            casaMatrizId: null,
+            clienteId,
+            sucursalId,
+            estado: 1,
+            marca: req.body.marca || null,
+            modelo: req.body.modelo || null,
+            codigoId,
+            departamento,
+            numeroSerie: req.body.numeroSerie || null,
+            procesador: req.body.procesador || null,
+            velocidadProcesador: req.body.velocidadProcesador || null,
+            ram: req.body.ram || null,
+            tipoAlmacenamiento: req.body.tipoAlmacenamiento || null,
+            cantidadAlmacenamiento: req.body.cantidadAlmacenamiento || null,
+            sistemaOperativo: req.body.sistemaOperativo || null,
+            ofimatica: req.body.ofimatica || null,
+            antivirus: req.body.antivirus || null,
+            tipoEquipoId: tipoEquipo.id,
+        }, { transaction: t });
+
+        await t.commit();
+        return res.json({ message: 'Equipo creado satisfactoriamente', nuevoEquipo });
+    } catch (error) {
+        if (t && !t.finished) {
+            await t.rollback();
+        }
+        console.error(error);
+        return res.status(500).json({ error: 'Error al crear el equipo', details: error.message });
+    }
+};
+
+
 
 const postObservacion = async (req, res) => {
     const { id } = req.params;
