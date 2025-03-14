@@ -1,830 +1,811 @@
-import bcrypt from 'bcrypt';
+import bcrypt from "bcrypt";
 import { col, fn, Op } from "sequelize";
-import db from '../config/db.js';
-import bucket from '../config/gcs.js';
+import db from "../config/db.js";
+import bucket from "../config/gcs.js";
 
-import { CampoModel, CasaMatrizModel, CuentaModel, EquipoModel, EstadoCuentaModel, ObservacionModel, SucursalModel, TipoCuentaModel, TipoEquipoCampoModel, TipoEquipoModel } from "../models/index.js";
+import {
+  CampoModel,
+  CasaMatrizModel,
+  CuentaModel,
+  EquipoModel,
+  EstadoCuentaModel,
+  ObservacionModel,
+  SucursalModel,
+  TipoCuentaModel,
+  TipoEquipoCampoModel,
+  TipoEquipoModel,
+} from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 
 const generateSignedUrl = async (fileName) => {
-    try {
-        const file = bucket.file(fileName);
-        const [url] = await file.getSignedUrl({
-          action: 'read',
-          expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
-        });
-        return url;
-      } catch (error) {
-        console.error(error);
-        throw error;
-      }
+  try {
+    const file = bucket.file(fileName);
+    const [url] = await file.getSignedUrl({
+      action: "read",
+      expires: Date.now() + 1000 * 60 * 60 * 24 * 365 * 10,
+    });
+    return url;
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
 };
 
 const postCuenta = async (req, res) => {
-    const { name, telefono, email, password, tipoCuentaId } = req.body;
-    const hashed_password = await bcrypt.hash(password, 10);
-    const { id } = req.body;
-    
-    if(id) {
-        let cuenta = await CuentaModel.findByPk(id, {
-            include: [
-                { model: TipoCuentaModel, as: 'tipoCuenta' },
-                { model: EstadoCuentaModel, as: 'estadoCuenta' },
-            ]
-        });
+  const { name, telefono, email, password, tipoCuentaId } = req.body;
+  const hashed_password = await bcrypt.hash(password, 10);
+  const { id } = req.body;
 
-        const { estadoCuentaId } = req.body;
+  if (id) {
+    let cuenta = await CuentaModel.findByPk(id, {
+      include: [
+        { model: TipoCuentaModel, as: "tipoCuenta" },
+        { model: EstadoCuentaModel, as: "estadoCuenta" },
+      ],
+    });
 
-        if(password == ""){
-            cuenta.set({
-                name,
-                telefono,
-                tipoCuentaId,
-                estadoCuentaId,
-            });
+    const { estadoCuentaId } = req.body;
 
-            await cuenta.save();
-
-            cuenta = await CuentaModel.findByPk(id, {
-                include: [
-                    { model: TipoCuentaModel, as: 'tipoCuenta' },
-                    { model: EstadoCuentaModel, as: 'estadoCuenta' },
-                ]
-            });
-
-            return res.json(cuenta);
-        } else {
-            cuenta.set({
-                name,
-                telefono,
-                tipoCuentaId,
-                password: hashed_password,
-                estadoCuentaId,
-            });
-
-            await save();
-            
-            cuenta = await CuentaModel.findByPk(id, {
-                include: [
-                    { model: TipoCuentaModel, as: 'tipoCuenta' },
-                    { model: EstadoCuentaModel, as: 'estadoCuenta' },
-                ]
-            });
-
-            return res.json(cuenta);
-        }
-    }
-    
-    else {
-        const correoExistente = await CuentaModel.findOne({
-            where: {
-                email
-            }
-        })
-    
-        if(correoExistente) {
-            return res.json({ error: 'Correo electrónico ya registrado.'});
-        }
-
-        else {
-            const cuenta = await CuentaModel.create({
-                name,
-                telefono,
-                email,
-                tipoCuentaId,
-                password: hashed_password,
-                estadoCuentaId: 1,
-            });
-            
-            return res.json(cuenta);
-        }
-    }
-}
-
-const getVerificarCorreo = async (req, res) => {
-    const { correo } = req.query;
-
-    const usuarioExistente = await CuentaModel.findOne({
-        where: {
-            email: correo
-        }
-    })
-
-    if (usuarioExistente) {
-        return res.json({ isTaken: true });
-    } else {
-        return res.json({ isTaken: false });
-    }
-}
-
-const postModificarCuenta = async (req, res) => {
-    const { id } = req.params;
-
-    if(!id) {
-        return res.json({ resp: 'Error al intentar modificar cuenta' });
-    }
-
-    const cuenta = await CuentaModel.findByPk(id);
-
-    if(!cuenta) {
-        return res.json({ resp: 'Cuenta no encontrado, intente nuevamente' });
-    }
-
-    const { name,
+    if (password == "") {
+      cuenta.set({
+        name,
         telefono,
+        tipoCuentaId,
+        estadoCuentaId,
+      });
+
+      await cuenta.save();
+
+      cuenta = await CuentaModel.findByPk(id, {
+        include: [
+          { model: TipoCuentaModel, as: "tipoCuenta" },
+          { model: EstadoCuentaModel, as: "estadoCuenta" },
+        ],
+      });
+
+      return res.json(cuenta);
+    } else {
+      cuenta.set({
+        name,
+        telefono,
+        tipoCuentaId,
+        password: hashed_password,
+        estadoCuentaId,
+      });
+
+      await cuenta.save();
+
+      cuenta = await CuentaModel.findByPk(id, {
+        include: [
+          { model: TipoCuentaModel, as: "tipoCuenta" },
+          { model: EstadoCuentaModel, as: "estadoCuenta" },
+        ],
+      });
+
+      return res.json(cuenta);
+    }
+  } else {
+    const correoExistente = await CuentaModel.findOne({
+      where: {
         email,
-        password } = req.body;
+      },
+    });
 
-    const hashed_password = await bcrypt.hash(password, 10);
-
-    cuenta.set({
+    if (correoExistente) {
+      return res.json({ error: "Correo electrónico ya registrado." });
+    } else {
+      const cuenta = await CuentaModel.create({
         name,
         telefono,
         email,
-        password: hashed_password
-    })
-    cuenta.save();
+        tipoCuentaId,
+        password: hashed_password,
+        estadoCuentaId: 1,
+      });
 
-    return res.json({ resp: 'Cuenta modificado correctamente' });
-}
-
-const getEliminarCuenta = async (req, res) => {
-    const { id } = req.params;
-    if(!id) {
-        return res.json({ resp: 'No se ha encontrado un identificador unico' });
+      return res.json(cuenta);
     }
-
-    const cuenta = await CuentaModel.findByPk(id);
-
-    if(!cuenta) {
-        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
-    }
-
-    await cuenta.destroy();
-
-    return res.json({ resp: 'Cliente eliminado correctamente' });
-}
-
-const getUsuarios = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina);
-    const expresion = /^[1-999]$/;
-    
-    if(!expresion.test(paginaActual)) {
-        paginaActual = 1;
-    }
-    
-    // Limites y Offset para el paginador
-    const limit = 12;
-    const offset = ((paginaActual*limit) - limit);
-    
-    const { option } = req.query;
-    let tipoCuentaId = { [Op.in]: [1, 2, 3] };
-    if(option === "Mesa de ayuda") {
-        tipoCuentaId = 3;
-    } else if (option === "Técnico de soporte") {
-        tipoCuentaId = 2;
-    } else if (option === "Administrador") {
-        tipoCuentaId = 1;
-    }
-
-    const [cuentas, total] = await Promise.all([
-        CuentaModel.scope('eliminarCampos').findAll({
-            limit,
-            offset,
-            where: { tipoCuentaId },
-            include: [
-                { model: TipoCuentaModel, as: 'tipoCuenta' },
-                { model: EstadoCuenta, as: 'estadoCuenta' },
-            ],
-            order: [['id', 'ASC']]
-        }),
-        CuentaModel.count({
-            where: { tipoCuentaId },
-        })
-    ]);
-
-    let paginas = Math.ceil(total / limit);
-    if(total == 0) {
-        paginas = 1;
-    }
-
-    return res.json({cuentas, paginas});
-}
-
-const getUsuario = async (req, res) => {
-    const { id } = req.params;
-
-    const usuario = await CuentaModel.scope('eliminarCampos').findByPk(id, {
-        include: [
-            { model: TipoCuentaModel, as: 'tipoCuenta'},
-            { model: EstadoCuentaModel, as: 'estadoCuenta'},
-        ]
-    });
-
-    if(!usuario) {
-        return;
-    }
-
-    return res.json(usuario);
-}
-
-const postCliente = async (req, res) => {
-    const { rut,
-        razonSocial,
-        encargadoGeneral,
-        correo,
-        telefonoEncargado } = req.body;
-    const imagenName = req.uploadedFile
-
-    const clienteExistente = await CasaMatrizModel.findOne({
-        where: {
-            rut
-        }
-    })
-
-    if(clienteExistente) return;
-    console.log(telefonoEncargado);
-    const telefonoSinEspacios = telefonoEncargado.replace(/\s+/g, '');
-    const telefonoEncargadoFormateado = telefonoSinEspacios.toString().slice(0, 9);
-    const rutCasaMatriz = rut.toString().slice(0, 10); 
-
-    const nuevoCliente = await CasaMatrizModel.create({
-        rut: rutCasaMatriz,
-        razonSocial,
-        imagen: imagenName,
-        encargadoGeneral,
-        correo,
-        telefonoEncargado: telefonoEncargadoFormateado
-    });
-
-    res.json({ resp: 'Cliente creado satisfactoriamente.', id: nuevoCliente.id });
-}
-
-const postModificarCliente = async (req, res) => {
-    const { id } = req.params;
-
-    if(!id) {
-        return res.json({ resp: 'Error al intentar modificar cliente' });
-    }
-
-    const cliente = await CasaMatrizModel.findByPk(id);
-
-    if(!cliente) {
-        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
-    }
-
-    const { rut,
-        razonSocial,
-        encargadoGeneral,
-        correo,
-        telefonoEncargado } = req.body;
-
-    cliente.set({
-        rut,
-        razonSocial,
-        encargadoGeneral,
-        correo,
-        telefonoEncargado
-    })
-    cliente.save();
-
-    return res.json({ resp: 'Cliente modificado correctamente' });
-}
-
-const postEliminarCliente = async (req, res) => {
-    const { id } = req.params;
-    if(!id) {
-        return res.json({ resp: 'Error al intentar eliminar cliente' });
-    }
-
-    const cliente = await CasaMatrizModel.findByPk(id,{
-        include: [
-            { model: CuentaModel },
-            { model: EquipoModel,
-                include: [
-                    { model: UsuarioAsignadoModel }
-                ]
-             }
-        ]
-    });
-
-    if(!cliente) {
-        return res.json({ resp: 'Cliente no encontrado, intente nuevamente' });
-    }
-
-    for (const equipamiento of cliente.Equipamientos) {
-        await equipamiento.setUsuariosAsignados([]); 
-      
-        for (const usuario of equipamiento.UsuariosAsignados) {
-          await usuario.destroy();
-        }
-      
-        await equipamiento.destroy();
-      }
-      await cliente.destroy();
-
-    return res.json({ resp: 'Cliente eliminado correctamente' });
-}
-
-const postSucursal = async (req, res) => {
-    const {
-        encargadoSucursal,
-        correoSucursal,
-        telefonoSucursal,
-        sucursal,
-        direccion,
-        sucursalId,
-        casaMatrizId } = req.body;
-
-    const telefonoSinEspacios = telefonoSucursal.replace(/\s+/g, '');
-    const telefonoSucursalFormateado = telefonoSinEspacios.toString().slice(0, 9);
-    const sucursalNombre = sucursal;
-    
-    if(!casaMatrizId && !sucursalId) return;
-
-    if(sucursalId) {
-        const sucursal = await SucursalModel.findByPk(sucursalId);
-
-        sucursal.set({
-            sucursal: sucursalNombre,
-            encargadoSucursal,
-            correoSucursal,
-            telefonoSucursal: telefonoSucursalFormateado,
-            direccion,
-        })
-
-        await sucursal.save();
-
-        const sucursalModificada = await SucursalModel.findByPk(sucursalId, {
-            include: [
-                { model: EquipoModel, as: 'equipos', attributes: [] },
-            ],
-            attributes: {
-                include: [
-                    [fn("COUNT", col("equipos.id")), "equiposCount"]
-                ]
-            },
-            group: ['Sucursales.id'],
-            subQuery: false
-        })
-
-        return res.json({resp: 'mod', sucursal: sucursalModificada});
-    }
-
-    else {
-        const nuevaSucursal = await SucursalModel.create({
-            encargadoSucursal,
-            correoSucursal,
-            estado: 1,
-            telefonoSucursal: telefonoSucursalFormateado,
-            sucursal,
-            direccion,
-            casaMatrizId
-        });
-    
-        return res.json({resp: 'creada', sucursal: nuevaSucursal});
-    }
-}
-
-const getEliminarSucursal = async (req, res) => {
-    const { id } = req.params;
-
-    if(!id) return;
-
-    const sucursal = await SucursalModel.findByPk(id);
-
-    if(!sucursal) return;
-
-    await sucursal.destroy();
-
-    return res.json({resp: 'Sucursal eliminada exitosamente.'});
-}
-
-const postEquipo = async (req, res) => {
-    const { clienteId = null, sucursalId = null, departamento, tipoEquipoId } = req.body;
-
-    if (!clienteId && !sucursalId) {
-        return res.status(400).json({ error: 'Debe proporcionar un clienteId o sucursalId' });
-    }
-
-    const t = await db.transaction();
-
-    try {
-        const lockCondition = sucursalId
-            ? { sucursalId }
-            : { clienteId };
-
-        const ultimoEquipo = await EquipoModel.findOne({
-            where: lockCondition,
-            order: [['numeroSecuencial', 'DESC']],
-            lock: true,
-            skipLocked: false,
-            transaction: t,
-        });
-
-        const maxNumero = ultimoEquipo ? ultimoEquipo.numeroSecuencial : 0;
-        const nextNumero = maxNumero + 1;
-
-        const tipoEquipo = await TipoEquipoModel.findOne({
-            where: { id: tipoEquipoId },
-            transaction: t,
-        });
-
-        if (!tipoEquipo) {
-            throw new Error('El tipo de equipo no existe');
-        }
-
-        // Crear el código del equipo
-        const deptCode = departamento.substring(0, 4).toUpperCase();
-        const numeroPadded = nextNumero.toString().padStart(3, '0');
-        const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
-
-        // Crear el nuevo equipo
-        const nuevoEquipo = await EquipoModel.create({
-            numeroSecuencial: nextNumero,
-            casaMatrizId: null,
-            clienteId,
-            sucursalId,
-            estado: 1,
-            marca: req.body.marca || null,
-            modelo: req.body.modelo || null,
-            codigoId,
-            departamento,
-            numeroSerie: req.body.numeroSerie || null,
-            procesador: req.body.procesador || null,
-            velocidadProcesador: req.body.velocidadProcesador || null,
-            ram: req.body.ram || null,
-            tipoAlmacenamiento: req.body.tipoAlmacenamiento || null,
-            cantidadAlmacenamiento: req.body.cantidadAlmacenamiento || null,
-            sistemaOperativo: req.body.sistemaOperativo || null,
-            ofimatica: req.body.ofimatica || null,
-            antivirus: req.body.antivirus || null,
-            tipoEquipoId: tipoEquipo.id,
-        }, { transaction: t });
-
-        await t.commit();
-        return res.json({ message: 'Equipo creado satisfactoriamente', nuevoEquipo });
-    } catch (error) {
-        if (t && !t.finished) {
-            await t.rollback();
-        }
-        console.error(error);
-        return res.status(500).json({ error: 'Error al crear el equipo', details: error.message });
-    }
+  }
 };
 
+const getVerificarCorreo = async (req, res) => {
+  const { correo } = req.query;
 
+  const usuarioExistente = await CuentaModel.findOne({
+    where: {
+      email: correo,
+    },
+  });
+
+  if (usuarioExistente) {
+    return res.json({ isTaken: true });
+  } else {
+    return res.json({ isTaken: false });
+  }
+};
+
+const postModificarCuenta = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.json({ resp: "Error al intentar modificar cuenta" });
+  }
+
+  const cuenta = await CuentaModel.findByPk(id);
+
+  if (!cuenta) {
+    return res.json({ resp: "Cuenta no encontrado, intente nuevamente" });
+  }
+
+  const { name, telefono, email, password } = req.body;
+
+  const hashed_password = await bcrypt.hash(password, 10);
+
+  cuenta.set({
+    name,
+    telefono,
+    email,
+    password: hashed_password,
+  });
+  cuenta.save();
+
+  return res.json({ resp: "Cuenta modificado correctamente" });
+};
+
+const getEliminarCuenta = async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.json({ resp: "No se ha encontrado un identificador unico" });
+  }
+
+  const cuenta = await CuentaModel.findByPk(id);
+
+  if (!cuenta) {
+    return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
+  }
+
+  await cuenta.destroy();
+
+  return res.json({ resp: "Cliente eliminado correctamente" });
+};
+
+const getUsuarios = async (req, res) => {
+  let paginaActual = parseInt(req.query.pagina);
+  const expresion = /^[1-999]$/;
+
+  if (!expresion.test(paginaActual)) {
+    paginaActual = 1;
+  }
+
+  // Limites y Offset para el paginador
+  const limit = 12;
+  const offset = paginaActual * limit - limit;
+
+  const { option } = req.query;
+  let tipoCuentaId = { [Op.in]: [1, 2, 3] };
+  if (option === "Mesa de ayuda") {
+    tipoCuentaId = 3;
+  } else if (option === "Técnico de soporte") {
+    tipoCuentaId = 2;
+  } else if (option === "Administrador") {
+    tipoCuentaId = 1;
+  }
+
+  const [cuentas, total] = await Promise.all([
+    CuentaModel.scope("eliminarCampos").findAll({
+      limit,
+      offset,
+      where: { tipoCuentaId },
+      include: [
+        { model: TipoCuentaModel, as: "tipoCuenta" },
+        { model: EstadoCuenta, as: "estadoCuenta" },
+      ],
+      order: [["id", "ASC"]],
+    }),
+    CuentaModel.count({
+      where: { tipoCuentaId },
+    }),
+  ]);
+
+  let paginas = Math.ceil(total / limit);
+  if (total == 0) {
+    paginas = 1;
+  }
+
+  return res.json({ cuentas, paginas });
+};
+
+const getUsuario = async (req, res) => {
+  const { id } = req.params;
+
+  const usuario = await CuentaModel.scope("eliminarCampos").findByPk(id, {
+    include: [
+      { model: TipoCuentaModel, as: "tipoCuenta" },
+      { model: EstadoCuentaModel, as: "estadoCuenta" },
+    ],
+  });
+
+  if (!usuario) {
+    return;
+  }
+
+  return res.json(usuario);
+};
+
+const postCliente = async (req, res) => {
+  const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
+    req.body;
+  const imagenName = req.uploadedFile;
+
+  const clienteExistente = await CasaMatrizModel.findOne({
+    where: {
+      rut,
+    },
+  });
+
+  if (clienteExistente) return;
+  console.log(telefonoEncargado);
+  const telefonoSinEspacios = telefonoEncargado.replace(/\s+/g, "");
+  const telefonoEncargadoFormateado = telefonoSinEspacios
+    .toString()
+    .slice(0, 9);
+  const rutCasaMatriz = rut.toString().slice(0, 10);
+
+  const nuevoCliente = await CasaMatrizModel.create({
+    rut: rutCasaMatriz,
+    razonSocial,
+    imagen: imagenName,
+    encargadoGeneral,
+    correo,
+    telefonoEncargado: telefonoEncargadoFormateado,
+  });
+
+  res.json({ resp: "Cliente creado satisfactoriamente.", id: nuevoCliente.id });
+};
+
+const postModificarCliente = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.json({ resp: "Error al intentar modificar cliente" });
+  }
+
+  const cliente = await CasaMatrizModel.findByPk(id);
+
+  if (!cliente) {
+    return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
+  }
+
+  const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
+    req.body;
+
+  cliente.set({
+    rut,
+    razonSocial,
+    encargadoGeneral,
+    correo,
+    telefonoEncargado,
+  });
+  cliente.save();
+
+  return res.json({ resp: "Cliente modificado correctamente" });
+};
+
+const postEliminarCliente = async (req, res) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.json({ resp: "Error al intentar eliminar cliente" });
+  }
+
+  const cliente = await CasaMatrizModel.findByPk(id, {
+    include: [
+      { model: CuentaModel },
+      { model: EquipoModel, include: [{ model: UsuarioAsignadoModel }] },
+    ],
+  });
+
+  if (!cliente) {
+    return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
+  }
+
+  for (const equipamiento of cliente.Equipamientos) {
+    await equipamiento.setUsuariosAsignados([]);
+
+    for (const usuario of equipamiento.UsuariosAsignados) {
+      await usuario.destroy();
+    }
+
+    await equipamiento.destroy();
+  }
+  await cliente.destroy();
+
+  return res.json({ resp: "Cliente eliminado correctamente" });
+};
+
+const postSucursal = async (req, res) => {
+  const {
+    encargadoSucursal,
+    correoSucursal,
+    telefonoSucursal,
+    sucursal,
+    direccion,
+    sucursalId,
+    casaMatrizId,
+  } = req.body;
+
+  const telefonoSinEspacios = telefonoSucursal.replace(/\s+/g, "");
+  const telefonoSucursalFormateado = telefonoSinEspacios.toString().slice(0, 9);
+  const sucursalNombre = sucursal;
+
+  if (!casaMatrizId && !sucursalId) return;
+
+  if (sucursalId) {
+    const sucursal = await SucursalModel.findByPk(sucursalId);
+
+    sucursal.set({
+      sucursal: sucursalNombre,
+      encargadoSucursal,
+      correoSucursal,
+      telefonoSucursal: telefonoSucursalFormateado,
+      direccion,
+    });
+
+    await sucursal.save();
+
+    const sucursalModificada = await SucursalModel.findByPk(sucursalId, {
+      include: [{ model: EquipoModel, as: "equipos", attributes: [] }],
+      attributes: {
+        include: [[fn("COUNT", col("equipos.id")), "equiposCount"]],
+      },
+      group: ["Sucursales.id"],
+      subQuery: false,
+    });
+
+    return res.json({ resp: "mod", sucursal: sucursalModificada });
+  } else {
+    const nuevaSucursal = await SucursalModel.create({
+      encargadoSucursal,
+      correoSucursal,
+      estado: 1,
+      telefonoSucursal: telefonoSucursalFormateado,
+      sucursal,
+      direccion,
+      casaMatrizId,
+    });
+
+    return res.json({ resp: "creada", sucursal: nuevaSucursal });
+  }
+};
+
+const getEliminarSucursal = async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) return;
+
+  const sucursal = await SucursalModel.findByPk(id);
+
+  if (!sucursal) return;
+
+  await sucursal.destroy();
+
+  return res.json({ resp: "Sucursal eliminada exitosamente." });
+};
+
+const postEquipo = async (req, res) => {
+  const {
+    clienteId = null,
+    sucursalId = null,
+    departamento,
+    tipoEquipoId,
+  } = req.body;
+
+  if (!clienteId && !sucursalId) {
+    return res
+      .status(400)
+      .json({ error: "Debe proporcionar un clienteId o sucursalId" });
+  }
+
+  const t = await db.transaction();
+
+  try {
+    const lockCondition = sucursalId ? { sucursalId } : { clienteId };
+
+    const ultimoEquipo = await EquipoModel.findOne({
+      where: lockCondition,
+      order: [["numeroSecuencial", "DESC"]],
+      lock: true,
+      skipLocked: false,
+      transaction: t,
+    });
+
+    const maxNumero = ultimoEquipo ? ultimoEquipo.numeroSecuencial : 0;
+    const nextNumero = maxNumero + 1;
+
+    const tipoEquipo = await TipoEquipoModel.findOne({
+      where: { id: tipoEquipoId },
+      transaction: t,
+    });
+
+    if (!tipoEquipo) {
+      throw new Error("El tipo de equipo no existe");
+    }
+
+    // Crear el código del equipo
+    const deptCode = departamento.substring(0, 4).toUpperCase();
+    const numeroPadded = nextNumero.toString().padStart(3, "0");
+    const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
+
+    // Crear el nuevo equipo
+    const nuevoEquipo = await EquipoModel.create(
+      {
+        numeroSecuencial: nextNumero,
+        casaMatrizId: null,
+        clienteId,
+        sucursalId,
+        estado: 1,
+        marca: req.body.marca || null,
+        modelo: req.body.modelo || null,
+        codigoId,
+        departamento,
+        numeroSerie: req.body.numeroSerie || null,
+        procesador: req.body.procesador || null,
+        velocidadProcesador: req.body.velocidadProcesador || null,
+        ram: req.body.ram || null,
+        tipoAlmacenamiento: req.body.tipoAlmacenamiento || null,
+        cantidadAlmacenamiento: req.body.cantidadAlmacenamiento || null,
+        sistemaOperativo: req.body.sistemaOperativo || null,
+        ofimatica: req.body.ofimatica || null,
+        antivirus: req.body.antivirus || null,
+        tipoEquipoId: tipoEquipo.id,
+      },
+      { transaction: t }
+    );
+
+    await t.commit();
+    return res.json({
+      message: "Equipo creado satisfactoriamente",
+      nuevoEquipo,
+    });
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Error al crear el equipo", details: error.message });
+  }
+};
 
 const postObservacion = async (req, res) => {
-    const { id } = req.params;
-    const { text } = req.body;
+  const { id } = req.params;
+  const { text } = req.body;
 
-    const observacion = await ObservacionModel.create({
-        text,
-        equipoId: id
-    });
+  const observacion = await ObservacionModel.create({
+    text,
+    equipoId: id,
+  });
 
-    return res.json(observacion);
-}
+  return res.json(observacion);
+};
 
 const postModificarEquipo = async (req, res) => {
-    const { id } = req.params;
-    
-    if(!id) {
-        return res.json({ resp: 'Error al intentar modificar el equipo' });
-    }
+  const { id } = req.params;
 
-    const equipo = await EquipoModel.findByPk(id);
+  if (!id) {
+    return res.json({ resp: "Error al intentar modificar el equipo" });
+  }
 
-    if(!equipo) {
-        return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
-    }
+  const equipo = await EquipoModel.findByPk(id);
 
-    const {
-        marca,
-        modelo,
-        numeroSerie,
-        usuario,
-        procesador,
-        velocidadProcesador,
-        ram,
-        tipoAlmacenamiento,
-        cantidadAlmacenamiento,
-        sistemaOperativo,
-        ofimatica,
-        antivirus,
-        } = req.body;
+  if (!equipo) {
+    return res.json({ resp: "Equipo no encontrado, intente nuevamente" });
+  }
 
-    if(req.uploadedFile) {
-        const imagenName = req.uploadedFile
+  const {
+    marca,
+    modelo,
+    numeroSerie,
+    usuario,
+    procesador,
+    velocidadProcesador,
+    ram,
+    tipoAlmacenamiento,
+    cantidadAlmacenamiento,
+    sistemaOperativo,
+    ofimatica,
+    antivirus,
+  } = req.body;
 
-        equipo.set({
-            marca,
-            modelo,
-            imagen: imagenName,
-            usuario,
-            numeroSerie,
-            procesador,
-            velocidadProcesador,
-            ram,
-            tipoAlmacenamiento,
-            cantidadAlmacenamiento,
-            sistemaOperativo,
-            ofimatica,
-            antivirus
-        });
-    }
-    
+  if (req.uploadedFile) {
+    const imagenName = req.uploadedFile;
+
     equipo.set({
-        marca,
-        modelo,
-        numeroSerie,
-        procesador,
-        velocidadProcesador,
-        ram,
-        tipoAlmacenamiento,
-        cantidadAlmacenamiento,
-        sistemaOperativo,
-        ofimatica,
-        antivirus
+      marca,
+      modelo,
+      imagen: imagenName,
+      usuario,
+      numeroSerie,
+      procesador,
+      velocidadProcesador,
+      ram,
+      tipoAlmacenamiento,
+      cantidadAlmacenamiento,
+      sistemaOperativo,
+      ofimatica,
+      antivirus,
     });
+  }
 
-    equipo.save();
+  equipo.set({
+    marca,
+    modelo,
+    numeroSerie,
+    procesador,
+    velocidadProcesador,
+    ram,
+    tipoAlmacenamiento,
+    cantidadAlmacenamiento,
+    sistemaOperativo,
+    ofimatica,
+    antivirus,
+  });
 
-    return res.json({ resp: 'Equipo modificado correctamente.' });
-}
+  equipo.save();
+
+  return res.json({ resp: "Equipo modificado correctamente." });
+};
 
 const postEliminarEquipo = async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    if(!id) {
-        return res.json({ resp: 'Error al intentar eliminar equipo' });
-    }
+  if (!id) {
+    return res.json({ resp: "Error al intentar eliminar equipo" });
+  }
 
-    const equipo = await EquipoModel.findByPk(id);
+  const equipo = await EquipoModel.findByPk(id);
 
-    if(!equipo) {
-        return res.json({ resp: 'Equipo no encontrado, intente nuevamente' });
-    }
+  if (!equipo) {
+    return res.json({ resp: "Equipo no encontrado, intente nuevamente" });
+  }
 
-    await equipo.destroy();
+  await equipo.destroy();
 
-    return res.json({ resp: 'Equipo eliminado correctamente' });
-}
+  return res.json({ resp: "Equipo eliminado correctamente" });
+};
 
 const getResults = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
+  let paginaActual = parseInt(req.query.pagina);
+  const expresion = /^[1-999]$/;
 
-    if(!expresion.test(paginaActual)) {
-        return;
-    }
+  if (!expresion.test(paginaActual)) {
+    return;
+  }
 
-    // Limites y Offset para el paginador
-    const limit = 4
-    const offset = ((paginaActual*limit) - limit)
+  // Limites y Offset para el paginador
+  const limit = 4;
+  const offset = paginaActual * limit - limit;
 
-    const [clientes, total] = await Promise.all([
-        CasaMatrizModel.findAll({
-            limit,
-            offset,
-        }),
-        CasaMatrizModel.count()
-    ])
+  const [clientes, total] = await Promise.all([
+    CasaMatrizModel.findAll({
+      limit,
+      offset,
+    }),
+    CasaMatrizModel.count(),
+  ]);
 
-    let paginas = Math.ceil(total / limit);
-    if(total == 0) {
-        paginas = 1
-    }
-    
-    res.json({ clientes, paginas });
-}
+  let paginas = Math.ceil(total / limit);
+  if (total == 0) {
+    paginas = 1;
+  }
+
+  res.json({ clientes, paginas });
+};
 
 const getClientById = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
+  let paginaActual = parseInt(req.query.pagina);
+  const expresion = /^[1-999]$/;
 
-    if(!expresion.test(paginaActual)) {
-        paginaActual = 1;
-    }
+  if (!expresion.test(paginaActual)) {
+    paginaActual = 1;
+  }
 
-    // Limites y Offset para el paginador
-    const limit = 5
-    const offset = ((paginaActual*limit) - limit)
+  // Limites y Offset para el paginador
+  const limit = 5;
+  const offset = paginaActual * limit - limit;
 
-    const { id } = req.params;
-    const { option } = req.query;
-    let estado = { [Op.in]: [1, 2, 3] };
-    if(option === "Terminados") {
-        estado = 3;
-    } else if (option === "Pendientes") {
-        estado = 2;
-    }
+  const { id } = req.params;
+  const { option } = req.query;
+  let estado = { [Op.in]: [1, 2, 3] };
+  if (option === "Terminados") {
+    estado = 3;
+  } else if (option === "Pendientes") {
+    estado = 2;
+  }
 
-    const [cliente, total] = await Promise.all([
-        CasaMatrizModel.findByPk(id, {
-            include: [
-                { model: SucursalModel, as: 'sucursales',
-                    limit,
-                    offset,
-                    where: { estado },
-                    include: [
-                        { model: EquipoModel, as: 'equipos', attributes: [] },
-                    ],
-                    order: [['fechaIngreso', 'DESC']],
-                    attributes: {
-                        include: [
-                            [fn("COUNT", col("equipos.id")), "equiposCount"]
-                        ]
-                    },
-                    group: ['Sucursales.id'],
-                    subQuery: false
-                 }
-            ]
-        }),
-        CasaMatrizModel.count({
-            where: { id },
-            include: [
-                { model: SucursalModel, as: 'sucursales',
-                    where: { estado }      
-                }
-            ]
-        }),
-    ])
+  const [cliente, total] = await Promise.all([
+    CasaMatrizModel.findByPk(id, {
+      include: [
+        {
+          model: SucursalModel,
+          as: "sucursales",
+          limit,
+          offset,
+          where: { estado },
+          include: [{ model: EquipoModel, as: "equipos", attributes: [] }],
+          order: [["fechaIngreso", "DESC"]],
+          attributes: {
+            include: [[fn("COUNT", col("equipos.id")), "equiposCount"]],
+          },
+          group: ["Sucursales.id"],
+          subQuery: false,
+        },
+      ],
+    }),
+    CasaMatrizModel.count({
+      where: { id },
+      include: [{ model: SucursalModel, as: "sucursales", where: { estado } }],
+    }),
+  ]);
 
-    let paginas = Math.ceil(total / limit);
-    if(total == 0) {
-        paginas = 1
-    }
+  let paginas = Math.ceil(total / limit);
+  if (total == 0) {
+    paginas = 1;
+  }
 
-    return res.json({cliente, paginas});
-}
+  return res.json({ cliente, paginas });
+};
 
 const getSucursalById = async (req, res) => {
-    let paginaActual = parseInt(req.query.pagina)
-    const expresion = /^[1-999]$/
-    
-    if(!expresion.test(paginaActual)) {
-        paginaActual = 1;
-    }
-    
-    // Limites y Offset para el paginador
-    const limit = 8
-    const offset = ((paginaActual*limit) - limit)
-    
-    const { id } = req.params;
-    const { option } = req.query;
-    let estado = { [Op.in]: [1, 2, 3] };
-    if(option === "Terminados") {
-        estado = 3;
-    } else if (option === "Pendientes") {
-        estado = 2;
-    }
+  let paginaActual = parseInt(req.query.pagina);
+  const expresion = /^[1-999]$/;
 
-    const [sucursal, total] = await Promise.all([
-        SucursalModel.findByPk(id, { 
-            include: [
-                { model: CasaMatrizModel, as: 'casaMatriz' },
-                { model: EquipoModel, as: 'equipos',
-                    limit,
-                    offset,
-                    include: [
-                        { model: TipoEquipoModel, as: 'tipoEquipo' },
-                        { model: ObservacionModel, as: 'observaciones' },
-                    ],
-                    where: { estado },
-                    order: [['numeroSecuencial', 'DESC']],
-                }
-            ]
-        }),
-        SucursalModel.count({
-            where: {
-                id,
-            },
-            include: [
-                { model: EquipoModel, as: 'equipos',
-                    where: { estado }
-                }
-            ]
-        })
-    ])
+  if (!expresion.test(paginaActual)) {
+    paginaActual = 1;
+  }
 
-    let paginas = Math.ceil(total / limit);
-    if(total == 0) {
-        paginas = 1
-    }
+  // Limites y Offset para el paginador
+  const limit = 8;
+  const offset = paginaActual * limit - limit;
 
-    return res.json({sucursal, paginas});
-}
+  const { id } = req.params;
+  const { option } = req.query;
+  let estado = { [Op.in]: [1, 2, 3] };
+  if (option === "Terminados") {
+    estado = 3;
+  } else if (option === "Pendientes") {
+    estado = 2;
+  }
+
+  const [sucursal, total] = await Promise.all([
+    SucursalModel.findByPk(id, {
+      include: [
+        { model: CasaMatrizModel, as: "casaMatriz" },
+        {
+          model: EquipoModel,
+          as: "equipos",
+          limit,
+          offset,
+          include: [
+            { model: TipoEquipoModel, as: "tipoEquipo" },
+            { model: ObservacionModel, as: "observaciones" },
+          ],
+          where: { estado },
+          order: [["numeroSecuencial", "DESC"]],
+        },
+      ],
+    }),
+    SucursalModel.count({
+      where: {
+        id,
+      },
+      include: [{ model: EquipoModel, as: "equipos", where: { estado } }],
+    }),
+  ]);
+
+  let paginas = Math.ceil(total / limit);
+  if (total == 0) {
+    paginas = 1;
+  }
+
+  return res.json({ sucursal, paginas });
+};
 
 const getEquipmentsByCasaMatriz = async (req, res) => {
-    const { id } = req.params;
-    const equipos = await EquipoModel.findAll({ 
-        where: {
-            casaMatrizId: id
-        },
-        include: [
-            { model: CasaMatrizModel, as: 'casaMatriz' }
-        ]
-    });
-    if(!equipos) {
-        return;
-    }
-    res.json(equipos);
-}
+  const { id } = req.params;
+  const equipos = await EquipoModel.findAll({
+    where: {
+      casaMatrizId: id,
+    },
+    include: [{ model: CasaMatrizModel, as: "casaMatriz" }],
+  });
+  if (!equipos) {
+    return;
+  }
+  res.json(equipos);
+};
 
 const getTypeEquipments = async (req, res) => {
-    const tipos = await TipoEquipoModel.findAll();
+  const tipos = await TipoEquipoModel.findAll();
 
-    res.json(tipos);
-}
+  res.json(tipos);
+};
 
 const getEquipmentForm = async (req, res) => {
-    const { id } = req.params;
+  const { id } = req.params;
 
-    try {
-        const campos = await TipoEquipoCampoModel.findAll({
-            where: {
-                 tipoEquipoId: id 
-            },
-            include: [
-                { model: CampoModel, as: 'campo' },
-            ]
-        });
-        
-        const camposTransformados = campos.map(({ campo }) => ({
-            id: campo.id,
-            name: campo.name,
-            label: campo.label,
-            type: campo.type,
-            placeholder: campo.placeholder,
-            required: campo.required,
-        }));
-
-        res.json(camposTransformados);
-        } 
-    catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Error al obtener los campos' });
-    }
-}
-
-const getEquipmentById = async (req, res) => {
-    const { id } = req.params;
-    const equipo = await EquipoModel.findByPk(id, {
-        include: [
-            { model: TipoEquipoModel, as: 'tipoEquipo' },
-            { model: CasaMatrizModel, as: 'casaMatriz' },
-            { model: SucursalModel, as: 'sucursal' }
-        ]
+  try {
+    const campos = await TipoEquipoCampoModel.findAll({
+      where: {
+        tipoEquipoId: id,
+      },
+      include: [{ model: CampoModel, as: "campo" }],
     });
 
-    if(!equipo) {
-        return;
-    }
-    res.json(equipo);
-}
+    const camposTransformados = campos.map(({ campo }) => ({
+      id: campo.id,
+      name: campo.name,
+      label: campo.label,
+      type: campo.type,
+      placeholder: campo.placeholder,
+      required: campo.required,
+    }));
+
+    res.json(camposTransformados);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener los campos" });
+  }
+};
+
+const getEquipmentById = async (req, res) => {
+  const { id } = req.params;
+  const equipo = await EquipoModel.findByPk(id, {
+    include: [
+      { model: TipoEquipoModel, as: "tipoEquipo" },
+      { model: CasaMatrizModel, as: "casaMatriz" },
+      { model: SucursalModel, as: "sucursal" },
+    ],
+  });
+
+  if (!equipo) {
+    return;
+  }
+  res.json(equipo);
+};
 
 const generarUrl = async (req, res) => {
-    try {
-        const { fileName } = req.params;
-        const signedUrl = await generateSignedUrl(fileName);
-        res.json({ signedUrl });
-      } catch (error) {
-        res.status(500).json({ error: 'No se pudo generar el signed URL.' });
-      }
-}
+  try {
+    const { fileName } = req.params;
+    const signedUrl = await generateSignedUrl(fileName);
+    res.json({ signedUrl });
+  } catch (error) {
+    res.status(500).json({ error: "No se pudo generar el signed URL." });
+  }
+};
 
 export {
-    postCuenta,
-    getVerificarCorreo,
-    postModificarCuenta,
-    getEliminarCuenta,
-
-    getUsuarios,
-    getUsuario,
-
-    postCliente,
-    postModificarCliente,
-    postEliminarCliente,
-
-    postSucursal,
-    getEliminarSucursal,
-
-    postEquipo,
-    postObservacion,
-    postModificarEquipo,
-    postEliminarEquipo,
-
-    getResults,
-    getClientById,
-
-    getTypeEquipments,
-    getEquipmentForm,
-
-    getSucursalById,
-    getEquipmentsByCasaMatriz,
-    getEquipmentById,
-
-    generarUrl
-}
+  postCuenta,
+  getVerificarCorreo,
+  postModificarCuenta,
+  getEliminarCuenta,
+  getUsuarios,
+  getUsuario,
+  postCliente,
+  postModificarCliente,
+  postEliminarCliente,
+  postSucursal,
+  getEliminarSucursal,
+  postEquipo,
+  postObservacion,
+  postModificarEquipo,
+  postEliminarEquipo,
+  getResults,
+  getClientById,
+  getTypeEquipments,
+  getEquipmentForm,
+  getSucursalById,
+  getEquipmentsByCasaMatriz,
+  getEquipmentById,
+  generarUrl,
+};
