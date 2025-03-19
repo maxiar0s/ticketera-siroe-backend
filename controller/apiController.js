@@ -556,22 +556,74 @@ const postModificarEquipo = async (req, res) => {
   return res.json({ resp: "Equipo modificado correctamente." });
 };
 
-const postEliminarEquipo = async (req, res) => {
+const deleteEquiptment = async (req, res) => {
   const { id } = req.params;
 
   if (!id) {
-    return res.json({ resp: "Error al intentar eliminar equipo" });
+    return res.status(400).json({
+      success: false,
+      message: "Error: No se proporcionó un ID de equipo válido",
+    });
   }
 
-  const equipo = await EquipoModel.findByPk(id);
+  try {
+    // Find the equipment by ID
+    const equipo = await EquipoModel.findByPk(id);
 
-  if (!equipo) {
-    return res.json({ resp: "Equipo no encontrado, intente nuevamente" });
+    if (!equipo) {
+      return res.status(404).json({
+        success: false,
+        message: "Equipo no encontrado, intente nuevamente",
+      });
+    }
+
+    // Check if there are any related observations
+    const observaciones = await ObservacionModel.findAll({
+      where: { equipoId: id },
+    });
+
+    // Start a transaction to ensure data integrity
+    const t = await db.transaction();
+
+    try {
+      // Delete all related observations first
+      if (observaciones.length > 0) {
+        await ObservacionModel.destroy({
+          where: { equipoId: id },
+          transaction: t,
+        });
+      }
+
+      // Delete the equipment
+      await equipo.destroy({ transaction: t });
+
+      // Commit the transaction
+      await t.commit();
+
+      return res.json({
+        success: true,
+        message: "Equipo eliminado correctamente",
+      });
+    } catch (error) {
+      // Rollback in case of error
+      await t.rollback();
+      console.error("Error al eliminar el equipo:", error);
+
+      return res.status(500).json({
+        success: false,
+        message: "Error al eliminar el equipo",
+        error: error.message,
+      });
+    }
+  } catch (error) {
+    console.error("Error al buscar el equipo:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Error interno del servidor",
+      error: error.message,
+    });
   }
-
-  await equipo.destroy();
-
-  return res.json({ resp: "Equipo eliminado correctamente" });
 };
 
 const getResults = async (req, res) => {
@@ -799,7 +851,7 @@ export {
   postEquipo,
   postObservacion,
   postModificarEquipo,
-  postEliminarEquipo,
+  deleteEquiptment,
   getResults,
   getClientById,
   getTypeEquipments,
