@@ -179,7 +179,7 @@ const getUsuarios = async (req, res) => {
 
   // Limites y Offset para el paginador
   const limit = 12;
-  const offset = paginaActual * limit - limit;
+  const offset = (paginaActual - 1) * limit;
 
   const { option } = req.query;
   let tipoCuentaId = { [Op.in]: [1, 2, 3] };
@@ -635,8 +635,8 @@ const getResults = async (req, res) => {
   }
 
   // Limites y Offset para el paginador
-  const limit = 4;
-  const offset = paginaActual * limit - limit;
+  const limit = 8;
+  const offset = (paginaActual - 1) * limit;
 
   const [clientes, total] = await Promise.all([
     CasaMatrizModel.findAll({
@@ -664,7 +664,7 @@ const getClientById = async (req, res) => {
 
   // Limites y Offset para el paginador
   const limit = 5;
-  const offset = paginaActual * limit - limit;
+  const offset = (paginaActual - 1) * limit;
 
   const { id } = req.params;
   const { option } = req.query;
@@ -718,16 +718,19 @@ const getSucursalById = async (req, res) => {
 
   // Limites y Offset para el paginador
   const limit = 8;
-  const offset = paginaActual * limit - limit;
+  const offset = (paginaActual - 1) * limit;
 
   const { id } = req.params;
-  const { option } = req.query;
+  const { option, sort } = req.query;
   let estado = { [Op.in]: [1, 2, 3] };
   if (option === "Terminados") {
     estado = 3;
   } else if (option === "Pendientes") {
     estado = 2;
   }
+
+  // Determine sort order based on query parameter
+  const sortOrder = sort === 'asc' ? 'ASC' : 'DESC';
 
   const [sucursal, total] = await Promise.all([
     SucursalModel.findByPk(id, {
@@ -743,7 +746,7 @@ const getSucursalById = async (req, res) => {
             { model: ObservacionModel, as: "observaciones" },
           ],
           where: { estado },
-          order: [["numeroSecuencial", "DESC"]],
+          order: [["numeroSecuencial", sortOrder]],
         },
       ],
     }),
