@@ -9,14 +9,19 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(
-  cors({
-    origin: "*",
-    methods: "GET,POST,PUT,DELETE",
-    allowedHeaders: ["Content-Type,Authorization", "token"],
-  })
-);
-app.options("*", cors());
+// Configuración CORS más permisiva
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, token');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Manejar solicitudes preflight OPTIONS
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 // Conexión a DB
 try {

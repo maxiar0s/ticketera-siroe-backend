@@ -233,62 +233,140 @@ const getUsuario = async (req, res) => {
 };
 
 const postCliente = async (req, res) => {
-  const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
-    req.body;
-  const imagenName = req.uploadedFile;
+  try {
+    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
+      req.body;
+    const imagenName = req.uploadedFile;
 
-  const clienteExistente = await CasaMatrizModel.findOne({
-    where: {
-      rut,
-    },
-  });
+    if (!rut || !razonSocial || !encargadoGeneral || !correo || telefonoEncargado === undefined) {
+      return res.status(400).json({ 
+        resp: "Error: Faltan campos requeridos", 
+        recibido: req.body 
+      });
+    }
 
-  if (clienteExistente) return;
-  console.log(telefonoEncargado);
-  const telefonoSinEspacios = telefonoEncargado.replace(/\s+/g, "");
-  const telefonoEncargadoFormateado = telefonoSinEspacios
-    .toString()
-    .slice(0, 9);
-  const rutCasaMatriz = rut.toString().slice(0, 10);
+    const clienteExistente = await CasaMatrizModel.findOne({
+      where: {
+        rut,
+      },
+    });
 
-  const nuevoCliente = await CasaMatrizModel.create({
-    rut: rutCasaMatriz,
-    razonSocial,
-    imagen: imagenName,
-    encargadoGeneral,
-    correo,
-    telefonoEncargado: telefonoEncargadoFormateado,
-  });
+    if (clienteExistente) {
+      return res.status(400).json({ 
+        resp: "Error: Ya existe un cliente con ese RUT" 
+      });
+    }
 
-  res.json({ resp: "Cliente creado satisfactoriamente.", id: nuevoCliente.id });
+    // Procesar el número de teléfono
+    let telefonoEncargadoNum = telefonoEncargado;
+    if (typeof telefonoEncargado === 'string') {
+      // Eliminar cualquier carácter no numérico
+      const phoneNumber = telefonoEncargado.replace(/\D/g, '');
+      telefonoEncargadoNum = parseInt(phoneNumber, 10);
+    }
+
+    // Validar que el número de teléfono sea válido (no más de 9 dígitos para Chile)
+    if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
+      return res.status(400).json({ 
+        resp: "Error: El número de teléfono no es válido", 
+        recibido: telefonoEncargado 
+      });
+    }
+
+    // Formatear el RUT
+    const rutCasaMatriz = rut.toString().slice(0, 10);
+
+    console.log('Datos a crear:', {
+      rut: rutCasaMatriz,
+      razonSocial,
+      imagen: imagenName,
+      encargadoGeneral,
+      correo,
+      telefonoEncargado: telefonoEncargadoNum
+    });
+
+    const nuevoCliente = await CasaMatrizModel.create({
+      rut: rutCasaMatriz,
+      razonSocial,
+      imagen: imagenName,
+      encargadoGeneral,
+      correo,
+      telefonoEncargado: telefonoEncargadoNum,
+    });
+
+    return res.json({ resp: "Cliente creado correctamente" });
+  } catch (error) {
+    console.error('Error al crear cliente:', error);
+    return res.status(500).json({ 
+      resp: "Error al crear cliente", 
+      error: error.message 
+    });
+  }
 };
 
 const postModificarCliente = async (req, res) => {
-  const { id } = req.params;
+  try {
+    const { id } = req.params;
 
-  if (!id) {
-    return res.json({ resp: "Error al intentar modificar cliente" });
+    if (!id) {
+      return res.json({ resp: "Error al intentar modificar cliente" });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(id);
+
+    if (!cliente) {
+      return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
+    }
+
+    // Extraer los datos del cuerpo de la solicitud
+    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } = req.body;
+
+    // Verificar que todos los campos requeridos estén presentes
+    if (!rut || !razonSocial || !encargadoGeneral || !correo || telefonoEncargado === undefined) {
+      console.log('Datos recibidos:', req.body);
+      return res.status(400).json({ 
+        resp: "Error: Faltan campos requeridos", 
+        recibido: req.body 
+      });
+    }
+
+    // Asegurarse de que telefonoEncargado sea un número
+    let telefonoEncargadoNum = telefonoEncargado;
+    if (typeof telefonoEncargado === 'string') {
+      // Eliminar cualquier carácter no numérico
+      const phoneNumber = telefonoEncargado.replace(/\D/g, '');
+      telefonoEncargadoNum = parseInt(phoneNumber, 10);
+    }
+
+    // Validar que el número de teléfono sea válido (no más de 9 dígitos para Chile)
+    if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
+      return res.status(400).json({ 
+        resp: "Error: El número de teléfono no es válido", 
+        recibido: telefonoEncargado 
+      });
+    }
+
+    // Actualizar solo los campos que están presentes
+    const updateData = {};
+    if (rut) updateData.rut = rut;
+    if (razonSocial) updateData.razonSocial = razonSocial;
+    if (encargadoGeneral) updateData.encargadoGeneral = encargadoGeneral;
+    if (correo) updateData.correo = correo;
+    if (telefonoEncargadoNum) updateData.telefonoEncargado = telefonoEncargadoNum;
+
+    console.log('Datos a actualizar:', updateData);
+
+    // Actualizar el cliente
+    await cliente.update(updateData);
+
+    return res.json({ resp: "Cliente modificado correctamente" });
+  } catch (error) {
+    console.error('Error al modificar cliente:', error);
+    return res.status(500).json({ 
+      resp: "Error al modificar cliente", 
+      error: error.message 
+    });
   }
-
-  const cliente = await CasaMatrizModel.findByPk(id);
-
-  if (!cliente) {
-    return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
-  }
-
-  const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
-    req.body;
-
-  cliente.set({
-    rut,
-    razonSocial,
-    encargadoGeneral,
-    correo,
-    telefonoEncargado,
-  });
-  cliente.save();
-
-  return res.json({ resp: "Cliente modificado correctamente" });
 };
 
 const postEliminarCliente = async (req, res) => {
@@ -297,29 +375,42 @@ const postEliminarCliente = async (req, res) => {
     return res.json({ resp: "Error al intentar eliminar cliente" });
   }
 
-  const cliente = await CasaMatrizModel.findByPk(id, {
-    include: [
-      { model: CuentaModel },
-      { model: EquipoModel, include: [{ model: UsuarioAsignadoModel }] },
-    ],
-  });
+  try {
+    // Buscar el cliente sin incluir asociaciones para evitar el error
+    const cliente = await CasaMatrizModel.findByPk(id);
 
-  if (!cliente) {
-    return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
-  }
-
-  for (const equipamiento of cliente.Equipamientos) {
-    await equipamiento.setUsuariosAsignados([]);
-
-    for (const usuario of equipamiento.UsuariosAsignados) {
-      await usuario.destroy();
+    if (!cliente) {
+      return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
     }
 
-    await equipamiento.destroy();
-  }
-  await cliente.destroy();
+    // Buscar y eliminar equipos asociados al cliente
+    const equiposAsociados = await EquipoModel.findAll({
+      where: { casaMatrizId: id }
+    });
 
-  return res.json({ resp: "Cliente eliminado correctamente" });
+    if (equiposAsociados && equiposAsociados.length > 0) {
+      for (const equipo of equiposAsociados) {
+        await equipo.destroy();
+      }
+    }
+
+    // Eliminar el cliente
+    await cliente.destroy();
+
+    return res.json({ 
+      resp: "Cliente eliminado correctamente",
+      success: true,
+      clienteId: id,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error("Error al eliminar cliente:", error);
+    return res.status(500).json({ 
+      resp: "Error al eliminar cliente", 
+      error: error.message,
+      success: false
+    });
+  }
 };
 
 const postSucursal = async (req, res) => {
