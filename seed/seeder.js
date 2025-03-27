@@ -12,7 +12,10 @@ import {
     EquipoModel,
     TipoEquipoModel,
     TipoEquipoCampoModel,
-    CampoModel
+    CampoModel,
+    
+    //?estado de equipos
+    EstadoEquipoModel
 } from '../models/index.js';
 
 import Cuentas from './Cuenta.js';
@@ -24,6 +27,9 @@ import CasasMatrices from './CasaMatriz.js';
 import TipoEquipo from './TipoEquipo.js';
 import TipoEquipoCampo from './TipoEquipoCampo.js';
 import Campos from './Campo.js';
+
+//?estado de equipos
+import EstadosEquipo from './EstadoEquipo.js';
 
 
 import db from '../config/db.js';

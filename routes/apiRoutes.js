@@ -22,6 +22,7 @@ import {
   deleteEquiptment,
   getTypeEquipments,
   getEquipmentForm,
+
   // Genericos
   postObservacion,
   getResults,
@@ -30,6 +31,8 @@ import {
   getEquipmentsByCasaMatriz,
   getEquipmentById,
   generarUrl,
+  //? Estados de equipos
+  getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -70,11 +73,17 @@ router.post(
   processFile,
   postModificarEquipo
 );
+
 router.post("/eliminar-equipo/:id", protegerRutaTecnico, deleteEquiptment);
 
 // Para obtener todos los tipos de equipos y su formulario
 router.get("/tipos-equipos", protegerRutaTecnico, getTypeEquipments);
 router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
+
+//? Estados de equipos
+router.get("/estados-equipos", protegerRutaTecnico, getEstadosEquipo);
+router.patch("/estados-equipos/:id", protegerRutaTecnico, actualizarEstadoEquipo);
+router.post("/actualizar-estado-equipo/:id", protegerRutaTecnico, actualizarSoloEstadoEquipo);
 
 // Permisos genericos para cualquier cuenta
 router.post("/ingresar-observacion/:id", protegerRuta, postObservacion);

@@ -11,6 +11,9 @@ import TipoEquipo from './TipoEquipo.js'
 import TipoEquipoCampo from './TipoEquipoCampo.js';
 import Campo from './Campos.js';
 
+//?estado de equipos
+import EstadoEquipo from './EstadoEquipo.js';
+
 // Modelo de Tipo de Cuentas
 const CuentaModel = Cuenta;
 // Modelo de los estados de la cuenta
@@ -33,6 +36,9 @@ const TipoEquipoModel = TipoEquipo;
 const CampoModel = Campo;
 // Modelo de Tipo Equipo Campo
 const TipoEquipoCampoModel = TipoEquipoCampo
+
+//?estado de equipos
+const EstadoEquipoModel = EstadoEquipo;
 
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
@@ -82,4 +88,6 @@ export {
     TipoEquipoModel,
     CampoModel,
     TipoEquipoCampoModel,
+    //?estado de equipos
+    EstadoEquipoModel
 }

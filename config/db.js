@@ -10,6 +10,9 @@ const db = new Sequelize({
     password: process.env.DB_PASSWORD,
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
+    dialectOptions: {
+        connectTimeout: 60000 // Increase connection timeout to 60 seconds
+    }
 })
 
 export default db

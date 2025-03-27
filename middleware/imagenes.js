@@ -27,7 +27,9 @@ export const handleUpload = upload.single('imagen');
 export const processFile = async (req, res, next) => {
   try {
     if (!req.file) {
-      throw new Error('No se proporcionó ningún archivo.');
+      // Si no hay archivo, simplemente continuamos sin error
+      console.log('No se proporcionó ningún archivo, continuando...');
+      return next();
     }
 
     const fileName = await uploadToGCS(req.file);

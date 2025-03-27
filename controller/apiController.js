@@ -14,6 +14,9 @@ import {
   TipoCuentaModel,
   TipoEquipoCampoModel,
   TipoEquipoModel,
+
+  //?estado de equipos
+  EstadoEquipoModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 
@@ -920,6 +923,77 @@ const getEquipmentById = async (req, res) => {
   res.json(equipo);
 };
 
+//?get estado de equipos
+const getEstadosEquipo = async (req, res) => {
+  try {
+      const estados = await EstadoEquipoModel.findAll();
+      res.json(estados);
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: 'Hubo un error al obtener los estados de equipos' });
+  }
+};
+
+//? Actualizar el estado de un equipo
+const actualizarEstadoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  try {
+      const equipo = await EquipoModel.findByPk(id);
+      
+      if (!equipo) {
+          return res.status(404).json({ msg: 'Equipo no encontrado' });
+      }
+
+      // Verificar que el estado exista
+      const estadoExiste = await EstadoEquipoModel.findByPk(estado);
+      if (!estadoExiste) {
+          return res.status(400).json({ msg: 'Estado de equipo no válido' });
+      }
+
+      // Actualizar el estado
+      equipo.estado = estado;
+      await equipo.save();
+
+      res.json({ msg: 'Estado de equipo actualizado correctamente' });
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: 'Hubo un error al actualizar el estado del equipo' });
+  }
+};
+
+//? Actualizar solo el estado de un equipo (POST)
+const actualizarSoloEstadoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  try {
+      const equipo = await EquipoModel.findByPk(id);
+      
+      if (!equipo) {
+          return res.status(404).json({ msg: 'Equipo no encontrado' });
+      }
+
+      // Verificar que el estado exista
+      const estadoExiste = await EstadoEquipoModel.findByPk(estado);
+      if (!estadoExiste) {
+          return res.status(400).json({ msg: 'Estado de equipo no válido' });
+      }
+
+      // Actualizar SOLO el estado usando update en lugar de save
+      await EquipoModel.update(
+          { estado: estado },
+          { where: { id: id } }
+      );
+
+      res.json({ msg: 'Estado de equipo actualizado correctamente' });
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: 'Hubo un error al actualizar el estado del equipo' });
+  }
+};
+
 const generarUrl = async (req, res) => {
   try {
     const { fileName } = req.params;
@@ -954,4 +1028,7 @@ export {
   getEquipmentsByCasaMatriz,
   getEquipmentById,
   generarUrl,
+  getEstadosEquipo,
+  actualizarEstadoEquipo,
+  actualizarSoloEstadoEquipo
 };
