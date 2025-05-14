@@ -32,7 +32,9 @@ import {
   getEquipmentById,
   generarUrl,
   //? Estados de equipos
-  getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo
+  getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo,
+  //? Estados de sucursales
+  getEstadosSucursal, actualizarEstadoSucursal
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -84,6 +86,10 @@ router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
 router.get("/estados-equipos", protegerRutaTecnico, getEstadosEquipo);
 router.patch("/estados-equipos/:id", protegerRutaTecnico, actualizarEstadoEquipo);
 router.post("/actualizar-estado-equipo/:id", protegerRutaTecnico, actualizarSoloEstadoEquipo);
+
+//? Estados de sucursales
+router.get("/estados-sucursales", protegerRutaTecnico, getEstadosSucursal);
+router.post("/actualizar-estado-sucursal/:id", protegerRutaTecnico, actualizarEstadoSucursal);
 
 // Permisos genericos para cualquier cuenta
 router.post("/ingresar-observacion/:id", protegerRuta, postObservacion);

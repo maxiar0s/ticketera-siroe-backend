@@ -16,7 +16,9 @@ import {
   TipoEquipoModel,
 
   //?estado de equipos
-  EstadoEquipoModel
+  EstadoEquipoModel,
+  //?estado de sucursales
+  EstadoSucursalModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 
@@ -995,12 +997,55 @@ const actualizarSoloEstadoEquipo = async (req, res) => {
 };
 
 const generarUrl = async (req, res) => {
+  const { fileName } = req.params;
   try {
-    const { fileName } = req.params;
     const signedUrl = await generateSignedUrl(fileName);
     res.json({ signedUrl });
   } catch (error) {
-    res.status(500).json({ error: "No se pudo generar el signed URL." });
+    console.log(error);
+    res.status(500).json({ error: 'Error al generar la URL firmada' });
+  }
+};
+
+//?get estado de sucursales
+const getEstadosSucursal = async (req, res) => {
+  try {
+      const estados = await EstadoSucursalModel.findAll();
+      res.json(estados);
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: 'Hubo un error al obtener los estados de sucursales' });
+  }
+};
+
+//? Actualizar el estado de una sucursal
+const actualizarEstadoSucursal = async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  try {
+      const sucursal = await SucursalModel.findByPk(id);
+      
+      if (!sucursal) {
+          return res.status(404).json({ msg: 'Sucursal no encontrada' });
+      }
+
+      // Verificar que el estado exista
+      const estadoExiste = await EstadoSucursalModel.findByPk(estado);
+      if (!estadoExiste) {
+          return res.status(400).json({ msg: 'Estado de sucursal no válido' });
+      }
+
+      // Actualizar SOLO el estado usando update en lugar de save
+      await SucursalModel.update(
+          { estado: estado },
+          { where: { id: id } }
+      );
+
+      res.json({ msg: 'Estado de sucursal actualizado correctamente' });
+  } catch (error) {
+      console.log(error);
+      res.status(500).json({ msg: 'Hubo un error al actualizar el estado de la sucursal' });
   }
 };
 
@@ -1028,7 +1073,11 @@ export {
   getEquipmentsByCasaMatriz,
   getEquipmentById,
   generarUrl,
+  //? Estados de equipos
   getEstadosEquipo,
   actualizarEstadoEquipo,
-  actualizarSoloEstadoEquipo
+  actualizarSoloEstadoEquipo,
+  //? Estados de sucursales
+  getEstadosSucursal,
+  actualizarEstadoSucursal
 };

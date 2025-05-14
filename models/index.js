@@ -14,6 +14,9 @@ import Campo from './Campos.js';
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
 
+//?estado de sucursales
+import EstadoSucursal from './EstadoSucursal.js';
+
 // Modelo de Tipo de Cuentas
 const CuentaModel = Cuenta;
 // Modelo de los estados de la cuenta
@@ -40,6 +43,9 @@ const TipoEquipoCampoModel = TipoEquipoCampo
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
 
+//?estado de sucursales
+const EstadoSucursalModel = EstadoSucursal;
+
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
 TipoCuentaModel.hasMany(CuentaModel, { foreignKey: 'tipoCuentaId', as: 'cuentas' });
@@ -56,10 +62,13 @@ CasaMatrizModel.hasMany(EquipoModel, { foreignKey: 'casaMatrizId', as: 'equipos'
 SucursalModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' })
 CasaMatrizModel.hasMany(SucursalModel, { foreignKey: 'casaMatrizId', as: 'sucursales', onDelete: 'CASCADE' })
 
+// Relación Sucursal - EstadoSucursal
+SucursalModel.belongsTo(EstadoSucursalModel, { foreignKey: 'estado', as: 'estadoSucursal' });
+EstadoSucursalModel.hasMany(SucursalModel, { foreignKey: 'estado', as: 'sucursales' });
+
 // Relacion que un Equipo pertenece a una Sucursal
 EquipoModel.belongsTo(SucursalModel, { foreignKey: 'sucursalId', as: 'sucursal', onDelete: 'CASCADE' });
 SucursalModel.hasMany(EquipoModel, { foreignKey: 'sucursalId', as: 'equipos', onDelete: 'CASCADE' });
-
 
 // Relación Equipo - TipoEquipo (uno a muchos)
 EquipoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });
@@ -89,5 +98,7 @@ export {
     CampoModel,
     TipoEquipoCampoModel,
     //?estado de equipos
-    EstadoEquipoModel
+    EstadoEquipoModel,
+    //?estado de sucursales
+    EstadoSucursalModel
 }
