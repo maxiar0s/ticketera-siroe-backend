@@ -239,14 +239,14 @@ const getUsuario = async (req, res) => {
 
 const postCliente = async (req, res) => {
   try {
-    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } =
-      req.body;
+    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } = req.body;
     const imagenName = req.uploadedFile;
+    console.log('Valor de req.uploadedFile en postCliente:', imagenName);
 
     if (!rut || !razonSocial || !encargadoGeneral || !correo || telefonoEncargado === undefined) {
-      return res.status(400).json({ 
-        resp: "Error: Faltan campos requeridos", 
-        recibido: req.body 
+      return res.status(400).json({
+        resp: "Error: Faltan campos requeridos",
+        recibido: req.body
       });
     }
 
@@ -358,6 +358,12 @@ const postModificarCliente = async (req, res) => {
     if (encargadoGeneral) updateData.encargadoGeneral = encargadoGeneral;
     if (correo) updateData.correo = correo;
     if (telefonoEncargadoNum) updateData.telefonoEncargado = telefonoEncargadoNum;
+
+    // Si se subió una nueva imagen, actualizar el campo imagen
+    if (req.uploadedFile) {
+      updateData.imagen = req.uploadedFile;
+      console.log('Nueva imagen subida en modificación:', req.uploadedFile);
+    }
 
     console.log('Datos a actualizar:', updateData);
 

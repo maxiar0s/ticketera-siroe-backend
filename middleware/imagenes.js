@@ -32,7 +32,10 @@ export const processFile = async (req, res, next) => {
       return next();
     }
 
+    console.log('Archivo recibido en processFile:', req.file.originalname);
+
     const fileName = await uploadToGCS(req.file);
+    console.log('Nombre de archivo subido a GCS:', fileName);
     req.uploadedFile = fileName;
     next();
   } catch (error) {

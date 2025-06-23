@@ -58,7 +58,7 @@ router.post(
   postCliente
 );
 //gestion de clientes
-router.post("/modificar-cliente/:id", protegerRutaAdmin, postModificarCliente);
+router.post("/modificar-cliente/:id", protegerRutaAdmin, handleUpload, processFile, postModificarCliente);
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);
 router.delete("/clientes/:id", protegerRutaAdmin, postEliminarCliente);
 
