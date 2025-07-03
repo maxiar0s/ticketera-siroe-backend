@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { CuentaModel } from '../models/index.js'
 
-const protegerRutaTecnico = async (req, res, next) => {
+const protegerRutaMesaAyuda = async (req, res, next) => {
     try {
         const header = req.headers['token'];
         const token = header && header.split(' ')[1];
@@ -21,10 +21,9 @@ const protegerRutaTecnico = async (req, res, next) => {
             error.status = 404;
             throw error;
         }
-        console.log(cuenta.tipoCuentaId)
 
-        // Permitir acceso a Administrador (1), Técnico (2) y Mesa de Ayuda (3)
-        if (![1, 2, 3].includes(cuenta.tipoCuentaId)) {
+        // Solo permite Mesa de Ayuda (tipoCuentaId == 3)
+        if(cuenta.tipoCuentaId != 3) {
             const error = new Error('No tiene permisos suficientes para esta acción');
             error.status = 404;
             throw error;
@@ -39,4 +38,4 @@ const protegerRutaTecnico = async (req, res, next) => {
     }
 }
 
-export default protegerRutaTecnico
+export default protegerRutaMesaAyuda;
