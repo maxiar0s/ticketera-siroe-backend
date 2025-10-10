@@ -507,6 +507,15 @@ const postEquipo = async (req, res) => {
       .json({ error: "Debe proporcionar un clienteId o sucursalId" });
   }
 
+  // Validar que el campo imagen esté presente si se subió archivo
+  let imagenName = null;
+  if (req.uploadedFile) {
+    imagenName = req.uploadedFile;
+    if (!imagenName || typeof imagenName !== 'string' || imagenName.trim() === '') {
+      return res.status(400).json({ error: "Error al subir la imagen. Nombre de archivo inválido." });
+    }
+  }
+
   const t = await db.transaction();
 
   try {
@@ -537,31 +546,33 @@ const postEquipo = async (req, res) => {
     const numeroPadded = nextNumero.toString().padStart(3, "0");
     const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
 
-    // Crear el nuevo equipo
-    const nuevoEquipo = await EquipoModel.create(
-      {
-        numeroSecuencial: nextNumero,
-        casaMatrizId: null,
-        clienteId,
-        sucursalId,
-        estado: 1,
-        marca: req.body.marca || null,
-        modelo: req.body.modelo || null,
-        codigoId,
-        departamento,
-        numeroSerie: req.body.numeroSerie || null,
-        procesador: req.body.procesador || null,
-        velocidadProcesador: req.body.velocidadProcesador || null,
-        ram: req.body.ram || null,
-        tipoAlmacenamiento: req.body.tipoAlmacenamiento || null,
-        cantidadAlmacenamiento: req.body.cantidadAlmacenamiento || null,
-        sistemaOperativo: req.body.sistemaOperativo || null,
-        ofimatica: req.body.ofimatica || null,
-        antivirus: req.body.antivirus || null,
-        tipoEquipoId: tipoEquipo.id,
-      },
-      { transaction: t }
-    );
+    // Crear el nuevo equipo, agregando el campo imagen si existe
+    const equipoData = {
+      numeroSecuencial: nextNumero,
+      casaMatrizId: null,
+      clienteId,
+      sucursalId,
+      estado: 1,
+      marca: req.body.marca || null,
+      modelo: req.body.modelo || null,
+      codigoId,
+      departamento,
+      numeroSerie: req.body.numeroSerie || null,
+      procesador: req.body.procesador || null,
+      velocidadProcesador: req.body.velocidadProcesador || null,
+      ram: req.body.ram || null,
+      tipoAlmacenamiento: req.body.tipoAlmacenamiento || null,
+      cantidadAlmacenamiento: req.body.cantidadAlmacenamiento || null,
+      sistemaOperativo: req.body.sistemaOperativo || null,
+      ofimatica: req.body.ofimatica || null,
+      antivirus: req.body.antivirus || null,
+      tipoEquipoId: tipoEquipo.id,
+    };
+    if (imagenName) {
+      equipoData.imagen = imagenName;
+    }
+
+    const nuevoEquipo = await EquipoModel.create(equipoData, { transaction: t });
 
     await t.commit();
     return res.json({
@@ -595,39 +606,21 @@ const postModificarEquipo = async (req, res) => {
   const { id } = req.params;
 
   if (!id) {
-    return res.json({ resp: "Error al intentar modificar el equipo" });
+    return res.status(400).json({ resp: "Error al intentar modificar el equipo" });
   }
 
-  const equipo = await EquipoModel.findByPk(id);
+  try {
+    const equipo = await EquipoModel.findByPk(id);
 
-  if (!equipo) {
-    return res.json({ resp: "Equipo no encontrado, intente nuevamente" });
-  }
+    if (!equipo) {
+      return res.status(404).json({ resp: "Equipo no encontrado, intente nuevamente" });
+    }
 
-  const {
-    marca,
-    modelo,
-    numeroSerie,
-    usuario,
-    procesador,
-    velocidadProcesador,
-    ram,
-    tipoAlmacenamiento,
-    cantidadAlmacenamiento,
-    sistemaOperativo,
-    ofimatica,
-    antivirus,
-  } = req.body;
-
-  if (req.uploadedFile) {
-    const imagenName = req.uploadedFile;
-
-    equipo.set({
+    const {
       marca,
       modelo,
-      imagen: imagenName,
-      usuario,
       numeroSerie,
+      usuario,
       procesador,
       velocidadProcesador,
       ram,
@@ -636,26 +629,78 @@ const postModificarEquipo = async (req, res) => {
       sistemaOperativo,
       ofimatica,
       antivirus,
-    });
+    } = req.body;
+
+    const limpiarCadena = (valor) => {
+      if (valor === undefined) {
+        return undefined;
+      }
+      if (valor === null) {
+        return null;
+      }
+      if (typeof valor !== 'string') {
+        return valor;
+      }
+      const trimmed = valor.trim();
+      if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+        return null;
+      }
+      return trimmed;
+    };
+
+    const limpiarEntero = (valor) => {
+      const limpio = limpiarCadena(valor);
+      if (limpio === undefined || limpio === null) {
+        return limpio === undefined ? undefined : null;
+      }
+      const numero = parseInt(limpio, 10);
+      return Number.isNaN(numero) ? null : numero;
+    };
+
+    const datosActualizados = {};
+
+    const asignarCadena = (clave, valor) => {
+      const resultado = limpiarCadena(valor);
+      if (resultado !== undefined) {
+        datosActualizados[clave] = resultado;
+      }
+    };
+
+    const asignarEntero = (clave, valor) => {
+      const resultado = limpiarEntero(valor);
+      if (resultado !== undefined) {
+        datosActualizados[clave] = resultado;
+      }
+    };
+
+    asignarCadena('marca', marca);
+    asignarCadena('modelo', modelo);
+    asignarCadena('numeroSerie', numeroSerie);
+    asignarCadena('usuario', usuario);
+    asignarCadena('procesador', procesador);
+    asignarCadena('velocidadProcesador', velocidadProcesador);
+    asignarCadena('tipoAlmacenamiento', tipoAlmacenamiento);
+    asignarCadena('sistemaOperativo', sistemaOperativo);
+    asignarCadena('ofimatica', ofimatica);
+    asignarCadena('antivirus', antivirus);
+    asignarEntero('ram', ram);
+    asignarEntero('cantidadAlmacenamiento', cantidadAlmacenamiento);
+
+    if (req.uploadedFile) {
+      datosActualizados.imagen = req.uploadedFile;
+    }
+
+    if (Object.keys(datosActualizados).length === 0) {
+      return res.json({ resp: "No se recibieron cambios para actualizar." });
+    }
+
+    await equipo.update(datosActualizados);
+
+    return res.json({ resp: "Equipo modificado correctamente." });
+  } catch (error) {
+    console.error('Error al modificar el equipo:', error);
+    return res.status(500).json({ resp: "Hubo un error al modificar el equipo." });
   }
-
-  equipo.set({
-    marca,
-    modelo,
-    numeroSerie,
-    procesador,
-    velocidadProcesador,
-    ram,
-    tipoAlmacenamiento,
-    cantidadAlmacenamiento,
-    sistemaOperativo,
-    ofimatica,
-    antivirus,
-  });
-
-  equipo.save();
-
-  return res.json({ resp: "Equipo modificado correctamente." });
 };
 
 const deleteEquiptment = async (req, res) => {
@@ -1087,3 +1132,6 @@ export {
   getEstadosSucursal,
   actualizarEstadoSucursal
 };
+
+
+
