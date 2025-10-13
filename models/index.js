@@ -1,6 +1,7 @@
 import Cuenta from './Cuenta.js';
 import EstadoCuenta from './EstadoCuenta.js'; 
 import TipoCuenta from './TipoCuenta.js';
+import CuentaCasaMatriz from './CuentaCasaMatriz.js';
 
 import CasaMatriz from './CasaMatriz.js';
 import Sucursal from './Sucursal.js';
@@ -23,6 +24,8 @@ const CuentaModel = Cuenta;
 const EstadoCuentaModel = EstadoCuenta;
 // Modelo de Usuario (Técnicos, Mesa Ayuda)
 const TipoCuentaModel = TipoCuenta;
+// Modelo pivote Cuenta - Casa Matriz
+const CuentaCasaMatrizModel = CuentaCasaMatriz;
 
 // Modelo de Cliente
 const CasaMatrizModel = CasaMatriz;
@@ -49,6 +52,20 @@ const EstadoSucursalModel = EstadoSucursal;
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
 TipoCuentaModel.hasMany(CuentaModel, { foreignKey: 'tipoCuentaId', as: 'cuentas' });
+
+// Relacion muchos a muchos entre Cuenta y Casa Matriz (clientes autorizados)
+CuentaModel.belongsToMany(CasaMatrizModel, {
+  through: CuentaCasaMatrizModel,
+  foreignKey: 'cuentaId',
+  otherKey: 'casaMatrizId',
+  as: 'clientesAutorizados',
+});
+CasaMatrizModel.belongsToMany(CuentaModel, {
+  through: CuentaCasaMatrizModel,
+  foreignKey: 'casaMatrizId',
+  otherKey: 'cuentaId',
+  as: 'cuentasAsociadas',
+});
 
 // Relacion
 CuentaModel.belongsTo(EstadoCuentaModel, { foreignKey: 'estadoCuentaId', as:'estadoCuenta' });
@@ -88,6 +105,7 @@ export {
     CuentaModel,
     TipoCuentaModel,
     EstadoCuentaModel,
+    CuentaCasaMatrizModel,
     
     CasaMatrizModel,
     SucursalModel,

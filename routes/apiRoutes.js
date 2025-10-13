@@ -26,6 +26,7 @@ import {
   // Genericos
   postObservacion,
   getResults,
+  getClientesResumen,
   getClientById,
   getSucursalById,
   getEquipmentsByCasaMatriz,
@@ -61,6 +62,7 @@ router.post(
 router.post("/modificar-cliente/:id", protegerRutaAdmin, handleUpload, processFile, postModificarCliente);
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);
 router.delete("/clientes/:id", protegerRutaAdmin, postEliminarCliente);
+router.get("/clientes/listado", protegerRutaAdmin, getClientesResumen);
 
 // Sucursales
 router.post("/ingresar-sucursal", protegerRutaAdmin, postSucursal);
@@ -83,16 +85,16 @@ router.get("/tipos-equipos", protegerRutaTecnico, getTypeEquipments);
 router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
 
 //? Estados de equipos
-router.get("/estados-equipos", protegerRutaTecnico, getEstadosEquipo);
+router.get("/estados-equipos", protegerRuta, getEstadosEquipo);
 router.patch("/estados-equipos/:id", protegerRutaTecnico, actualizarEstadoEquipo);
 router.post("/actualizar-estado-equipo/:id", protegerRutaTecnico, actualizarSoloEstadoEquipo);
 
 //? Estados de sucursales
-router.get("/estados-sucursales", protegerRutaTecnico, getEstadosSucursal);
+router.get("/estados-sucursales", protegerRuta, getEstadosSucursal);
 router.post("/actualizar-estado-sucursal/:id", protegerRutaTecnico, actualizarEstadoSucursal);
 
 // Permisos genericos para cualquier cuenta
-router.post("/ingresar-observacion/:id", protegerRuta, postObservacion);
+router.post("/ingresar-observacion/:id", protegerRutaTecnico, postObservacion);
 
 // Routes de obtención de datos
 router.get("/clientes", protegerRuta, getResults);
@@ -108,6 +110,6 @@ router.get("/equipo/:id", protegerRuta, getEquipmentById);
 // Consumo de imagenes Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);
 
-router.delete("/equipos/:id", protegerRuta, deleteEquiptment);
+router.delete("/equipos/:id", protegerRutaTecnico, deleteEquiptment);
 
 export default router;

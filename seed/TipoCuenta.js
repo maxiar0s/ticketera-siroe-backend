@@ -8,6 +8,9 @@ const TipoCuentas = [
     {
         name: 'Mesa de Ayuda'
     },
+    {
+        name: 'Cliente'
+    },
 ]
 
 export default TipoCuentas;

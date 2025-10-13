@@ -7,6 +7,7 @@ import {
   CampoModel,
   CasaMatrizModel,
   CuentaModel,
+  CuentaCasaMatrizModel,
   EquipoModel,
   EstadoCuentaModel,
   ObservacionModel,
@@ -21,6 +22,60 @@ import {
   EstadoSucursalModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
+
+const cuentaIncludes = [
+  { model: TipoCuentaModel, as: "tipoCuenta" },
+  { model: EstadoCuentaModel, as: "estadoCuenta" },
+  {
+    model: CasaMatrizModel,
+    as: "clientesAutorizados",
+    attributes: ["id", "razonSocial"],
+    through: { attributes: [] },
+  },
+];
+
+const parseClientesAutorizados = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => `${item}`.trim())
+          .filter((item) => item && item !== "undefined")
+      )
+    );
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parseClientesAutorizados(parsed);
+      }
+    } catch (error) {
+      // Not JSON, fall through
+    }
+
+    if (value.includes(",")) {
+      return parseClientesAutorizados(value.split(","));
+    }
+
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+
+  return [];
+};
+
+const getAuthorizedClientIds = async (cuentaId) => {
+  const rows = await CuentaCasaMatrizModel.findAll({
+    where: { cuentaId },
+    attributes: ["casaMatrizId"],
+    raw: true,
+  });
+
+  return rows.map((row) => row.casaMatrizId);
+};
 
 const generateSignedUrl = async (fileName) => {
   try {
@@ -37,79 +92,123 @@ const generateSignedUrl = async (fileName) => {
 };
 
 const postCuenta = async (req, res) => {
-  const { name, telefono, email, password, tipoCuentaId } = req.body;
-  const hashed_password = await bcrypt.hash(password, 10);
-  const { id } = req.body;
+  const {
+    id,
+    name,
+    telefono,
+    email,
+    password,
+    tipoCuentaId,
+    estadoCuentaId,
+    clientesAutorizados,
+  } = req.body;
 
-  if (id) {
-    let cuenta = await CuentaModel.findByPk(id, {
-      include: [
-        { model: TipoCuentaModel, as: "tipoCuenta" },
-        { model: EstadoCuentaModel, as: "estadoCuenta" },
-      ],
-    });
+  const tipoCuentaNumero =
+    tipoCuentaId !== undefined && tipoCuentaId !== null
+      ? Number(tipoCuentaId)
+      : undefined;
+  const estadoCuentaNumero =
+    estadoCuentaId !== undefined && estadoCuentaId !== null
+      ? Number(estadoCuentaId)
+      : undefined;
+  const clienteIds = parseClientesAutorizados(clientesAutorizados);
 
-    const { estadoCuentaId } = req.body;
+  try {
+    if (id) {
+      const cuenta = await CuentaModel.findByPk(id);
 
-    if (password == "") {
-      cuenta.set({
+      if (!cuenta) {
+        return res.status(404).json({ error: "Cuenta no encontrada." });
+      }
+
+      const tipoCuentaFinal = !Number.isNaN(tipoCuentaNumero)
+        ? tipoCuentaNumero
+        : cuenta.tipoCuentaId;
+
+      const updates = {
         name,
         telefono,
-        tipoCuentaId,
-        estadoCuentaId,
-      });
+        tipoCuentaId: tipoCuentaFinal,
+      };
 
+      if (!Number.isNaN(estadoCuentaNumero)) {
+        updates.estadoCuentaId = estadoCuentaNumero;
+      }
+
+      if (password && password.trim() !== "") {
+        updates.password = await bcrypt.hash(password, 10);
+      }
+
+      cuenta.set(updates);
       await cuenta.save();
 
-      cuenta = await CuentaModel.findByPk(id, {
-        include: [
-          { model: TipoCuentaModel, as: "tipoCuenta" },
-          { model: EstadoCuentaModel, as: "estadoCuenta" },
-        ],
+      if (tipoCuentaFinal === 4) {
+        await cuenta.setClientesAutorizados(clienteIds);
+      } else {
+        await CuentaCasaMatrizModel.destroy({
+          where: { cuentaId: cuenta.id },
+        });
+      }
+
+      const cuentaActualizada = await CuentaModel.scope(
+        "eliminarCampos"
+      ).findByPk(id, {
+        include: cuentaIncludes,
       });
 
-      return res.json(cuenta);
-    } else {
-      cuenta.set({
-        name,
-        telefono,
-        tipoCuentaId,
-        password: hashed_password,
-        estadoCuentaId,
-      });
-
-      await cuenta.save();
-
-      cuenta = await CuentaModel.findByPk(id, {
-        include: [
-          { model: TipoCuentaModel, as: "tipoCuenta" },
-          { model: EstadoCuentaModel, as: "estadoCuenta" },
-        ],
-      });
-
-      return res.json(cuenta);
+      return res.json(cuentaActualizada);
     }
-  } else {
+
     const correoExistente = await CuentaModel.findOne({
-      where: {
-        email,
-      },
+      where: { email },
     });
 
     if (correoExistente) {
       return res.json({ error: "Correo electrónico ya registrado." });
-    } else {
-      const cuenta = await CuentaModel.create({
-        name,
-        telefono,
-        email,
-        tipoCuentaId,
-        password: hashed_password,
-        estadoCuentaId: 1,
-      });
-
-      return res.json(cuenta);
     }
+
+    if (!password || password.trim() === "") {
+      return res
+        .status(400)
+        .json({ error: "La contraseña es obligatoria." });
+    }
+
+    if (
+      tipoCuentaNumero === undefined ||
+      Number.isNaN(tipoCuentaNumero)
+    ) {
+      return res
+        .status(400)
+        .json({ error: "Tipo de cuenta inválido." });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const nuevaCuenta = await CuentaModel.create({
+      name,
+      telefono,
+      email,
+      tipoCuentaId: tipoCuentaNumero,
+      password: hashedPassword,
+      estadoCuentaId: 1,
+    });
+
+    if (tipoCuentaNumero === 4) {
+      await nuevaCuenta.setClientesAutorizados(clienteIds);
+    }
+
+    const cuentaConAsociaciones = await CuentaModel.scope(
+      "eliminarCampos"
+    ).findByPk(nuevaCuenta.id, {
+      include: cuentaIncludes,
+    });
+
+    return res.json(cuentaConAsociaciones);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Error al procesar la cuenta." });
   }
 };
 
@@ -187,28 +286,29 @@ const getUsuarios = async (req, res) => {
   const offset = (paginaActual - 1) * limit;
 
   const { option } = req.query;
-  let tipoCuentaId = { [Op.in]: [1, 2, 3] };
+  let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4] };
   if (option === "Mesa de ayuda") {
-    tipoCuentaId = 3;
+    tipoCuentaFiltro = 3;
   } else if (option === "Técnico de soporte") {
-    tipoCuentaId = 2;
+    tipoCuentaFiltro = 2;
   } else if (option === "Administrador") {
-    tipoCuentaId = 1;
+    tipoCuentaFiltro = 1;
+  } else if (option === "Cliente") {
+    tipoCuentaFiltro = 4;
   }
+
+  const where = { tipoCuentaId: tipoCuentaFiltro };
 
   const [cuentas, total] = await Promise.all([
     CuentaModel.scope("eliminarCampos").findAll({
       limit,
       offset,
-      where: { tipoCuentaId },
-      include: [
-        { model: TipoCuentaModel, as: "tipoCuenta" },
-        { model: EstadoCuenta, as: "estadoCuenta" },
-      ],
+      where,
+      include: cuentaIncludes,
       order: [["id", "ASC"]],
     }),
     CuentaModel.count({
-      where: { tipoCuentaId },
+      where,
     }),
   ]);
 
@@ -224,14 +324,11 @@ const getUsuario = async (req, res) => {
   const { id } = req.params;
 
   const usuario = await CuentaModel.scope("eliminarCampos").findByPk(id, {
-    include: [
-      { model: TipoCuentaModel, as: "tipoCuenta" },
-      { model: EstadoCuentaModel, as: "estadoCuenta" },
-    ],
+    include: cuentaIncludes,
   });
 
   if (!usuario) {
-    return;
+    return res.status(404).json({ error: "Cuenta no encontrada." });
   }
 
   return res.json(usuario);
@@ -593,6 +690,12 @@ const postEquipo = async (req, res) => {
 const postObservacion = async (req, res) => {
   const { id } = req.params;
   const { text } = req.body;
+  const usuario = req.usuario;
+  if (usuario && usuario.tipoCuentaId === 4) {
+    return res
+      .status(403)
+      .json({ error: "No tiene permisos para agregar observaciones." });
+  }
 
   const observacion = await ObservacionModel.create({
     text,
@@ -705,6 +808,13 @@ const postModificarEquipo = async (req, res) => {
 
 const deleteEquiptment = async (req, res) => {
   const { id } = req.params;
+  const usuario = req.usuario;
+  if (usuario && usuario.tipoCuentaId === 4) {
+    return res.status(403).json({
+      success: false,
+      message: "No tiene permisos para eliminar equipos.",
+    });
+  }
 
   if (!id) {
     return res.status(400).json({
@@ -774,11 +884,22 @@ const deleteEquiptment = async (req, res) => {
 };
 
 const getResults = async (req, res) => {
-  let paginaActual = parseInt(req.query.pagina);
-  const expresion = /^[1-999]$/;
+  let paginaActual = Number.parseInt(req.query.pagina, 10);
+  if (!Number.isInteger(paginaActual) || paginaActual < 1) {
+    paginaActual = 1;
+  }
 
-  if (!expresion.test(paginaActual)) {
-    return;
+  const usuario = req.usuario;
+  let where = {};
+
+  if (usuario && usuario.tipoCuentaId === 4) {
+    const autorizados =
+      req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+    req.autorizados = autorizados;
+    if (!autorizados.length) {
+      return res.json({ clientes: [], paginas: 1 });
+    }
+    where = { id: { [Op.in]: autorizados } };
   }
 
   // Limites y Offset para el paginador
@@ -787,18 +908,50 @@ const getResults = async (req, res) => {
 
   const [clientes, total] = await Promise.all([
     CasaMatrizModel.findAll({
+      where,
       limit,
       offset,
+      order: [["razonSocial", "ASC"]],
     }),
-    CasaMatrizModel.count(),
+    CasaMatrizModel.count({ where }),
   ]);
 
   let paginas = Math.ceil(total / limit);
-  if (total == 0) {
+  if (total === 0) {
     paginas = 1;
   }
 
   res.json({ clientes, paginas });
+};
+
+const getClientesResumen = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    let where = {};
+
+    if (usuario && usuario.tipoCuentaId === 4) {
+      const autorizados =
+        req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+      req.autorizados = autorizados;
+      if (!autorizados.length) {
+        return res.json([]);
+      }
+      where = { id: { [Op.in]: autorizados } };
+    }
+
+    const clientes = await CasaMatrizModel.findAll({
+      where,
+      attributes: ["id", "razonSocial"],
+      order: [["razonSocial", "ASC"]],
+    });
+
+    return res.json(clientes);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ error: "Error al obtener la lista de clientes." });
+  }
 };
 
 const getClientById = async (req, res) => {
@@ -815,6 +968,17 @@ const getClientById = async (req, res) => {
 
   const { id } = req.params;
   const { option } = req.query;
+  const usuario = req.usuario;
+  if (usuario && usuario.tipoCuentaId === 4) {
+    const autorizados =
+      req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+    req.autorizados = autorizados;
+    if (!autorizados.includes(id)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para ver este cliente." });
+    }
+  }
   let estado = { [Op.in]: [1, 2, 3] };
   if (option === "Terminados") {
     estado = 3;
@@ -856,10 +1020,8 @@ const getClientById = async (req, res) => {
 };
 
 const getSucursalById = async (req, res) => {
-  let paginaActual = parseInt(req.query.pagina);
-  const expresion = /^[1-999]$/;
-
-  if (!expresion.test(paginaActual)) {
+  let paginaActual = Number.parseInt(req.query.pagina, 10);
+  if (!Number.isInteger(paginaActual) || paginaActual < 1) {
     paginaActual = 1;
   }
 
@@ -869,6 +1031,7 @@ const getSucursalById = async (req, res) => {
 
   const { id } = req.params;
   const { option, sort } = req.query;
+  const usuario = req.usuario;
   let estado = { [Op.in]: [1, 2, 3] };
   if (option === "Terminados") {
     estado = 3;
@@ -877,7 +1040,7 @@ const getSucursalById = async (req, res) => {
   }
 
   // Determine sort order based on query parameter
-  const sortOrder = sort === 'asc' ? 'ASC' : 'DESC';
+  const sortOrder = sort === "asc" ? "ASC" : "DESC";
 
   const [sucursal, total] = await Promise.all([
     SucursalModel.findByPk(id, {
@@ -898,15 +1061,28 @@ const getSucursalById = async (req, res) => {
       ],
     }),
     SucursalModel.count({
-      where: {
-        id,
-      },
+      where: { id },
       include: [{ model: EquipoModel, as: "equipos", where: { estado } }],
     }),
   ]);
 
+  if (!sucursal) {
+    return res.status(404).json({ error: "Sucursal no encontrada." });
+  }
+
+  if (usuario && usuario.tipoCuentaId === 4) {
+    const autorizados =
+      req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+    req.autorizados = autorizados;
+    if (!autorizados.includes(sucursal.casaMatrizId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para ver esta sucursal." });
+    }
+  }
+
   let paginas = Math.ceil(total / limit);
-  if (total == 0) {
+  if (total === 0) {
     paginas = 1;
   }
 
@@ -915,15 +1091,23 @@ const getSucursalById = async (req, res) => {
 
 const getEquipmentsByCasaMatriz = async (req, res) => {
   const { id } = req.params;
+  const usuario = req.usuario;
+  if (usuario && usuario.tipoCuentaId === 4) {
+    const autorizados =
+      req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+    req.autorizados = autorizados;
+    if (!autorizados.includes(id)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para ver los equipos de este cliente." });
+    }
+  }
   const equipos = await EquipoModel.findAll({
     where: {
       casaMatrizId: id,
     },
     include: [{ model: CasaMatrizModel, as: "casaMatriz" }],
   });
-  if (!equipos) {
-    return;
-  }
   res.json(equipos);
 };
 
@@ -971,7 +1155,24 @@ const getEquipmentById = async (req, res) => {
   });
 
   if (!equipo) {
-    return;
+    return res.status(404).json({ error: "Equipo no encontrado." });
+  }
+
+  const usuario = req.usuario;
+  if (usuario && usuario.tipoCuentaId === 4) {
+    const autorizados =
+      req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+    req.autorizados = autorizados;
+    const casaMatrizId =
+      equipo.casaMatrizId ||
+      (equipo.casaMatriz ? equipo.casaMatriz.id : undefined) ||
+      (equipo.sucursal ? equipo.sucursal.casaMatrizId : undefined);
+
+    if (!casaMatrizId || !autorizados.includes(casaMatrizId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para ver este equipo." });
+    }
   }
   res.json(equipo);
 };
@@ -1117,6 +1318,7 @@ export {
   postModificarEquipo,
   deleteEquiptment,
   getResults,
+  getClientesResumen,
   getClientById,
   getTypeEquipments,
   getEquipmentForm,
