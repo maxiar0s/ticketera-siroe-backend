@@ -79,7 +79,7 @@ app.get("/test", (req, res) => {
   res.json({ message: "Server is running correctly" });
 });
 
-const port = 3000;
+const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`El servidor se esta ejecutando en el servidor ${port}`);
 });
