@@ -27,11 +27,17 @@ import {
   postObservacion,
   getResults,
   getClientesResumen,
+  getClientesBitacora,
   getClientById,
+  getSucursalesPorCliente,
   getSucursalById,
   getEquipmentsByCasaMatriz,
   getEquipmentById,
   generarUrl,
+  getBitacoras,
+  getBitacoraById,
+  crearBitacora,
+  actualizarBitacora,
   //? Estados de equipos
   getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo,
   //? Estados de sucursales
@@ -99,6 +105,7 @@ router.post("/ingresar-observacion/:id", protegerRutaTecnico, postObservacion);
 // Routes de obtención de datos
 router.get("/clientes", protegerRuta, getResults);
 router.get("/cliente/:id", protegerRuta, getClientById);
+router.get("/cliente/:id/sucursales", protegerRuta, getSucursalesPorCliente);
 router.get("/cliente/:id/equipos", protegerRuta, getEquipmentsByCasaMatriz);
 
 // Para obtener la sucursal por la ID
@@ -106,6 +113,13 @@ router.get("/sucursal/:id", protegerRuta, getSucursalById);
 
 // Para obtener un equipo basado en su ID
 router.get("/equipo/:id", protegerRuta, getEquipmentById);
+
+// Bitacoras
+router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);
+router.get("/bitacoras", protegerRuta, getBitacoras);
+router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
+router.post("/bitacoras", protegerRutaTecnico, crearBitacora);
+router.put("/bitacoras/:id", protegerRutaTecnico, actualizarBitacora);
 
 // Consumo de imagenes Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);

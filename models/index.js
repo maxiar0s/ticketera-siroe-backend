@@ -11,6 +11,7 @@ import Observacion from './Observacion.js';
 import TipoEquipo from './TipoEquipo.js'
 import TipoEquipoCampo from './TipoEquipoCampo.js';
 import Campo from './Campos.js';
+import Bitacora from './Bitacora.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -48,6 +49,9 @@ const EstadoEquipoModel = EstadoEquipo;
 
 //?estado de sucursales
 const EstadoSucursalModel = EstadoSucursal;
+
+// Modelo de Bitacoras
+const BitacoraModel = Bitacora;
 
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
@@ -87,6 +91,20 @@ EstadoSucursalModel.hasMany(SucursalModel, { foreignKey: 'estado', as: 'sucursal
 EquipoModel.belongsTo(SucursalModel, { foreignKey: 'sucursalId', as: 'sucursal', onDelete: 'CASCADE' });
 SucursalModel.hasMany(EquipoModel, { foreignKey: 'sucursalId', as: 'equipos', onDelete: 'CASCADE' });
 
+// Relacion Bitacora - Casa Matriz
+BitacoraModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' });
+CasaMatrizModel.hasMany(BitacoraModel, { foreignKey: 'casaMatrizId', as: 'bitacoras', onDelete: 'CASCADE' });
+
+// Relacion Bitacora - Sucursal
+BitacoraModel.belongsTo(SucursalModel, { foreignKey: 'sucursalId', as: 'sucursal', onDelete: 'SET NULL' });
+SucursalModel.hasMany(BitacoraModel, { foreignKey: 'sucursalId', as: 'bitacoras', onDelete: 'SET NULL' });
+
+// Relacion Bitacora - Usuario (creador/actualizador)
+BitacoraModel.belongsTo(CuentaModel, { foreignKey: 'creadoPorId', as: 'creadoPor' });
+BitacoraModel.belongsTo(CuentaModel, { foreignKey: 'actualizadoPorId', as: 'actualizadoPor' });
+CuentaModel.hasMany(BitacoraModel, { foreignKey: 'creadoPorId', as: 'bitacorasCreadas' });
+CuentaModel.hasMany(BitacoraModel, { foreignKey: 'actualizadoPorId', as: 'bitacorasActualizadas' });
+
 // Relación Equipo - TipoEquipo (uno a muchos)
 EquipoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });
 TipoEquipoModel.hasMany(EquipoModel, { foreignKey: 'tipoEquipoId', as: 'equipos' });
@@ -118,5 +136,6 @@ export {
     //?estado de equipos
     EstadoEquipoModel,
     //?estado de sucursales
-    EstadoSucursalModel
+    EstadoSucursalModel,
+    BitacoraModel
 }

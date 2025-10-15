@@ -15,6 +15,7 @@ import {
   TipoCuentaModel,
   TipoEquipoCampoModel,
   TipoEquipoModel,
+  BitacoraModel,
 
   //?estado de equipos
   EstadoEquipoModel,
@@ -76,6 +77,63 @@ const getAuthorizedClientIds = async (cuentaId) => {
 
   return rows.map((row) => row.casaMatrizId);
 };
+
+const parseStringArray = (value) => {
+  if (!value) return [];
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => `${item}`.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parseStringArray(parsed);
+      }
+    } catch (_error) {
+      // Continuar con manejo estandar
+    }
+
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+
+  return [];
+};
+
+const isValidDateValue = (value) => {
+  if (!value) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+};
+
+const bitacoraIncludes = [
+  {
+    model: CasaMatrizModel,
+    as: "casaMatriz",
+    attributes: ["id", "razonSocial", "rut"],
+  },
+  {
+    model: SucursalModel,
+    as: "sucursal",
+    attributes: ["id", "sucursal"],
+  },
+  {
+    model: CuentaModel,
+    as: "creadoPor",
+    attributes: ["id", "name", "email"],
+  },
+  {
+    model: CuentaModel,
+    as: "actualizadoPor",
+    attributes: ["id", "name", "email"],
+  },
+];
 
 const generateSignedUrl = async (fileName) => {
   try {
@@ -954,6 +1012,36 @@ const getClientesResumen = async (req, res) => {
   }
 };
 
+const getClientesBitacora = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const where = {};
+
+    if (usuario && usuario.tipoCuentaId === 4) {
+      const autorizados =
+        req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+      req.autorizados = autorizados;
+      if (autorizados.length === 0) {
+        return res.json([]);
+      }
+      where.id = { [Op.in]: autorizados };
+    }
+
+    const clientes = await CasaMatrizModel.findAll({
+      where,
+      attributes: ["id", "razonSocial", "rut"],
+      order: [["razonSocial", "ASC"]],
+    });
+
+    return res.json(clientes);
+  } catch (error) {
+    console.error("Error al obtener clientes para bitacora:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los clientes." });
+  }
+};
+
 const getClientById = async (req, res) => {
   let paginaActual = parseInt(req.query.pagina);
   const expresion = /^[1-999]$/;
@@ -1017,6 +1105,37 @@ const getClientById = async (req, res) => {
   }
 
   return res.json({ cliente, paginas });
+};
+
+const getSucursalesPorCliente = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const usuario = req.usuario;
+
+    if (usuario && usuario.tipoCuentaId === 4) {
+      const autorizados =
+        req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+      req.autorizados = autorizados;
+      if (!autorizados.includes(id)) {
+        return res
+          .status(403)
+          .json({ error: "No tiene permisos para ver este cliente." });
+      }
+    }
+
+    const sucursales = await SucursalModel.findAll({
+      where: { casaMatrizId: id },
+      order: [["sucursal", "ASC"]],
+      attributes: ["id", "sucursal", "estado"],
+    });
+
+    return res.json(sucursales);
+  } catch (error) {
+    console.error("Error al obtener sucursales del cliente:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener las sucursales del cliente." });
+  }
 };
 
 const getSucursalById = async (req, res) => {
@@ -1259,6 +1378,393 @@ const generarUrl = async (req, res) => {
   }
 };
 
+const getBitacoras = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const {
+      pagina = 1,
+      limite = 10,
+      clienteId,
+      sucursalId,
+      buscar,
+    } = req.query;
+
+    const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
+    const limitNumber = Math.max(parseInt(limite, 10) || 10, 1);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const where = {};
+
+    if (clienteId) {
+      where.casaMatrizId = clienteId;
+    }
+
+    if (sucursalId) {
+      where.sucursalId = sucursalId;
+    }
+
+    const terminoBusqueda = buscar ? `${buscar}`.trim() : "";
+    if (terminoBusqueda) {
+      where[Op.or] = [
+        { titulo: { [Op.like]: `%${terminoBusqueda}%` } },
+        { descripcion: { [Op.like]: `%${terminoBusqueda}%` } },
+      ];
+    }
+
+    if (usuario.tipoCuentaId === 4) {
+      const autorizados = await getAuthorizedClientIds(usuario.id);
+      if (autorizados.length === 0) {
+        return res.json({
+          data: [],
+          total: 0,
+          pagina: pageNumber,
+          paginasTotales: 0,
+        });
+      }
+
+      if (clienteId && !autorizados.includes(clienteId)) {
+        return res.status(403).json({
+          error: "No tiene permisos para ver las bitacoras de este cliente.",
+        });
+      }
+
+      if (!clienteId) {
+        where.casaMatrizId = { [Op.in]: autorizados };
+      }
+    }
+
+    const { rows, count } = await BitacoraModel.findAndCountAll({
+      where,
+      include: bitacoraIncludes,
+      order: [
+        ["fechaVisita", "DESC"],
+        ["horaLlegada", "DESC"],
+      ],
+      limit: limitNumber,
+      offset,
+    });
+
+    const data = rows.map((row) => row.toJSON());
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
+  } catch (error) {
+    console.error("Error al obtener bitacoras:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener las bitacoras." });
+  }
+};
+
+const getBitacoraById = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const { id } = req.params;
+
+    const bitacora = await BitacoraModel.findByPk(id, {
+      include: bitacoraIncludes,
+    });
+
+    if (!bitacora) {
+      return res.status(404).json({ error: "Bitacora no encontrada." });
+    }
+
+    if (usuario.tipoCuentaId === 4) {
+      const autorizados = await getAuthorizedClientIds(usuario.id);
+      if (!autorizados.includes(bitacora.casaMatrizId)) {
+        return res.status(403).json({
+          error: "No tiene permisos para ver la bitacora solicitada.",
+        });
+      }
+    }
+
+    return res.json(bitacora);
+  } catch (error) {
+    console.error("Error al obtener la bitacora:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener la bitacora." });
+  }
+};
+
+const crearBitacora = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para crear bitacoras." });
+    }
+
+    const {
+      casaMatrizId,
+      sucursalId,
+      fechaVisita,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+    } = req.body;
+
+    if (!casaMatrizId || !fechaVisita || !horaLlegada || !horaSalida) {
+      return res.status(400).json({
+        error:
+          "Los campos casaMatrizId, fechaVisita, horaLlegada y horaSalida son obligatorios.",
+      });
+    }
+
+    const descripcionLimpia = descripcion ? `${descripcion}`.trim() : "";
+    if (!descripcionLimpia) {
+      return res
+        .status(400)
+        .json({ error: "La nota de la bitacora no puede estar vacia." });
+    }
+
+    if (!isValidDateValue(fechaVisita)) {
+      return res
+        .status(400)
+        .json({ error: "La fecha de la visita no es valida." });
+    }
+
+    if (!isValidDateValue(horaLlegada) || !isValidDateValue(horaSalida)) {
+      return res.status(400).json({
+        error: "Las horas de llegada y salida deben tener un formato valido.",
+      });
+    }
+
+    const llegadaDate = new Date(horaLlegada);
+    const salidaDate = new Date(horaSalida);
+    if (salidaDate <= llegadaDate) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
+    if (!cliente) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    let sucursal = null;
+    if (sucursalId) {
+      sucursal = await SucursalModel.findByPk(sucursalId);
+      if (!sucursal) {
+        return res.status(404).json({ error: "Sucursal no encontrada." });
+      }
+      if (sucursal.casaMatrizId !== casaMatrizId) {
+        return res.status(400).json({
+          error: "La sucursal seleccionada no pertenece al cliente indicado.",
+        });
+      }
+    }
+
+    const tecnicosArray = parseStringArray(tecnicos);
+    if (tecnicosArray.length === 0) {
+      return res.status(400).json({
+        error: "Debe indicar al menos un tecnico responsable de la visita.",
+      });
+    }
+
+    const nuevaBitacora = await BitacoraModel.create({
+      casaMatrizId,
+      sucursalId: sucursal ? sucursal.id : null,
+      fechaVisita,
+      horaLlegada: llegadaDate,
+      horaSalida: salidaDate,
+      tecnicos: tecnicosArray,
+      descripcion: descripcionLimpia,
+      titulo: titulo ? `${titulo}`.trim() || null : null,
+      creadoPorId: usuario.id,
+      actualizadoPorId: usuario.id,
+    });
+
+    const bitacoraCreada = await BitacoraModel.findByPk(nuevaBitacora.id, {
+      include: bitacoraIncludes,
+    });
+
+    return res.status(201).json(bitacoraCreada);
+  } catch (error) {
+    console.error("Error al crear bitacora:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al crear la bitacora." });
+  }
+};
+
+const actualizarBitacora = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const { id } = req.params;
+
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para modificar bitacoras." });
+    }
+
+    const bitacora = await BitacoraModel.findByPk(id);
+    if (!bitacora) {
+      return res.status(404).json({ error: "Bitacora no encontrada." });
+    }
+
+    const {
+      casaMatrizId,
+      sucursalId,
+      fechaVisita,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+    } = req.body;
+
+    const cambios = {};
+
+    if (usuario.tipoCuentaId === 2) {
+      if (typeof descripcion === "undefined") {
+        return res.status(400).json({
+          error: "El tecnico solo puede modificar la nota de la bitacora.",
+        });
+      }
+
+      const descripcionLimpia = `${descripcion ?? ""}`.trim();
+      if (!descripcionLimpia) {
+        return res
+          .status(400)
+          .json({ error: "La nota de la bitacora no puede estar vacia." });
+      }
+
+      cambios.descripcion = descripcionLimpia;
+    } else if (usuario.tipoCuentaId === 1) {
+      if (typeof descripcion !== "undefined") {
+        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        if (!descripcionLimpia) {
+          return res
+            .status(400)
+            .json({ error: "La nota de la bitacora no puede estar vacia." });
+        }
+        cambios.descripcion = descripcionLimpia;
+      }
+
+      if (typeof titulo !== "undefined") {
+        const tituloLimpio = `${titulo ?? ""}`.trim();
+        cambios.titulo = tituloLimpio.length > 0 ? tituloLimpio : null;
+      }
+
+      if (typeof casaMatrizId !== "undefined") {
+        if (!casaMatrizId) {
+          return res
+            .status(400)
+            .json({ error: "El cliente de la bitacora no puede quedar vacio." });
+        }
+        const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
+        if (!cliente) {
+          return res.status(404).json({ error: "Cliente no encontrado." });
+        }
+        cambios.casaMatrizId = casaMatrizId;
+      }
+
+      if (typeof fechaVisita !== "undefined") {
+        if (!isValidDateValue(fechaVisita)) {
+          return res
+            .status(400)
+            .json({ error: "La fecha de la visita no es valida." });
+        }
+        cambios.fechaVisita = fechaVisita;
+      }
+
+      if (typeof horaLlegada !== "undefined") {
+        if (!isValidDateValue(horaLlegada)) {
+          return res.status(400).json({
+            error: "La hora de llegada debe tener un formato valido.",
+          });
+        }
+        cambios.horaLlegada = new Date(horaLlegada);
+      }
+
+      if (typeof horaSalida !== "undefined") {
+        if (!isValidDateValue(horaSalida)) {
+          return res.status(400).json({
+            error: "La hora de salida debe tener un formato valido.",
+          });
+        }
+        cambios.horaSalida = new Date(horaSalida);
+      }
+
+      if (typeof tecnicos !== "undefined") {
+        const tecnicosArray = parseStringArray(tecnicos);
+        if (tecnicosArray.length === 0) {
+          return res.status(400).json({
+            error: "Debe indicar al menos un tecnico responsable de la visita.",
+          });
+        }
+        cambios.tecnicos = tecnicosArray;
+      }
+
+      if (typeof sucursalId !== "undefined") {
+        if (!sucursalId) {
+          cambios.sucursalId = null;
+        } else {
+          const sucursal = await SucursalModel.findByPk(sucursalId);
+          if (!sucursal) {
+            return res
+              .status(404)
+              .json({ error: "Sucursal no encontrada." });
+          }
+
+          const clienteDestino =
+            cambios.casaMatrizId ?? bitacora.casaMatrizId;
+          if (sucursal.casaMatrizId !== clienteDestino) {
+            return res.status(400).json({
+              error: "La sucursal seleccionada no pertenece al cliente indicado.",
+            });
+          }
+
+          cambios.sucursalId = sucursalId;
+        }
+      }
+    }
+
+    if (cambios.horaLlegada || cambios.horaSalida) {
+      const llegada = cambios.horaLlegada
+        ? new Date(cambios.horaLlegada)
+        : new Date(bitacora.horaLlegada);
+      const salida = cambios.horaSalida
+        ? new Date(cambios.horaSalida)
+        : new Date(bitacora.horaSalida);
+
+      if (salida <= llegada) {
+        return res.status(400).json({
+          error: "La hora de salida debe ser posterior a la hora de llegada.",
+        });
+      }
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      return res.json(
+        await BitacoraModel.findByPk(id, { include: bitacoraIncludes })
+      );
+    }
+
+    cambios.actualizadoPorId = usuario.id;
+
+    await bitacora.update(cambios);
+    await bitacora.reload({ include: bitacoraIncludes });
+
+    return res.json(bitacora);
+  } catch (error) {
+    console.error("Error al actualizar bitacora:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar la bitacora." });
+  }
+};
+
 //?get estado de sucursales
 const getEstadosSucursal = async (req, res) => {
   try {
@@ -1319,13 +1825,19 @@ export {
   deleteEquiptment,
   getResults,
   getClientesResumen,
+  getClientesBitacora,
   getClientById,
+  getSucursalesPorCliente,
   getTypeEquipments,
   getEquipmentForm,
   getSucursalById,
   getEquipmentsByCasaMatriz,
   getEquipmentById,
   generarUrl,
+  getBitacoras,
+  getBitacoraById,
+  crearBitacora,
+  actualizarBitacora,
   //? Estados de equipos
   getEstadosEquipo,
   actualizarEstadoEquipo,
