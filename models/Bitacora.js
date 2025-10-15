@@ -99,6 +99,39 @@ const bitacora = db.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    adjuntos: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: '[]',
+      get() {
+        const raw = this.getDataValue('adjuntos');
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (_err) {}
+        return [];
+      },
+      set(value) {
+        if (!value) {
+          this.setDataValue('adjuntos', JSON.stringify([]));
+        } else if (Array.isArray(value)) {
+          this.setDataValue('adjuntos', JSON.stringify(value));
+        } else if (typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+              this.setDataValue('adjuntos', JSON.stringify(parsed));
+              return;
+            }
+          } catch (_err) {}
+          // fallback: store as single-element array with the string
+          this.setDataValue('adjuntos', JSON.stringify([value]));
+        } else {
+          this.setDataValue('adjuntos', JSON.stringify([]));
+        }
+      },
+    },
   },
   {
     tableName: "Bitacoras",

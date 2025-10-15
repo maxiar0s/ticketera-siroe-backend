@@ -1501,14 +1501,14 @@ const crearBitacora = async (req, res) => {
     }
 
     const {
-      casaMatrizId,
-      sucursalId,
-      fechaVisita,
-      horaLlegada,
-      horaSalida,
-      tecnicos,
-      descripcion,
-      titulo,
+        casaMatrizId,
+        sucursalId,
+        fechaVisita,
+        horaLlegada,
+        horaSalida,
+        tecnicos,
+        descripcion,
+        titulo,
     } = req.body;
 
     if (!casaMatrizId || !fechaVisita || !horaLlegada || !horaSalida) {
@@ -1583,6 +1583,16 @@ const crearBitacora = async (req, res) => {
       actualizadoPorId: usuario.id,
     });
 
+    // Si hay archivos subidos por multipart/form-data, guardarlos en adjuntos
+    if (req.uploadedFiles && Array.isArray(req.uploadedFiles) && req.uploadedFiles.length > 0) {
+      try {
+        nuevaBitacora.adjuntos = req.uploadedFiles;
+        await nuevaBitacora.save();
+      } catch (err) {
+        console.error('Error guardando adjuntos en bitacora:', err);
+      }
+    }
+
     const bitacoraCreada = await BitacoraModel.findByPk(nuevaBitacora.id, {
       include: bitacoraIncludes,
     });
@@ -1612,6 +1622,17 @@ const actualizarBitacora = async (req, res) => {
       return res.status(404).json({ error: "Bitacora no encontrada." });
     }
 
+    // Support parsing when payload is sent as formData.payload (frontend sends payload + files)
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (err) {
+        // if payload not JSON, fallback to raw
+        bodyData = req.body;
+      }
+    }
+
     const {
       casaMatrizId,
       sucursalId,
@@ -1621,7 +1642,7 @@ const actualizarBitacora = async (req, res) => {
       tecnicos,
       descripcion,
       titulo,
-    } = req.body;
+    } = bodyData;
 
     const cambios = {};
 
@@ -1746,14 +1767,24 @@ const actualizarBitacora = async (req, res) => {
     }
 
     if (Object.keys(cambios).length === 0) {
-      return res.json(
-        await BitacoraModel.findByPk(id, { include: bitacoraIncludes })
-      );
+      const current = await BitacoraModel.findByPk(id, { include: bitacoraIncludes });
+      return res.json(current);
     }
 
     cambios.actualizadoPorId = usuario.id;
 
     await bitacora.update(cambios);
+    // Si llegaron archivos subidos, anexarlos a adjuntos existentes
+    if (req.uploadedFiles && Array.isArray(req.uploadedFiles) && req.uploadedFiles.length > 0) {
+      try {
+        const actuales = bitacora.adjuntos || [];
+        const nuevos = Array.isArray(actuales) ? actuales.concat(req.uploadedFiles) : req.uploadedFiles;
+        bitacora.adjuntos = nuevos;
+        await bitacora.save();
+      } catch (err) {
+        console.error('Error al anexar adjuntos a bitacora:', err);
+      }
+    }
     await bitacora.reload({ include: bitacoraIncludes });
 
     return res.json(bitacora);

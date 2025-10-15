@@ -1,5 +1,5 @@
 import express from "express";
-import { handleUpload, processFile } from "../middleware/imagenes.js";
+import { handleUpload, processFile, handleFiles, processFiles } from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
@@ -118,8 +118,8 @@ router.get("/equipo/:id", protegerRuta, getEquipmentById);
 router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);
 router.get("/bitacoras", protegerRuta, getBitacoras);
 router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
-router.post("/bitacoras", protegerRutaTecnico, crearBitacora);
-router.put("/bitacoras/:id", protegerRutaTecnico, actualizarBitacora);
+router.post("/bitacoras", protegerRutaTecnico, handleFiles, processFiles, crearBitacora);
+router.put("/bitacoras/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarBitacora);
 
 // Consumo de imagenes Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);
