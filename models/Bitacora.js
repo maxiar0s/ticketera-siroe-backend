@@ -105,12 +105,7 @@ const bitacora = db.define(
       defaultValue: '[]',
       get() {
         const raw = this.getDataValue('adjuntos');
-        if (!raw) return [];
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed;
-        } catch (_err) {}
-        return [];
+        return normalizarLista(raw);
       },
       set(value) {
         if (!value) {

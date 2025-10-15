@@ -1445,12 +1445,18 @@ const getBitacoras = async (req, res) => {
     });
 
     const data = rows.map((row) => row.toJSON());
-    return res.json({
-      data,
-      total: count,
-      pagina: pageNumber,
-      paginasTotales: Math.ceil(count / limitNumber),
-    });
+      // Log para verificar adjuntos
+      if (data.length > 0) {
+        console.log('Bitacoras listado, ejemplo adjuntos:', data[0].adjuntos);
+      } else {
+        console.log('Bitacoras listado vacío');
+      }
+      return res.json({
+        data,
+        total: count,
+        pagina: pageNumber,
+        paginasTotales: Math.ceil(count / limitNumber),
+      });
   } catch (error) {
     console.error("Error al obtener bitacoras:", error);
     return res
@@ -1500,16 +1506,26 @@ const crearBitacora = async (req, res) => {
         .json({ error: "No tiene permisos para crear bitacoras." });
     }
 
+    // Support parsing when payload is sent as formData.payload (frontend sends payload + files)
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (err) {
+        bodyData = req.body;
+      }
+    }
+
     const {
-        casaMatrizId,
-        sucursalId,
-        fechaVisita,
-        horaLlegada,
-        horaSalida,
-        tecnicos,
-        descripcion,
-        titulo,
-    } = req.body;
+      casaMatrizId,
+      sucursalId,
+      fechaVisita,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+    } = bodyData;
 
     if (!casaMatrizId || !fechaVisita || !horaLlegada || !horaSalida) {
       return res.status(400).json({
