@@ -38,6 +38,10 @@ import {
   getBitacoraById,
   crearBitacora,
   actualizarBitacora,
+  eliminarBitacora,
+  getVisitasProgramadas,
+  crearVisitaProgramada,
+  eliminarVisitaProgramada,
   //? Estados de equipos
   getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo,
   //? Estados de sucursales
@@ -120,6 +124,12 @@ router.get("/bitacoras", protegerRuta, getBitacoras);
 router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
 router.post("/bitacoras", protegerRutaTecnico, handleFiles, processFiles, crearBitacora);
 router.put("/bitacoras/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarBitacora);
+router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
+
+// Visitas programadas
+router.get("/visitas-programadas", protegerRuta, getVisitasProgramadas);
+router.post("/visitas-programadas", protegerRutaTecnico, crearVisitaProgramada);
+router.delete("/visitas-programadas/:id", protegerRutaAdmin, eliminarVisitaProgramada);
 
 // Consumo de imagenes Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);

@@ -20,7 +20,8 @@ import {
   //?estado de equipos
   EstadoEquipoModel,
   //?estado de sucursales
-  EstadoSucursalModel
+  EstadoSucursalModel,
+  VisitaProgramadaModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 
@@ -1522,6 +1523,50 @@ const getBitacoraById = async (req, res) => {
   }
 };
 
+const getVisitasProgramadas = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const where = {};
+
+    if (usuario.tipoCuentaId === 4) {
+      const autorizados =
+        req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
+      req.autorizados = autorizados;
+      if (!autorizados.length) {
+        return res.json([]);
+      }
+      where.casaMatrizId = { [Op.in]: autorizados };
+    }
+
+    const visitas = await VisitaProgramadaModel.findAll({
+      where,
+      include: [
+        {
+          model: CasaMatrizModel,
+          as: "casaMatriz",
+          attributes: ["id", "razonSocial", "rut"],
+        },
+        {
+          model: SucursalModel,
+          as: "sucursal",
+          attributes: ["id", "sucursal", "estado"],
+        },
+      ],
+      order: [
+        ["fechaProgramada", "ASC"],
+        ["horaLlegada", "ASC"],
+      ],
+    });
+
+    return res.json(visitas);
+  } catch (error) {
+    console.error("Error al obtener visitas programadas:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener las visitas programadas." });
+  }
+};
+
 const crearBitacora = async (req, res) => {
   try {
     const usuario = req.usuario;
@@ -1645,6 +1690,140 @@ const crearBitacora = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Hubo un error al crear la bitacora." });
+  }
+};
+
+const crearVisitaProgramada = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para agendar visitas." });
+    }
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const {
+      casaMatrizId,
+      sucursalId,
+      fechaProgramada,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+    } = bodyData;
+
+    if (!casaMatrizId || !fechaProgramada) {
+      return res.status(400).json({
+        error: "Los campos casaMatrizId y fechaProgramada son obligatorios.",
+      });
+    }
+
+    const descripcionLimpia = descripcion ? `${descripcion}`.trim() : "";
+    if (!descripcionLimpia) {
+      return res
+        .status(400)
+        .json({ error: "La descripcion de la visita no puede estar vacia." });
+    }
+
+    if (!isValidDateValue(fechaProgramada)) {
+      return res
+        .status(400)
+        .json({ error: "La fecha programada no es valida." });
+    }
+
+    let llegadaDate = null;
+    let salidaDate = null;
+
+    if (horaLlegada) {
+      if (!isValidDateValue(horaLlegada)) {
+        return res
+          .status(400)
+          .json({ error: "La hora de llegada debe tener un formato valido." });
+      }
+      llegadaDate = new Date(horaLlegada);
+    }
+
+    if (horaSalida) {
+      if (!isValidDateValue(horaSalida)) {
+        return res
+          .status(400)
+          .json({ error: "La hora de salida debe tener un formato valido." });
+      }
+      salidaDate = new Date(horaSalida);
+    }
+
+    if (llegadaDate && salidaDate && salidaDate <= llegadaDate) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
+    if (!cliente) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    let sucursal = null;
+    if (sucursalId) {
+      sucursal = await SucursalModel.findByPk(sucursalId);
+      if (!sucursal) {
+        return res.status(404).json({ error: "Sucursal no encontrada." });
+      }
+      if (sucursal.casaMatrizId !== casaMatrizId) {
+        return res.status(400).json({
+          error: "La sucursal seleccionada no pertenece al cliente indicado.",
+        });
+      }
+    }
+
+    const tecnicosArray = parseStringArray(tecnicos);
+    if (tecnicosArray.length === 0) {
+      return res.status(400).json({
+        error: "Debe indicar al menos un tecnico responsable de la visita.",
+      });
+    }
+
+    const nuevaVisita = await VisitaProgramadaModel.create({
+      casaMatrizId,
+      sucursalId: sucursal ? sucursal.id : null,
+      fechaProgramada,
+      horaLlegada: llegadaDate,
+      horaSalida: salidaDate,
+      tecnicos: tecnicosArray,
+      descripcion: descripcionLimpia,
+      titulo: titulo ? `${titulo}`.trim() || null : null,
+      creadoPorId: usuario.id,
+      actualizadoPorId: usuario.id,
+      estado: "pendiente",
+    });
+
+    const visitaCreada = await VisitaProgramadaModel.findByPk(
+      nuevaVisita.id,
+      {
+        include: [
+          { model: CasaMatrizModel, as: "casaMatriz" },
+          { model: SucursalModel, as: "sucursal" },
+        ],
+      }
+    );
+
+    return res.status(201).json(visitaCreada);
+  } catch (error) {
+    console.error("Error al agendar visita:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al agendar la visita." });
   }
 };
 
@@ -1838,6 +2017,44 @@ const actualizarBitacora = async (req, res) => {
   }
 };
 
+const eliminarBitacora = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const bitacora = await BitacoraModel.findByPk(id);
+    if (!bitacora) {
+      return res.status(404).json({ error: "Bitacora no encontrada." });
+    }
+
+    await bitacora.destroy();
+    return res.json({ mensaje: "Bitacora eliminada correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar bitacora:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar la bitacora." });
+  }
+};
+
+const eliminarVisitaProgramada = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const visita = await VisitaProgramadaModel.findByPk(id);
+    if (!visita) {
+      return res.status(404).json({ error: "Visita programada no encontrada." });
+    }
+
+    await visita.destroy();
+    return res.json({ mensaje: "Visita programada eliminada correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar visita programada:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar la visita programada." });
+  }
+};
+
 //?get estado de sucursales
 const getEstadosSucursal = async (req, res) => {
   try {
@@ -1911,6 +2128,10 @@ export {
   getBitacoraById,
   crearBitacora,
   actualizarBitacora,
+  eliminarBitacora,
+  getVisitasProgramadas,
+  crearVisitaProgramada,
+  eliminarVisitaProgramada,
   //? Estados de equipos
   getEstadosEquipo,
   actualizarEstadoEquipo,
