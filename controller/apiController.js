@@ -1267,12 +1267,33 @@ const getEquipmentForm = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const campos = await TipoEquipoCampoModel.findAll({
+    let campos = await TipoEquipoCampoModel.findAll({
       where: {
         tipoEquipoId: id,
       },
       include: [{ model: CampoModel, as: "campo" }],
     });
+
+    if (!campos.length) {
+      const camposFallback = await CampoModel.findAll({
+        where: {
+          name: {
+            [Op.in]: ["marca", "modelo", "numeroSerie", "usuario", "imagen"],
+          },
+        },
+      });
+
+      camposFallback.sort((a, b) => {
+        const orden = ["marca", "modelo", "numeroSerie", "usuario", "imagen"];
+        return orden.indexOf(a.name) - orden.indexOf(b.name);
+      });
+
+      if (camposFallback.length) {
+        campos = camposFallback.map((campo) => ({
+          campo,
+        }));
+      }
+    }
 
     const camposTransformados = campos.map(({ campo }) => ({
       id: campo.id,
