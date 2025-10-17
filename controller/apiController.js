@@ -1126,7 +1126,10 @@ const getSucursalesPorCliente = async (req, res) => {
     const sucursales = await SucursalModel.findAll({
       where: { casaMatrizId: id },
       order: [["sucursal", "ASC"]],
-      attributes: ["id", "sucursal", "estado"],
+      attributes: ["id", "sucursal", "estado", "encargadoSucursal", "correoSucursal", "telefonoSucursal"],
+      include: [
+        { model: EstadoSucursalModel, as: "estadoSucursal", attributes: ["id", "name"] },
+      ],
     });
 
     return res.json(sucursales);
@@ -1221,13 +1224,36 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
         .json({ error: "No tiene permisos para ver los equipos de este cliente." });
     }
   }
-  const equipos = await EquipoModel.findAll({
-    where: {
-      casaMatrizId: id,
-    },
-    include: [{ model: CasaMatrizModel, as: "casaMatriz" }],
-  });
-  res.json(equipos);
+
+  try {
+    const equipos = await EquipoModel.findAll({
+      where: {
+        [Op.or]: [
+          { casaMatrizId: id },
+          { '$sucursal.casaMatrizId$': id },
+        ],
+      },
+      include: [
+        { model: CasaMatrizModel, as: "casaMatriz", attributes: ["id", "razonSocial"] },
+        {
+          model: SucursalModel,
+          as: "sucursal",
+          attributes: ["id", "sucursal", "estado", "casaMatrizId"],
+          required: false,
+          where: { casaMatrizId: id },
+        },
+        { model: TipoEquipoModel, as: "tipoEquipo", attributes: ["id", "name"] },
+      ],
+      order: [["numeroSecuencial", "ASC"]],
+    });
+
+    return res.json(equipos);
+  } catch (error) {
+    console.error("Error al obtener equipos de la casa matriz:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los equipos del cliente." });
+  }
 };
 
 const getTypeEquipments = async (req, res) => {
