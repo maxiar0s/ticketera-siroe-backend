@@ -127,6 +127,11 @@ const bitacora = db.define(
         }
       },
     },
+    isEmergencia: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
   },
   {
     tableName: "Bitacoras",

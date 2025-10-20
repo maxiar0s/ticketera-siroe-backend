@@ -120,6 +120,25 @@ const parseNonNegativeInt = (value, defaultValue = 0) => {
   return { parsed, valid: true };
 };
 
+const parseBooleanFlag = (value, defaultValue = false) => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if (lowered === "true" || lowered === "1") {
+      return true;
+    }
+    if (lowered === "false" || lowered === "0") {
+      return false;
+    }
+  }
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+  return defaultValue;
+};
+
 const isValidDateValue = (value) => {
   if (!value) return false;
   const date = new Date(value);
@@ -1692,6 +1711,7 @@ const crearBitacora = async (req, res) => {
       tecnicos,
       descripcion,
       titulo,
+      isEmergencia,
     } = bodyData;
 
     if (!casaMatrizId || !fechaVisita || !horaLlegada || !horaSalida) {
@@ -1764,6 +1784,7 @@ const crearBitacora = async (req, res) => {
       titulo: titulo ? `${titulo}`.trim() || null : null,
       creadoPorId: usuario.id,
       actualizadoPorId: usuario.id,
+      isEmergencia: parseBooleanFlag(isEmergencia, false),
     });
 
     // Si hay archivos subidos por multipart/form-data, guardarlos en adjuntos
@@ -1959,6 +1980,7 @@ const actualizarBitacora = async (req, res) => {
       tecnicos,
       descripcion,
       titulo,
+      isEmergencia,
     } = bodyData;
 
     const cambios = {};
@@ -2042,6 +2064,13 @@ const actualizarBitacora = async (req, res) => {
           });
         }
         cambios.tecnicos = tecnicosArray;
+      }
+
+      if (typeof isEmergencia !== "undefined") {
+        cambios.isEmergencia = parseBooleanFlag(
+          isEmergencia,
+          bitacora.isEmergencia
+        );
       }
 
       if (typeof sucursalId !== "undefined") {
