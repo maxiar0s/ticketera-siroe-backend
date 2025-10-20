@@ -545,6 +545,108 @@ const getUsuario = async (req, res) => {
   return res.json(usuario);
 };
 
+const getPerfil = async (req, res) => {
+  try {
+    const cuenta = req.usuario;
+    if (!cuenta) {
+      return res.status(401).json({ error: "Sesion no valida." });
+    }
+
+    const perfil = await CuentaModel.scope("eliminarCampos").findByPk(
+      cuenta.id,
+      {
+        include: cuentaIncludes,
+      }
+    );
+
+    if (!perfil) {
+      return res.status(404).json({ error: "Cuenta no encontrada." });
+    }
+
+    return res.json(perfil);
+  } catch (error) {
+    console.error("Error al obtener perfil:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener el perfil del usuario." });
+  }
+};
+
+const actualizarPerfil = async (req, res) => {
+  try {
+    const cuentaSesion = req.usuario;
+    if (!cuentaSesion) {
+      return res.status(401).json({ error: "Sesion no valida." });
+    }
+
+    const cuenta = await CuentaModel.findByPk(cuentaSesion.id);
+    if (!cuenta) {
+      return res.status(404).json({ error: "Cuenta no encontrada." });
+    }
+
+    const {
+      name,
+      telefono,
+      email,
+      passwordActual,
+      nuevoPassword,
+    } = req.body ?? {};
+
+    if (email && email !== cuenta.email) {
+      const duplicado = await CuentaModel.findOne({
+        where: { email },
+      });
+      if (duplicado) {
+        return res
+          .status(400)
+          .json({ error: "El correo ya esta asociado a otra cuenta." });
+      }
+      cuenta.email = email.trim();
+    }
+
+    if (name) {
+      cuenta.name = name.trim();
+    }
+
+    if (telefono !== undefined && telefono !== null && telefono !== "") {
+      cuenta.telefono = telefono;
+    }
+
+    if (nuevoPassword) {
+      if (!passwordActual) {
+        return res.status(400).json({
+          error: "Debes proporcionar la contrasena actual para realizar el cambio.",
+        });
+      }
+
+      const coincide = await bcrypt.compare(passwordActual, cuenta.password);
+      if (!coincide) {
+        return res
+          .status(400)
+          .json({ error: "La contrasena actual no es valida." });
+      }
+
+      cuenta.password = await bcrypt.hash(nuevoPassword, 10);
+    }
+
+    await cuenta.save();
+
+    const perfilActualizado = await CuentaModel.scope(
+      "eliminarCampos"
+    ).findByPk(cuenta.id, { include: cuentaIncludes });
+
+    return res.json({
+      mensaje: "Perfil actualizado correctamente.",
+      perfil: perfilActualizado,
+    });
+  } catch (error) {
+    console.error("Error al actualizar perfil:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar el perfil del usuario." });
+  }
+};
+
 const postCliente = async (req, res) => {
   try {
     const {
@@ -2377,6 +2479,8 @@ export {
   postModificarCuenta,
   getEliminarCuenta,
   getUsuarios,
+  getPerfil,
+  actualizarPerfil,
   getUsuario,
   postCliente,
   postModificarCliente,

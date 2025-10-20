@@ -11,6 +11,8 @@ import {
   getEliminarCuenta,
   getUsuarios,
   getUsuario,
+  getPerfil,
+  actualizarPerfil,
   postCliente,
   postModificarCliente,
   postEliminarCliente,
@@ -61,6 +63,8 @@ router.get("/eliminar-cuenta/:id", protegerRutaAdmin, getEliminarCuenta);
 router.get("/usuarios", protegerRutaAdmin, getUsuarios);
 // Para obtener 1 usuario por ID
 router.get("/usuario/:id", protegerRutaAdmin, getUsuario);
+router.get("/perfil", protegerRuta, getPerfil);
+router.put("/perfil", protegerRuta, actualizarPerfil);
 router.get("/tecnicos", protegerRuta, getTecnicosDisponibles);
 // Casas matricez
 router.post(
