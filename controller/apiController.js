@@ -107,6 +107,19 @@ const parseStringArray = (value) => {
   return [];
 };
 
+const parseNonNegativeInt = (value, defaultValue = 0) => {
+  if (value === undefined || value === null || value === "") {
+    return { parsed: defaultValue, valid: true };
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return { parsed: defaultValue, valid: false };
+  }
+
+  return { parsed, valid: true };
+};
+
 const isValidDateValue = (value) => {
   if (!value) return false;
   const date = new Date(value);
@@ -395,7 +408,15 @@ const getUsuario = async (req, res) => {
 
 const postCliente = async (req, res) => {
   try {
-    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } = req.body;
+    const {
+      rut,
+      razonSocial,
+      encargadoGeneral,
+      correo,
+      telefonoEncargado,
+      visitasMensuales,
+      visitasEmergenciaAnuales,
+    } = req.body;
     const imagenName = req.uploadedFile;
     console.log('Valor de req.uploadedFile en postCliente:', imagenName);
 
@@ -434,6 +455,22 @@ const postCliente = async (req, res) => {
       });
     }
 
+    const visitasMensualesParse = parseNonNegativeInt(visitasMensuales);
+    if (!visitasMensualesParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasMensuales,
+      });
+    }
+
+    const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales);
+    if (!visitasEmergenciaParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasEmergenciaAnuales,
+      });
+    }
+
     // Formatear el RUT
     const rutCasaMatriz = rut.toString().slice(0, 10);
 
@@ -443,7 +480,9 @@ const postCliente = async (req, res) => {
       imagen: imagenName,
       encargadoGeneral,
       correo,
-      telefonoEncargado: telefonoEncargadoNum
+      telefonoEncargado: telefonoEncargadoNum,
+      visitasMensuales: visitasMensualesParse.parsed,
+      visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
     });
 
     const nuevoCliente = await CasaMatrizModel.create({
@@ -453,6 +492,8 @@ const postCliente = async (req, res) => {
       encargadoGeneral,
       correo,
       telefonoEncargado: telefonoEncargadoNum,
+      visitasMensuales: visitasMensualesParse.parsed,
+      visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
     });
 
     return res.json({ resp: "Cliente creado correctamente" });
@@ -480,10 +521,26 @@ const postModificarCliente = async (req, res) => {
     }
 
     // Extraer los datos del cuerpo de la solicitud
-    const { rut, razonSocial, encargadoGeneral, correo, telefonoEncargado } = req.body;
+    const {
+      rut,
+      razonSocial,
+      encargadoGeneral,
+      correo,
+      telefonoEncargado,
+      visitasMensuales,
+      visitasEmergenciaAnuales,
+    } = req.body;
 
     // Verificar que todos los campos requeridos estén presentes
-    if (!rut || !razonSocial || !encargadoGeneral || !correo || telefonoEncargado === undefined) {
+    if (
+      !rut ||
+      !razonSocial ||
+      !encargadoGeneral ||
+      !correo ||
+      telefonoEncargado === undefined ||
+      visitasMensuales === undefined ||
+      visitasEmergenciaAnuales === undefined
+    ) {
       console.log('Datos recibidos:', req.body);
       return res.status(400).json({ 
         resp: "Error: Faltan campos requeridos", 
@@ -507,6 +564,22 @@ const postModificarCliente = async (req, res) => {
       });
     }
 
+    const visitasMensualesParse = parseNonNegativeInt(visitasMensuales, cliente.visitasMensuales);
+    if (!visitasMensualesParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasMensuales,
+      });
+    }
+
+    const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales, cliente.visitasEmergenciaAnuales);
+    if (!visitasEmergenciaParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasEmergenciaAnuales,
+      });
+    }
+
     // Actualizar solo los campos que están presentes
     const updateData = {};
     if (rut) updateData.rut = rut;
@@ -514,6 +587,8 @@ const postModificarCliente = async (req, res) => {
     if (encargadoGeneral) updateData.encargadoGeneral = encargadoGeneral;
     if (correo) updateData.correo = correo;
     if (telefonoEncargadoNum) updateData.telefonoEncargado = telefonoEncargadoNum;
+    updateData.visitasMensuales = visitasMensualesParse.parsed;
+    updateData.visitasEmergenciaAnuales = visitasEmergenciaParse.parsed;
 
     // Si se subió una nueva imagen, actualizar el campo imagen
     if (req.uploadedFile) {

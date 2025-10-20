@@ -33,6 +33,16 @@ const casaMatriz = db.define('CasasMatrices', {
         type: DataTypes.INTEGER,
         allowNull: false
     },
+    visitasMensuales: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
+    visitasEmergenciaAnuales: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+    },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
     },
