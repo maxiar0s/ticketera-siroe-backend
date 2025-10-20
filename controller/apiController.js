@@ -1,4 +1,4 @@
-import bcrypt from "bcrypt";
+﻿import bcrypt from "bcrypt";
 import { col, fn, Op } from "sequelize";
 import db from "../config/db.js";
 import bucket from "../config/gcs.js";
@@ -192,6 +192,7 @@ const postCuenta = async (req, res) => {
     tipoCuentaId,
     estadoCuentaId,
     clientesAutorizados,
+    esTecnico,
   } = req.body;
 
   const tipoCuentaNumero =
@@ -226,6 +227,12 @@ const postCuenta = async (req, res) => {
         updates.estadoCuentaId = estadoCuentaNumero;
       }
 
+      if (tipoCuentaFinal === 1) {
+        updates.esTecnico = parseBooleanFlag(esTecnico, cuenta.esTecnico);
+      } else {
+        updates.esTecnico = false;
+      }
+
       if (password && password.trim() !== "") {
         updates.password = await bcrypt.hash(password, 10);
       }
@@ -255,13 +262,13 @@ const postCuenta = async (req, res) => {
     });
 
     if (correoExistente) {
-      return res.json({ error: "Correo electrónico ya registrado." });
+      return res.json({ error: "Correo electrÃ³nico ya registrado." });
     }
 
     if (!password || password.trim() === "") {
       return res
         .status(400)
-        .json({ error: "La contraseña es obligatoria." });
+        .json({ error: "La contraseÃ±a es obligatoria." });
     }
 
     if (
@@ -270,7 +277,7 @@ const postCuenta = async (req, res) => {
     ) {
       return res
         .status(400)
-        .json({ error: "Tipo de cuenta inválido." });
+        .json({ error: "Tipo de cuenta invÃ¡lido." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -282,6 +289,10 @@ const postCuenta = async (req, res) => {
       tipoCuentaId: tipoCuentaNumero,
       password: hashedPassword,
       estadoCuentaId: 1,
+      esTecnico:
+        tipoCuentaNumero === 1
+          ? parseBooleanFlag(esTecnico, false)
+          : false,
     });
 
     if (tipoCuentaNumero === 4) {
@@ -300,6 +311,32 @@ const postCuenta = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Error al procesar la cuenta." });
+  }
+};
+
+const getTecnicosDisponibles = async (_req, res) => {
+  try {
+    const tecnicos = await CuentaModel.findAll({
+      where: {
+        estadoCuentaId: 1,
+        [Op.or]: [
+          { tipoCuentaId: 2 },
+          {
+            tipoCuentaId: 1,
+            esTecnico: true,
+          },
+        ],
+      },
+      attributes: ["id", "name", "email", "tipoCuentaId", "esTecnico"],
+      order: [["name", "ASC"]],
+    });
+
+    return res.json(tecnicos);
+  } catch (error) {
+    console.error("Error al obtener tÃ©cnicos disponibles:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener el listado de tÃ©cnicos." });
   }
 };
 
@@ -380,7 +417,7 @@ const getUsuarios = async (req, res) => {
   let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4] };
   if (option === "Mesa de ayuda") {
     tipoCuentaFiltro = 3;
-  } else if (option === "Técnico de soporte") {
+  } else if (option === "TÃ©cnico de soporte") {
     tipoCuentaFiltro = 2;
   } else if (option === "Administrador") {
     tipoCuentaFiltro = 1;
@@ -458,18 +495,18 @@ const postCliente = async (req, res) => {
       });
     }
 
-    // Procesar el número de teléfono
+    // Procesar el nÃºmero de telÃ©fono
     let telefonoEncargadoNum = telefonoEncargado;
     if (typeof telefonoEncargado === 'string') {
-      // Eliminar cualquier carácter no numérico
+      // Eliminar cualquier carÃ¡cter no numÃ©rico
       const phoneNumber = telefonoEncargado.replace(/\D/g, '');
       telefonoEncargadoNum = parseInt(phoneNumber, 10);
     }
 
-    // Validar que el número de teléfono sea válido (no más de 9 dígitos para Chile)
+    // Validar que el nÃºmero de telÃ©fono sea vÃ¡lido (no mÃ¡s de 9 dÃ­gitos para Chile)
     if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
       return res.status(400).json({ 
-        resp: "Error: El número de teléfono no es válido", 
+        resp: "Error: El nÃºmero de telÃ©fono no es vÃ¡lido", 
         recibido: telefonoEncargado 
       });
     }
@@ -477,7 +514,7 @@ const postCliente = async (req, res) => {
     const visitasMensualesParse = parseNonNegativeInt(visitasMensuales);
     if (!visitasMensualesParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas mensuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
         recibido: visitasMensuales,
       });
     }
@@ -485,7 +522,7 @@ const postCliente = async (req, res) => {
     const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales);
     if (!visitasEmergenciaParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
         recibido: visitasEmergenciaAnuales,
       });
     }
@@ -550,7 +587,7 @@ const postModificarCliente = async (req, res) => {
       visitasEmergenciaAnuales,
     } = req.body;
 
-    // Verificar que todos los campos requeridos estén presentes
+    // Verificar que todos los campos requeridos estÃ©n presentes
     if (
       !rut ||
       !razonSocial ||
@@ -567,18 +604,18 @@ const postModificarCliente = async (req, res) => {
       });
     }
 
-    // Asegurarse de que telefonoEncargado sea un número
+    // Asegurarse de que telefonoEncargado sea un nÃºmero
     let telefonoEncargadoNum = telefonoEncargado;
     if (typeof telefonoEncargado === 'string') {
-      // Eliminar cualquier carácter no numérico
+      // Eliminar cualquier carÃ¡cter no numÃ©rico
       const phoneNumber = telefonoEncargado.replace(/\D/g, '');
       telefonoEncargadoNum = parseInt(phoneNumber, 10);
     }
 
-    // Validar que el número de teléfono sea válido (no más de 9 dígitos para Chile)
+    // Validar que el nÃºmero de telÃ©fono sea vÃ¡lido (no mÃ¡s de 9 dÃ­gitos para Chile)
     if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
       return res.status(400).json({ 
-        resp: "Error: El número de teléfono no es válido", 
+        resp: "Error: El nÃºmero de telÃ©fono no es vÃ¡lido", 
         recibido: telefonoEncargado 
       });
     }
@@ -586,7 +623,7 @@ const postModificarCliente = async (req, res) => {
     const visitasMensualesParse = parseNonNegativeInt(visitasMensuales, cliente.visitasMensuales);
     if (!visitasMensualesParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas mensuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
         recibido: visitasMensuales,
       });
     }
@@ -594,12 +631,12 @@ const postModificarCliente = async (req, res) => {
     const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales, cliente.visitasEmergenciaAnuales);
     if (!visitasEmergenciaParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
         recibido: visitasEmergenciaAnuales,
       });
     }
 
-    // Actualizar solo los campos que están presentes
+    // Actualizar solo los campos que estÃ¡n presentes
     const updateData = {};
     if (rut) updateData.rut = rut;
     if (razonSocial) updateData.razonSocial = razonSocial;
@@ -609,10 +646,10 @@ const postModificarCliente = async (req, res) => {
     updateData.visitasMensuales = visitasMensualesParse.parsed;
     updateData.visitasEmergenciaAnuales = visitasEmergenciaParse.parsed;
 
-    // Si se subió una nueva imagen, actualizar el campo imagen
+    // Si se subiÃ³ una nueva imagen, actualizar el campo imagen
     if (req.uploadedFile) {
       updateData.imagen = req.uploadedFile;
-      console.log('Nueva imagen subida en modificación:', req.uploadedFile);
+      console.log('Nueva imagen subida en modificaciÃ³n:', req.uploadedFile);
     }
 
     console.log('Datos a actualizar:', updateData);
@@ -757,12 +794,12 @@ const postEquipo = async (req, res) => {
       .json({ error: "Debe proporcionar un clienteId o sucursalId" });
   }
 
-  // Validar que el campo imagen esté presente si se subió archivo
+  // Validar que el campo imagen estÃ© presente si se subiÃ³ archivo
   let imagenName = null;
   if (req.uploadedFile) {
     imagenName = req.uploadedFile;
     if (!imagenName || typeof imagenName !== 'string' || imagenName.trim() === '') {
-      return res.status(400).json({ error: "Error al subir la imagen. Nombre de archivo inválido." });
+      return res.status(400).json({ error: "Error al subir la imagen. Nombre de archivo invÃ¡lido." });
     }
   }
 
@@ -791,7 +828,7 @@ const postEquipo = async (req, res) => {
       throw new Error("El tipo de equipo no existe");
     }
 
-    // Crear el código del equipo
+    // Crear el cÃ³digo del equipo
     const deptCode = departamento.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, "0");
     const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
@@ -972,7 +1009,7 @@ const deleteEquiptment = async (req, res) => {
   if (!id) {
     return res.status(400).json({
       success: false,
-      message: "Error: No se proporcionó un ID de equipo válido",
+      message: "Error: No se proporcionÃ³ un ID de equipo vÃ¡lido",
     });
   }
 
@@ -1464,7 +1501,7 @@ const actualizarEstadoEquipo = async (req, res) => {
       // Verificar que el estado exista
       const estadoExiste = await EstadoEquipoModel.findByPk(estado);
       if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de equipo no válido' });
+          return res.status(400).json({ msg: 'Estado de equipo no vÃ¡lido' });
       }
 
       // Actualizar el estado
@@ -1493,7 +1530,7 @@ const actualizarSoloEstadoEquipo = async (req, res) => {
       // Verificar que el estado exista
       const estadoExiste = await EstadoEquipoModel.findByPk(estado);
       if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de equipo no válido' });
+          return res.status(400).json({ msg: 'Estado de equipo no vÃ¡lido' });
       }
 
       // Actualizar SOLO el estado usando update en lugar de save
@@ -1591,7 +1628,7 @@ const getBitacoras = async (req, res) => {
       if (data.length > 0) {
         console.log('Bitacoras listado, ejemplo adjuntos:', data[0].adjuntos);
       } else {
-        console.log('Bitacoras listado vacío');
+        console.log('Bitacoras listado vacÃ­o');
       }
       return res.json({
         data,
@@ -2206,7 +2243,7 @@ const actualizarEstadoSucursal = async (req, res) => {
       // Verificar que el estado exista
       const estadoExiste = await EstadoSucursalModel.findByPk(estado);
       if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de sucursal no válido' });
+          return res.status(400).json({ msg: 'Estado de sucursal no vÃ¡lido' });
       }
 
       // Actualizar SOLO el estado usando update en lugar de save
@@ -2225,6 +2262,7 @@ const actualizarEstadoSucursal = async (req, res) => {
 export {
   postCuenta,
   getVerificarCorreo,
+  getTecnicosDisponibles,
   postModificarCuenta,
   getEliminarCuenta,
   getUsuarios,
@@ -2265,6 +2303,7 @@ export {
   getEstadosSucursal,
   actualizarEstadoSucursal
 };
+
 
 
 

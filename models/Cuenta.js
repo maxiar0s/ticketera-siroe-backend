@@ -21,6 +21,11 @@ const cuenta = db.define('Cuentas', {
     token: {
         type: DataTypes.STRING,
         allowNull: true
+    },
+    esTecnico: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
     }
 }, {
     timestamps: false,
