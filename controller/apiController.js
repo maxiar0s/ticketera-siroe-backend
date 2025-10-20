@@ -120,6 +120,89 @@ const parseNonNegativeInt = (value, defaultValue = 0) => {
   return { parsed, valid: true };
 };
 
+const obtenerFechasReferenciaVisitas = () => {
+  const ahora = new Date();
+  const year = ahora.getUTCFullYear();
+  const month = ahora.getUTCMonth();
+
+  const aISO = (fecha) => fecha.toISOString().slice(0, 10);
+
+  const inicioMes = new Date(Date.UTC(year, month, 1));
+  const inicioMesSiguiente = new Date(Date.UTC(year, month + 1, 1));
+  const inicioAnio = new Date(Date.UTC(year, 0, 1));
+  const inicioAnioSiguiente = new Date(Date.UTC(year + 1, 0, 1));
+
+  return {
+    inicioMes: aISO(inicioMes),
+    inicioMesSiguiente: aISO(inicioMesSiguiente),
+    inicioAnio: aISO(inicioAnio),
+    inicioAnioSiguiente: aISO(inicioAnioSiguiente),
+  };
+};
+
+const obtenerConteoVisitasPorCliente = async (clienteIds = []) => {
+  if (!clienteIds.length) {
+    return {
+      mensuales: {},
+      emergencias: {},
+    };
+  }
+
+  const {
+    inicioMes,
+    inicioMesSiguiente,
+    inicioAnio,
+    inicioAnioSiguiente,
+  } = obtenerFechasReferenciaVisitas();
+
+  const [visitasMensuales, visitasEmergencia] = await Promise.all([
+    BitacoraModel.findAll({
+      attributes: [
+        "casaMatrizId",
+        [fn("COUNT", col("id")), "total"],
+      ],
+      where: {
+        casaMatrizId: { [Op.in]: clienteIds },
+        isEmergencia: false,
+        fechaVisita: {
+          [Op.gte]: inicioMes,
+          [Op.lt]: inicioMesSiguiente,
+        },
+      },
+      group: ["casaMatrizId"],
+    }),
+    BitacoraModel.findAll({
+      attributes: [
+        "casaMatrizId",
+        [fn("COUNT", col("id")), "total"],
+      ],
+      where: {
+        casaMatrizId: { [Op.in]: clienteIds },
+        isEmergencia: true,
+        fechaVisita: {
+          [Op.gte]: inicioAnio,
+          [Op.lt]: inicioAnioSiguiente,
+        },
+      },
+      group: ["casaMatrizId"],
+    }),
+  ]);
+
+  const mensuales = {};
+  visitasMensuales.forEach((row) => {
+    const id = row.get("casaMatrizId");
+    mensuales[id] = Number(row.get("total")) || 0;
+  });
+
+  const emergencias = {};
+  visitasEmergencia.forEach((row) => {
+    const id = row.get("casaMatrizId");
+    emergencias[id] = Number(row.get("total")) || 0;
+  });
+
+  return { mensuales, emergencias };
+};
+
 const parseBooleanFlag = (value, defaultValue = false) => {
   if (typeof value === "boolean") {
     return value;
@@ -1111,7 +1194,23 @@ const getResults = async (req, res) => {
     paginas = 1;
   }
 
-  res.json({ clientes, paginas });
+  let clientesRespuesta = [];
+  if (clientes.length) {
+    const ids = clientes.map((cliente) => cliente.id);
+    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente(ids);
+
+    clientesRespuesta = clientes.map((cliente) => {
+      const data = cliente.toJSON();
+      const clienteId = data.id ?? cliente.id;
+      return {
+        ...data,
+        visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
+        visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
+      };
+    });
+  }
+
+  res.json({ clientes: clientesRespuesta, paginas });
 };
 
 const getClientesResumen = async (req, res) => {
@@ -1236,7 +1335,19 @@ const getClientById = async (req, res) => {
     paginas = 1;
   }
 
-  return res.json({ cliente, paginas });
+  let clienteRespuesta = null;
+  if (cliente) {
+    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente([cliente.id]);
+    const data = cliente.toJSON();
+    const clienteId = data.id ?? cliente.id;
+    clienteRespuesta = {
+      ...data,
+      visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
+      visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
+    };
+  }
+
+  return res.json({ cliente: clienteRespuesta, paginas });
 };
 
 const getSucursalesPorCliente = async (req, res) => {
