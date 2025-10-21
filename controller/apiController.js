@@ -1602,7 +1602,9 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
 };
 
 const getTypeEquipments = async (req, res) => {
-  const tipos = await TipoEquipoModel.findAll();
+  const tipos = await TipoEquipoModel.findAll({
+    order: [["name", "ASC"]],
+  });
 
   res.json(tipos);
 };
@@ -1616,6 +1618,7 @@ const getEquipmentForm = async (req, res) => {
         tipoEquipoId: id,
       },
       include: [{ model: CampoModel, as: "campo" }],
+      order: [[{ model: CampoModel, as: "campo" }, "name", "ASC"]],
     });
 
     if (!campos.length) {
@@ -1652,6 +1655,599 @@ const getEquipmentForm = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Error al obtener los campos" });
+  }
+};
+
+const normalizarCodigo = (valor) => {
+  if (typeof valor !== "string") {
+    return "";
+  }
+  return valor.trim().toUpperCase();
+};
+
+const normalizarTexto = (valor) => {
+  if (typeof valor !== "string") {
+    return "";
+  }
+  return valor.trim();
+};
+
+const formatearNombreCampo = (valor) => {
+  const texto = normalizarTexto(valor);
+  if (!texto) {
+    return "";
+  }
+
+  return texto
+    .toLowerCase()
+    .replace(/[-_\s]+(.)?/g, (_, chr) => (chr ? chr.toUpperCase() : ""))
+    .replace(/[^a-zA-Z0-9]/g, "");
+};
+
+const obtenerTipoEquipoPorId = async (id) => {
+  if (!id) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(`${id}`, 10);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+
+  return await TipoEquipoModel.findByPk(parsed);
+};
+
+const obtenerCampoIdsNormalizados = (campoIds) => {
+  if (!Array.isArray(campoIds)) {
+    return [];
+  }
+
+  const ids = campoIds
+    .map((valor) => {
+      const parsed = Number.parseInt(`${valor}`, 10);
+      return Number.isNaN(parsed) ? null : parsed;
+    })
+    .filter((valor) => valor !== null && valor > 0);
+
+  return Array.from(new Set(ids));
+};
+
+const crearTipoEquipo = async (req, res) => {
+  const nombre = normalizarTexto(req.body?.name);
+  const dict = normalizarCodigo(req.body?.dict);
+  const campoIds = obtenerCampoIdsNormalizados(req.body?.campoIds);
+
+  if (!nombre) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un nombre para el tipo de equipo." });
+  }
+
+  if (!dict) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un prefijo/código (dict) para el tipo." });
+  }
+
+  try {
+    const conflicto = await TipoEquipoModel.findOne({
+      where: {
+        [Op.or]: [{ name: nombre }, { dict }],
+      },
+    });
+
+    if (conflicto) {
+      return res.status(409).json({
+        error: "Ya existe un tipo de equipo con el mismo nombre o código.",
+      });
+    }
+
+    const t = await db.transaction();
+
+    try {
+      const nuevoTipo = await TipoEquipoModel.create(
+        {
+          name: nombre,
+          dict,
+        },
+        { transaction: t }
+      );
+
+      if (campoIds.length) {
+        const campos = await CampoModel.findAll({
+          where: { id: campoIds },
+          transaction: t,
+        });
+
+        if (campos.length !== campoIds.length) {
+          throw new Error("Uno o más campos seleccionados no existen.");
+        }
+
+        const relaciones = campoIds.map((campoId) => ({
+          tipoEquipoId: nuevoTipo.id,
+          campoId,
+        }));
+
+        await TipoEquipoCampoModel.bulkCreate(relaciones, {
+          transaction: t,
+          ignoreDuplicates: true,
+        });
+      }
+
+      await t.commit();
+      return res.status(201).json(nuevoTipo);
+    } catch (error) {
+      if (t && !t.finished) {
+        await t.rollback();
+      }
+      console.error("Error al crear tipo de equipo:", error);
+      return res
+        .status(500)
+        .json({ error: "Hubo un error al crear el tipo de equipo." });
+    }
+  } catch (error) {
+    console.error("Error al validar tipo de equipo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al validar el tipo de equipo." });
+  }
+};
+
+const actualizarTipoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const tipo = await obtenerTipoEquipoPorId(id);
+
+  if (!tipo) {
+    return res.status(404).json({ error: "Tipo de equipo no encontrado." });
+  }
+
+  const nombre = normalizarTexto(req.body?.name);
+  const dict = normalizarCodigo(req.body?.dict);
+  const campoIds = obtenerCampoIdsNormalizados(req.body?.campoIds);
+
+  if (!nombre && !dict && !campoIds.length) {
+    return res.status(400).json({
+      error:
+        "Debe indicar al menos un campo a modificar (nombre, código o campos asociados).",
+    });
+  }
+
+  try {
+    const updates = {};
+
+    if (nombre) {
+      const conflictoNombre = await TipoEquipoModel.findOne({
+        where: {
+          name: nombre,
+          id: {
+            [Op.ne]: tipo.id,
+          },
+        },
+      });
+
+      if (conflictoNombre) {
+        return res
+          .status(409)
+          .json({ error: "Ya existe otro tipo con ese nombre." });
+      }
+
+      updates.name = nombre;
+    }
+
+    if (dict) {
+      const conflictoDict = await TipoEquipoModel.findOne({
+        where: {
+          dict,
+          id: {
+            [Op.ne]: tipo.id,
+          },
+        },
+      });
+
+      if (conflictoDict) {
+        return res
+          .status(409)
+          .json({ error: "Ya existe otro tipo con ese código." });
+      }
+
+      updates.dict = dict;
+    }
+
+    const t = await db.transaction();
+
+    try {
+      if (Object.keys(updates).length) {
+        await tipo.update(updates, { transaction: t });
+      }
+
+      if (Array.isArray(req.body?.campoIds)) {
+        // Si se envió el arreglo de campos, siempre sincronizamos
+        const campos = await CampoModel.findAll({
+          where: { id: campoIds },
+          transaction: t,
+        });
+
+        if (campos.length !== campoIds.length) {
+          throw new Error("Uno o más campos seleccionados no existen.");
+        }
+
+        await TipoEquipoCampoModel.destroy({
+          where: { tipoEquipoId: tipo.id },
+          transaction: t,
+        });
+
+        if (campoIds.length) {
+          const relaciones = campoIds.map((campoId) => ({
+            tipoEquipoId: tipo.id,
+            campoId,
+          }));
+          await TipoEquipoCampoModel.bulkCreate(relaciones, {
+            transaction: t,
+          });
+        }
+      }
+
+      await t.commit();
+      return res.json(await TipoEquipoModel.findByPk(tipo.id));
+    } catch (error) {
+      if (t && !t.finished) {
+        await t.rollback();
+      }
+      console.error("Error al actualizar tipo de equipo:", error);
+      return res
+        .status(500)
+        .json({ error: "Hubo un error al actualizar el tipo de equipo." });
+    }
+  } catch (error) {
+    console.error("Error al modificar tipo de equipo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al modificar el tipo de equipo." });
+  }
+};
+
+const eliminarTipoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const tipo = await obtenerTipoEquipoPorId(id);
+
+  if (!tipo) {
+    return res.status(404).json({ error: "Tipo de equipo no encontrado." });
+  }
+
+  try {
+    const equiposAsociados = await EquipoModel.count({
+      where: { tipoEquipoId: tipo.id },
+    });
+
+    if (equiposAsociados > 0) {
+      return res.status(400).json({
+        error:
+          "No es posible eliminar el tipo de equipo porque existen equipos asociados.",
+      });
+    }
+
+    const t = await db.transaction();
+
+    try {
+      await TipoEquipoCampoModel.destroy({
+        where: { tipoEquipoId: tipo.id },
+        transaction: t,
+      });
+
+      await tipo.destroy({ transaction: t });
+      await t.commit();
+
+      return res.json({ mensaje: "Tipo de equipo eliminado correctamente." });
+    } catch (error) {
+      if (t && !t.finished) {
+        await t.rollback();
+      }
+      console.error("Error al eliminar tipo de equipo:", error);
+      return res
+        .status(500)
+        .json({ error: "Hubo un error al eliminar el tipo de equipo." });
+    }
+  } catch (error) {
+    console.error("Error al validar eliminación de tipo de equipo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al validar la eliminación." });
+  }
+};
+
+const obtenerCamposTipoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const tipo = await obtenerTipoEquipoPorId(id);
+
+  if (!tipo) {
+    return res.status(404).json({ error: "Tipo de equipo no encontrado." });
+  }
+
+  try {
+    const campos = await TipoEquipoCampoModel.findAll({
+      where: { tipoEquipoId: tipo.id },
+      include: [{ model: CampoModel, as: "campo" }],
+      order: [[{ model: CampoModel, as: "campo" }, "name", "ASC"]],
+    });
+
+    const resultado = campos.map(({ campo }) => ({
+      id: campo.id,
+      name: campo.name,
+      label: campo.label,
+      type: campo.type,
+      placeholder: campo.placeholder,
+      required: campo.required,
+    }));
+
+    return res.json(resultado);
+  } catch (error) {
+    console.error("Error al obtener los campos del tipo de equipo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los campos del tipo." });
+  }
+};
+
+const sincronizarCamposTipoEquipo = async (req, res) => {
+  const { id } = req.params;
+  const tipo = await obtenerTipoEquipoPorId(id);
+
+  if (!tipo) {
+    return res.status(404).json({ error: "Tipo de equipo no encontrado." });
+  }
+
+  const campoIds = obtenerCampoIdsNormalizados(req.body?.campoIds);
+
+  try {
+    const campos = await CampoModel.findAll({
+      where: { id: campoIds },
+    });
+
+    if (campos.length !== campoIds.length) {
+      return res
+        .status(400)
+        .json({ error: "Uno o más campos seleccionados no existen." });
+    }
+
+    const t = await db.transaction();
+
+    try {
+      await TipoEquipoCampoModel.destroy({
+        where: { tipoEquipoId: tipo.id },
+        transaction: t,
+      });
+
+      if (campoIds.length) {
+        const relaciones = campoIds.map((campoId) => ({
+          tipoEquipoId: tipo.id,
+          campoId,
+        }));
+
+        await TipoEquipoCampoModel.bulkCreate(relaciones, {
+          transaction: t,
+        });
+      }
+
+      await t.commit();
+
+      const camposActualizados = await TipoEquipoCampoModel.findAll({
+        where: { tipoEquipoId: tipo.id },
+        include: [{ model: CampoModel, as: "campo" }],
+        order: [[{ model: CampoModel, as: "campo" }, "name", "ASC"]],
+      });
+
+      const respuesta = camposActualizados.map(({ campo }) => ({
+        id: campo.id,
+        name: campo.name,
+        label: campo.label,
+        type: campo.type,
+        placeholder: campo.placeholder,
+        required: campo.required,
+      }));
+
+      return res.json(respuesta);
+    } catch (error) {
+      if (t && !t.finished) {
+        await t.rollback();
+      }
+      console.error("Error al sincronizar campos del tipo:", error);
+      return res
+        .status(500)
+        .json({ error: "Hubo un error al sincronizar los campos del tipo." });
+    }
+  } catch (error) {
+    console.error("Error al validar campos del tipo de equipo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al validar los campos seleccionados." });
+  }
+};
+
+const obtenerCampos = async (_req, res) => {
+  try {
+    const campos = await CampoModel.findAll({
+      order: [["name", "ASC"]],
+    });
+    return res.json(campos);
+  } catch (error) {
+    console.error("Error al obtener los campos:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener la lista de campos." });
+  }
+};
+
+const crearCampo = async (req, res) => {
+  const nombreNormalizado = formatearNombreCampo(req.body?.name);
+  const label = normalizarTexto(req.body?.label);
+  const type = normalizarTexto(req.body?.type);
+  const placeholder = normalizarTexto(req.body?.placeholder);
+  const required = parseBooleanFlag(req.body?.required, false);
+
+  if (!nombreNormalizado) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un nombre válido para el campo." });
+  }
+
+  if (!label) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar una etiqueta para el campo." });
+  }
+
+  if (!type) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un tipo de dato para el campo." });
+  }
+
+  try {
+    const conflicto = await CampoModel.findOne({
+      where: {
+        [Op.or]: [{ name: nombreNormalizado }, { label }],
+      },
+    });
+
+    if (conflicto) {
+      return res
+        .status(409)
+        .json({ error: "Ya existe un campo con el mismo nombre o etiqueta." });
+    }
+
+    const campo = await CampoModel.create({
+      name: nombreNormalizado,
+      label,
+      type,
+      placeholder: placeholder || null,
+      required,
+    });
+
+    return res.status(201).json(campo);
+  } catch (error) {
+    console.error("Error al crear el campo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al crear el campo." });
+  }
+};
+
+const actualizarCampo = async (req, res) => {
+  const { id } = req.params;
+  const campo = await CampoModel.findByPk(id);
+
+  if (!campo) {
+    return res.status(404).json({ error: "Campo no encontrado." });
+  }
+
+  const nombre = req.body?.name
+    ? formatearNombreCampo(req.body.name)
+    : undefined;
+  const label = req.body?.label ? normalizarTexto(req.body.label) : undefined;
+  const type = req.body?.type ? normalizarTexto(req.body.type) : undefined;
+  const placeholder =
+    req.body?.placeholder !== undefined
+      ? normalizarTexto(req.body.placeholder)
+      : undefined;
+  const required =
+    req.body?.required !== undefined
+      ? parseBooleanFlag(req.body.required, campo.required)
+      : undefined;
+
+  if (
+    nombre === undefined &&
+    label === undefined &&
+    type === undefined &&
+    placeholder === undefined &&
+    required === undefined
+  ) {
+    return res.status(400).json({
+      error:
+        "Debe indicar al menos un atributo para actualizar (nombre, etiqueta, tipo, placeholder o requerido).",
+    });
+  }
+
+  try {
+    if (nombre) {
+      const conflictoNombre = await CampoModel.findOne({
+        where: {
+          name: nombre,
+          id: {
+            [Op.ne]: campo.id,
+          },
+        },
+      });
+
+      if (conflictoNombre) {
+        return res
+          .status(409)
+          .json({ error: "Ya existe otro campo con ese nombre." });
+      }
+    }
+
+    if (label) {
+      const conflictoLabel = await CampoModel.findOne({
+        where: {
+          label,
+          id: {
+            [Op.ne]: campo.id,
+          },
+        },
+      });
+
+      if (conflictoLabel) {
+        return res
+          .status(409)
+          .json({ error: "Ya existe otro campo con esa etiqueta." });
+      }
+    }
+
+    const cambios = {};
+    if (nombre) cambios.name = nombre;
+    if (label) cambios.label = label;
+    if (type) cambios.type = type;
+    if (placeholder !== undefined) {
+      cambios.placeholder = placeholder || null;
+    }
+    if (required !== undefined) cambios.required = required;
+
+    await campo.update(cambios);
+    return res.json(campo);
+  } catch (error) {
+    console.error("Error al actualizar el campo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar el campo." });
+  }
+};
+
+const eliminarCampo = async (req, res) => {
+  const { id } = req.params;
+  const campo = await CampoModel.findByPk(id);
+
+  if (!campo) {
+    return res.status(404).json({ error: "Campo no encontrado." });
+  }
+
+  try {
+    const relaciones = await TipoEquipoCampoModel.count({
+      where: { campoId: campo.id },
+    });
+
+    if (relaciones > 0) {
+      return res.status(400).json({
+        error:
+          "No es posible eliminar el campo porque está asignado a uno o más tipos de equipo.",
+      });
+    }
+
+    await campo.destroy();
+    return res.json({ mensaje: "Campo eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar el campo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el campo." });
   }
 };
 
@@ -2498,6 +3094,15 @@ export {
   getSucursalesPorCliente,
   getTypeEquipments,
   getEquipmentForm,
+  crearTipoEquipo,
+  actualizarTipoEquipo,
+  eliminarTipoEquipo,
+  obtenerCamposTipoEquipo,
+  sincronizarCamposTipoEquipo,
+  obtenerCampos,
+  crearCampo,
+  actualizarCampo,
+  eliminarCampo,
   getSucursalById,
   getEquipmentsByCasaMatriz,
   getEquipmentById,

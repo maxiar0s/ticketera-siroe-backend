@@ -48,7 +48,16 @@ import {
   //? Estados de equipos
   getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo,
   //? Estados de sucursales
-  getEstadosSucursal, actualizarEstadoSucursal
+  getEstadosSucursal, actualizarEstadoSucursal,
+  crearTipoEquipo,
+  actualizarTipoEquipo,
+  eliminarTipoEquipo,
+  obtenerCamposTipoEquipo,
+  sincronizarCamposTipoEquipo,
+  obtenerCampos,
+  crearCampo,
+  actualizarCampo,
+  eliminarCampo
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -83,6 +92,25 @@ router.get("/clientes/listado", protegerRutaAdmin, getClientesResumen);
 // Sucursales
 router.post("/ingresar-sucursal", protegerRutaAdmin, postSucursal);
 router.get("/eliminar-sucursal/:id", protegerRutaAdmin, getEliminarSucursal);
+
+// Tipos de equipos y campos (solo administradores)
+router.post("/tipos-equipos", protegerRutaAdmin, crearTipoEquipo);
+router.put("/tipos-equipos/:id", protegerRutaAdmin, actualizarTipoEquipo);
+router.delete("/tipos-equipos/:id", protegerRutaAdmin, eliminarTipoEquipo);
+router.get(
+  "/tipos-equipos/:id/campos",
+  protegerRutaAdmin,
+  obtenerCamposTipoEquipo
+);
+router.put(
+  "/tipos-equipos/:id/campos",
+  protegerRutaAdmin,
+  sincronizarCamposTipoEquipo
+);
+router.get("/campos", protegerRutaAdmin, obtenerCampos);
+router.post("/campos", protegerRutaAdmin, crearCampo);
+router.put("/campos/:id", protegerRutaAdmin, actualizarCampo);
+router.delete("/campos/:id", protegerRutaAdmin, eliminarCampo);
 
 // Permisos de Administrador y Tecnico
 router.post("/ingresar-equipo", protegerRutaTecnico, postEquipo);
