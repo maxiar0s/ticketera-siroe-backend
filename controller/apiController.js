@@ -1,5 +1,5 @@
 ﻿import bcrypt from "bcrypt";
-import { col, fn, Op } from "sequelize";
+import { col, fn, Op, where as sqlWhere } from "sequelize";
 import db from "../config/db.js";
 import bucket from "../config/gcs.js";
 
@@ -16,6 +16,7 @@ import {
   TipoEquipoCampoModel,
   TipoEquipoModel,
   BitacoraModel,
+  DepartamentoEquipoModel,
 
   //?estado de equipos
   EstadoEquipoModel,
@@ -970,6 +971,7 @@ const postEquipo = async (req, res) => {
     clienteId = null,
     sucursalId = null,
     departamento,
+    departamentoId,
     tipoEquipoId,
   } = req.body;
 
@@ -991,6 +993,38 @@ const postEquipo = async (req, res) => {
   const t = await db.transaction();
 
   try {
+    let departamentoNombre = normalizarTexto(departamento);
+
+    if (
+      departamentoId !== undefined &&
+      departamentoId !== null &&
+      `${departamentoId}`.trim() !== ""
+    ) {
+      const parsedDepartamentoId = Number.parseInt(
+        `${departamentoId}`.trim(),
+        10
+      );
+
+      if (Number.isNaN(parsedDepartamentoId)) {
+        throw new Error("Identificador de departamento inv\u00E1lido.");
+      }
+
+      const registroDepartamento = await DepartamentoEquipoModel.findByPk(
+        parsedDepartamentoId,
+        { transaction: t }
+      );
+
+      if (!registroDepartamento) {
+        throw new Error("El departamento seleccionado no existe.");
+      }
+
+      departamentoNombre = registroDepartamento.name;
+    }
+
+    if (!departamentoNombre) {
+      throw new Error("Debe seleccionar un departamento v\u00E1lido.");
+    }
+
     const lockCondition = sucursalId ? { sucursalId } : { clienteId };
 
     const ultimoEquipo = await EquipoModel.findOne({
@@ -1014,7 +1048,7 @@ const postEquipo = async (req, res) => {
     }
 
     // Crear el cÃ³digo del equipo
-    const deptCode = departamento.substring(0, 4).toUpperCase();
+    const deptCode = departamentoNombre.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, "0");
     const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
 
@@ -1028,7 +1062,7 @@ const postEquipo = async (req, res) => {
       marca: req.body.marca || null,
       modelo: req.body.modelo || null,
       codigoId,
-      departamento,
+      departamento: departamentoNombre,
       numeroSerie: req.body.numeroSerie || null,
       procesador: req.body.procesador || null,
       velocidadProcesador: req.body.velocidadProcesador || null,
@@ -1056,6 +1090,16 @@ const postEquipo = async (req, res) => {
       await t.rollback();
     }
     console.error(error);
+    if (error instanceof Error && typeof error.message === "string") {
+      const mensaje = error.message;
+      if (
+        mensaje.includes("departamento") ||
+        mensaje.includes("Identificador de departamento") ||
+        mensaje.includes("Debe seleccionar un departamento")
+      ) {
+        return res.status(400).json({ error: mensaje });
+      }
+    }
     return res
       .status(500)
       .json({ error: "Error al crear el equipo", details: error.message });
@@ -1107,6 +1151,8 @@ const postModificarEquipo = async (req, res) => {
       sistemaOperativo,
       ofimatica,
       antivirus,
+      departamento: departamentoTexto,
+      departamentoId,
     } = req.body;
 
     const limpiarCadena = (valor) => {
@@ -1163,6 +1209,55 @@ const postModificarEquipo = async (req, res) => {
     asignarCadena('antivirus', antivirus);
     asignarEntero('ram', ram);
     asignarEntero('cantidadAlmacenamiento', cantidadAlmacenamiento);
+
+    if (
+      departamentoId !== undefined ||
+      departamentoTexto !== undefined
+    ) {
+      let departamentoNombre;
+
+      if (
+        departamentoId !== undefined &&
+        departamentoId !== null &&
+        `${departamentoId}`.trim() !== ""
+      ) {
+        const parsedDepartamentoId = Number.parseInt(
+          `${departamentoId}`.trim(),
+          10
+        );
+
+        if (Number.isNaN(parsedDepartamentoId)) {
+          return res.status(400).json({
+            resp: "Identificador de departamento invalido.",
+          });
+        }
+
+        const registroDepartamento =
+          await DepartamentoEquipoModel.findByPk(parsedDepartamentoId);
+
+        if (!registroDepartamento) {
+          return res.status(400).json({
+            resp: "El departamento seleccionado no existe.",
+          });
+        }
+
+        departamentoNombre = registroDepartamento.name;
+      } else if (departamentoTexto !== undefined) {
+        const normalizado = normalizarTexto(departamentoTexto);
+
+        if (!normalizado) {
+          return res.status(400).json({
+            resp: "El departamento no puede quedar vacio.",
+          });
+        }
+
+        departamentoNombre = normalizado;
+      }
+
+      if (departamentoNombre !== undefined) {
+        datosActualizados.departamento = departamentoNombre;
+      }
+    }
 
     if (req.uploadedFile) {
       datosActualizados.imagen = req.uploadedFile;
@@ -2253,6 +2348,187 @@ const eliminarCampo = async (req, res) => {
   }
 };
 
+const obtenerDepartamentosEquipo = async (_req, res) => {
+  try {
+    const departamentos = await DepartamentoEquipoModel.findAll({
+      order: [["name", "ASC"]],
+    });
+    return res.json(departamentos);
+  } catch (error) {
+    console.error("Error al obtener los departamentos de equipo:", error);
+    return res
+      .status(500)
+      .json({
+        error: "Hubo un error al obtener los departamentos de equipo.",
+      });
+  }
+};
+
+const crearDepartamentoEquipo = async (req, res) => {
+  const nombre = normalizarTexto(req.body?.name);
+
+  if (!nombre) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un nombre para el departamento." });
+  }
+
+  if (nombre.length < 2) {
+    return res
+      .status(400)
+      .json({
+        error:
+          "El nombre del departamento debe tener al menos 2 caracteres.",
+      });
+  }
+
+  try {
+    const existente = await DepartamentoEquipoModel.findOne({
+      where: sqlWhere(fn("LOWER", col("name")), nombre.toLowerCase()),
+    });
+
+    if (existente) {
+      return res.status(409).json({
+        error:
+          "Ya existe un departamento con el mismo nombre. Utiliza otro nombre.",
+      });
+    }
+
+    const departamento = await DepartamentoEquipoModel.create({
+      name: nombre,
+    });
+
+    return res.status(201).json(departamento);
+  } catch (error) {
+    console.error("Error al crear el departamento de equipo:", error);
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        error:
+          "Ya existe un departamento con el mismo nombre. Utiliza otro nombre.",
+      });
+    }
+
+    return res
+      .status(500)
+      .json({
+        error: "Hubo un error al crear el departamento de equipo.",
+      });
+  }
+};
+
+const actualizarDepartamentoEquipo = async (req, res) => {
+  const { id } = req.params;
+
+  const departamento = await DepartamentoEquipoModel.findByPk(id);
+
+  if (!departamento) {
+    return res
+      .status(404)
+      .json({ error: "Departamento de equipo no encontrado." });
+  }
+
+  const nombre = normalizarTexto(req.body?.name);
+
+  if (!nombre) {
+    return res
+      .status(400)
+      .json({ error: "Debe indicar un nombre para el departamento." });
+  }
+
+  if (nombre.length < 2) {
+    return res
+      .status(400)
+      .json({
+        error:
+          "El nombre del departamento debe tener al menos 2 caracteres.",
+      });
+  }
+
+  const t = await db.transaction();
+
+  try {
+    const duplicado = await DepartamentoEquipoModel.findOne({
+      where: {
+        [Op.and]: [
+          sqlWhere(fn("LOWER", col("name")), nombre.toLowerCase()),
+          { id: { [Op.ne]: departamento.id } },
+        ],
+      },
+      transaction: t,
+    });
+
+    if (duplicado) {
+      await t.rollback();
+      return res.status(409).json({
+        error:
+          "Ya existe otro departamento con el mismo nombre. Utiliza otro nombre.",
+      });
+    }
+
+    const nombreAnterior = departamento.name;
+    await departamento.update({ name: nombre }, { transaction: t });
+
+    if (nombreAnterior !== nombre) {
+      await EquipoModel.update(
+        { departamento: nombre },
+        { where: { departamento: nombreAnterior }, transaction: t }
+      );
+    }
+
+    await t.commit();
+
+    return res.json(departamento);
+  } catch (error) {
+    if (t && !t.finished) {
+      await t.rollback();
+    }
+
+    console.error("Error al actualizar el departamento de equipo:", error);
+    return res
+      .status(500)
+      .json({
+        error: "Hubo un error al actualizar el departamento de equipo.",
+      });
+  }
+};
+
+const eliminarDepartamentoEquipo = async (req, res) => {
+  const { id } = req.params;
+
+  const departamento = await DepartamentoEquipoModel.findByPk(id);
+
+  if (!departamento) {
+    return res
+      .status(404)
+      .json({ error: "Departamento de equipo no encontrado." });
+  }
+
+  try {
+    const equiposAsociados = await EquipoModel.count({
+      where: { departamento: departamento.name },
+    });
+
+    if (equiposAsociados > 0) {
+      return res.status(400).json({
+        error:
+          "No es posible eliminar el departamento porque existen equipos asignados a él.",
+      });
+    }
+
+    await departamento.destroy();
+    return res.json({
+      mensaje: "Departamento de equipo eliminado correctamente.",
+    });
+  } catch (error) {
+    console.error("Error al eliminar el departamento de equipo:", error);
+    return res
+      .status(500)
+      .json({
+        error: "Hubo un error al eliminar el departamento de equipo.",
+      });
+  }
+};
+
 const getEquipmentById = async (req, res) => {
   const { id } = req.params;
   const equipo = await EquipoModel.findByPk(id, {
@@ -3105,6 +3381,10 @@ export {
   crearCampo,
   actualizarCampo,
   eliminarCampo,
+  obtenerDepartamentosEquipo,
+  crearDepartamentoEquipo,
+  actualizarDepartamentoEquipo,
+  eliminarDepartamentoEquipo,
   getSucursalById,
   getEquipmentsByCasaMatriz,
   getEquipmentById,

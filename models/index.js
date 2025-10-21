@@ -12,6 +12,7 @@ import TipoEquipo from './TipoEquipo.js'
 import TipoEquipoCampo from './TipoEquipoCampo.js';
 import Campo from './Campos.js';
 import Bitacora from './Bitacora.js';
+import DepartamentoEquipo from './DepartamentoEquipo.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -46,6 +47,8 @@ const TipoEquipoModel = TipoEquipo;
 const CampoModel = Campo;
 // Modelo de Tipo Equipo Campo
 const TipoEquipoCampoModel = TipoEquipoCampo
+// Modelo de Departamentos de Equipos
+const DepartamentoEquipoModel = DepartamentoEquipo;
 
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
@@ -151,6 +154,7 @@ export {
     TipoEquipoModel,
     CampoModel,
     TipoEquipoCampoModel,
+    DepartamentoEquipoModel,
     //?estado de equipos
     EstadoEquipoModel,
     //?estado de sucursales

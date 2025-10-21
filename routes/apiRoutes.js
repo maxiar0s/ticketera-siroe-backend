@@ -57,7 +57,11 @@ import {
   obtenerCampos,
   crearCampo,
   actualizarCampo,
-  eliminarCampo
+  eliminarCampo,
+  obtenerDepartamentosEquipo,
+  crearDepartamentoEquipo,
+  actualizarDepartamentoEquipo,
+  eliminarDepartamentoEquipo
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -111,6 +115,26 @@ router.get("/campos", protegerRutaAdmin, obtenerCampos);
 router.post("/campos", protegerRutaAdmin, crearCampo);
 router.put("/campos/:id", protegerRutaAdmin, actualizarCampo);
 router.delete("/campos/:id", protegerRutaAdmin, eliminarCampo);
+router.get(
+  "/departamentos-equipos",
+  protegerRutaTecnico,
+  obtenerDepartamentosEquipo
+);
+router.post(
+  "/departamentos-equipos",
+  protegerRutaAdmin,
+  crearDepartamentoEquipo
+);
+router.put(
+  "/departamentos-equipos/:id",
+  protegerRutaAdmin,
+  actualizarDepartamentoEquipo
+);
+router.delete(
+  "/departamentos-equipos/:id",
+  protegerRutaAdmin,
+  eliminarDepartamentoEquipo
+);
 
 // Permisos de Administrador y Tecnico
 router.post("/ingresar-equipo", protegerRutaTecnico, postEquipo);

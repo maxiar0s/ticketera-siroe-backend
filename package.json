@@ -7,7 +7,8 @@
     "start": "node server.js",
     "server": "nodemon api/index.js",
     "db:importar": "node ./seed/seeder.js -i",
-    "db:eliminar": "node ./seed/seeder.js -e"
+    "db:eliminar": "node ./seed/seeder.js -e",
+    "departamentos:sync": "node ./scripts/sincronizar-departamentos.js"
   },
   "author": "Jonathan Muñoz",
   "license": "ISC",
