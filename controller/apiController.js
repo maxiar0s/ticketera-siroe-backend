@@ -593,7 +593,27 @@ const actualizarPerfil = async (req, res) => {
       nuevoPassword,
     } = req.body ?? {};
 
-    if (email && email !== cuenta.email) {
+    const esCliente = cuenta.tipoCuentaId === 4;
+
+    const telefonoParsed =
+      telefono !== undefined && telefono !== null && telefono !== ""
+        ? Number.parseInt(telefono, 10)
+        : undefined;
+
+    if (
+      esCliente &&
+      ((name && name.trim() !== cuenta.name) ||
+        (email && email.trim() !== cuenta.email) ||
+        (telefonoParsed !== undefined &&
+          Number.isFinite(telefonoParsed) &&
+          cuenta.telefono !== telefonoParsed))
+    ) {
+      return res.status(403).json({
+        error: "Los clientes solo pueden actualizar su contrasena.",
+      });
+    }
+
+    if (!esCliente && email && email !== cuenta.email) {
       const duplicado = await CuentaModel.findOne({
         where: { email },
       });
@@ -605,12 +625,19 @@ const actualizarPerfil = async (req, res) => {
       cuenta.email = email.trim();
     }
 
-    if (name) {
+    if (!esCliente && name) {
       cuenta.name = name.trim();
     }
 
-    if (telefono !== undefined && telefono !== null && telefono !== "") {
-      cuenta.telefono = telefono;
+    if (!esCliente) {
+      if (
+        telefonoParsed !== undefined &&
+        Number.isFinite(telefonoParsed)
+      ) {
+        cuenta.telefono = telefonoParsed;
+      } else if (telefono === "" || telefono === null) {
+        cuenta.telefono = null;
+      }
     }
 
     if (nuevoPassword) {
