@@ -1492,46 +1492,25 @@ const getSucursalById = async (req, res) => {
     paginaActual = 1;
   }
 
-  // Limites y Offset para el paginador
   const limit = 8;
   const offset = (paginaActual - 1) * limit;
 
   const { id } = req.params;
   const { option, sort } = req.query;
   const usuario = req.usuario;
-  let estado = { [Op.in]: [1, 2, 3] };
+
+  let filtroEstado = { [Op.in]: [1, 2, 3] };
   if (option === "Terminados") {
-    estado = 3;
+    filtroEstado = 3;
   } else if (option === "Pendientes") {
-    estado = 2;
+    filtroEstado = 2;
   }
 
-  // Determine sort order based on query parameter
   const sortOrder = sort === "asc" ? "ASC" : "DESC";
 
-  const [sucursal, total] = await Promise.all([
-    SucursalModel.findByPk(id, {
-      include: [
-        { model: CasaMatrizModel, as: "casaMatriz" },
-        {
-          model: EquipoModel,
-          as: "equipos",
-          limit,
-          offset,
-          include: [
-            { model: TipoEquipoModel, as: "tipoEquipo" },
-            { model: ObservacionModel, as: "observaciones" },
-          ],
-          where: { estado },
-          order: [["numeroSecuencial", sortOrder]],
-        },
-      ],
-    }),
-    SucursalModel.count({
-      where: { id },
-      include: [{ model: EquipoModel, as: "equipos", where: { estado } }],
-    }),
-  ]);
+  const sucursal = await SucursalModel.findByPk(id, {
+    include: [{ model: CasaMatrizModel, as: "casaMatriz" }],
+  });
 
   if (!sucursal) {
     return res.status(404).json({ error: "Sucursal no encontrada." });
@@ -1548,12 +1527,35 @@ const getSucursalById = async (req, res) => {
     }
   }
 
-  let paginas = Math.ceil(total / limit);
-  if (total === 0) {
+  const whereEquipos = { sucursalId: id };
+  if (typeof filtroEstado === "number") {
+    whereEquipos.estado = filtroEstado;
+  } else if (filtroEstado) {
+    whereEquipos.estado = filtroEstado;
+  }
+
+  const { rows: equipos, count: totalEquipos } =
+    await EquipoModel.findAndCountAll({
+      where: whereEquipos,
+      limit,
+      offset,
+      order: [["numeroSecuencial", sortOrder]],
+      include: [
+        { model: TipoEquipoModel, as: "tipoEquipo" },
+        { model: ObservacionModel, as: "observaciones" },
+      ],
+      distinct: true,
+    });
+
+  let paginas = Math.ceil(totalEquipos / limit);
+  if (totalEquipos === 0) {
     paginas = 1;
   }
 
-  return res.json({ sucursal, paginas });
+  const sucursalJson = sucursal.toJSON();
+  sucursalJson.equipos = equipos;
+
+  return res.json({ sucursal: sucursalJson, paginas });
 };
 
 const getEquipmentsByCasaMatriz = async (req, res) => {
