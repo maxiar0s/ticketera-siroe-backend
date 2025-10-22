@@ -277,6 +277,7 @@ const postCuenta = async (req, res) => {
     estadoCuentaId,
     clientesAutorizados,
     esTecnico,
+    haveTickets,
   } = req.body;
 
   const tipoCuentaNumero =
@@ -315,6 +316,15 @@ const postCuenta = async (req, res) => {
         updates.esTecnico = parseBooleanFlag(esTecnico, cuenta.esTecnico);
       } else {
         updates.esTecnico = false;
+      }
+
+      if (tipoCuentaFinal === 4) {
+        updates.haveTickets = parseBooleanFlag(
+          haveTickets,
+          cuenta.haveTickets
+        );
+      } else {
+        updates.haveTickets = false;
       }
 
       if (password && password.trim() !== "") {
@@ -374,8 +384,12 @@ const postCuenta = async (req, res) => {
       password: hashedPassword,
       estadoCuentaId: 1,
       esTecnico:
-        tipoCuentaNumero === 1
-          ? parseBooleanFlag(esTecnico, false)
+          tipoCuentaNumero === 1
+            ? parseBooleanFlag(esTecnico, false)
+            : false,
+      haveTickets:
+        tipoCuentaNumero === 4
+          ? parseBooleanFlag(haveTickets, false)
           : false,
     });
 
@@ -411,7 +425,14 @@ const getTecnicosDisponibles = async (_req, res) => {
           },
         ],
       },
-      attributes: ["id", "name", "email", "tipoCuentaId", "esTecnico"],
+      attributes: [
+        "id",
+        "name",
+        "email",
+        "tipoCuentaId",
+        "esTecnico",
+        "haveTickets",
+      ],
       order: [["name", "ASC"]],
     });
 
