@@ -223,10 +223,54 @@ const parseBooleanFlag = (value, defaultValue = false) => {
   return defaultValue;
 };
 
+const parseTicketFlag = (value, defaultValue = false) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "ticket" || normalized === "tickets") {
+      return true;
+    }
+    if (normalized === "bitacora" || normalized === "bitácora") {
+      return false;
+    }
+  }
+  return parseBooleanFlag(value, defaultValue);
+};
+
+const ESTADO_TICKET_INGRESADO = "ingresado";
+const ESTADO_TICKET_TERMINADO = "terminado";
+
+const parseEstadoTicket = (value, defaultValue = null) => {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === ESTADO_TICKET_TERMINADO) {
+      return ESTADO_TICKET_TERMINADO;
+    }
+    if (normalized === ESTADO_TICKET_INGRESADO) {
+      return ESTADO_TICKET_INGRESADO;
+    }
+  }
+  return defaultValue;
+};
+
+const limpiarDetalleTermino = (valor) => {
+  if (typeof valor !== "string") {
+    return "";
+  }
+  return valor.trim();
+};
+
 const isValidDateValue = (value) => {
   if (!value) return false;
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
+};
+
+const toISODateOnly = (value) => {
+  if (!isValidDateValue(value)) {
+    return null;
+  }
+  const date = new Date(value);
+  return date.toISOString().slice(0, 10);
 };
 
 const bitacoraIncludes = [
@@ -323,6 +367,8 @@ const postCuenta = async (req, res) => {
           haveTickets,
           cuenta.haveTickets
         );
+      } else if (tipoCuentaFinal === 1 || tipoCuentaFinal === 2) {
+        updates.haveTickets = true;
       } else {
         updates.haveTickets = false;
       }
@@ -390,6 +436,8 @@ const postCuenta = async (req, res) => {
       haveTickets:
         tipoCuentaNumero === 4
           ? parseBooleanFlag(haveTickets, false)
+          : [1, 2].includes(tipoCuentaNumero)
+          ? true
           : false,
     });
 
@@ -1494,6 +1542,11 @@ const getClientesBitacora = async (req, res) => {
     const where = {};
 
     if (usuario && usuario.tipoCuentaId === 4) {
+      if (!usuario.haveTickets) {
+        return res.status(403).json({
+          error: "Esta cuenta no tiene acceso al modulo de tickets.",
+        });
+      }
       const autorizados =
         req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
       req.autorizados = autorizados;
@@ -2701,6 +2754,7 @@ const getBitacoras = async (req, res) => {
       clienteId,
       sucursalId,
       buscar,
+      tipo,
     } = req.query;
 
     const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
@@ -2725,7 +2779,23 @@ const getBitacoras = async (req, res) => {
       ];
     }
 
+    const tipoFiltro = typeof tipo === "string" ? tipo.trim().toLowerCase() : "";
+    if (tipoFiltro === "ticket" || tipoFiltro === "tickets") {
+      where.esTicket = true;
+    } else if (
+      tipoFiltro === "bitacora" ||
+      tipoFiltro === "bitácora" ||
+      tipoFiltro === "bit\u00e1cora"
+    ) {
+      where.esTicket = false;
+    }
+
     if (usuario.tipoCuentaId === 4) {
+      if (!usuario.haveTickets) {
+        return res.status(403).json({
+          error: "Esta cuenta no tiene acceso al modulo de tickets.",
+        });
+      }
       const autorizados = await getAuthorizedClientIds(usuario.id);
       if (autorizados.length === 0) {
         return res.json({
@@ -2793,6 +2863,11 @@ const getBitacoraById = async (req, res) => {
     }
 
     if (usuario.tipoCuentaId === 4) {
+      if (!usuario.haveTickets) {
+        return res.status(403).json({
+          error: "Esta cuenta no tiene acceso al modulo de tickets.",
+        });
+      }
       const autorizados = await getAuthorizedClientIds(usuario.id);
       if (!autorizados.includes(bitacora.casaMatrizId)) {
         return res.status(403).json({
@@ -2884,13 +2959,33 @@ const crearBitacora = async (req, res) => {
       descripcion,
       titulo,
       isEmergencia,
+      esTicket,
+      estadoTicket: estadoTicketEntrada,
+      ticketEstado,
+      fechaTermino,
+      detalleTermino,
+      ticketFechaTermino,
+      ticketDetalleTermino,
     } = bodyData;
 
-    if (!casaMatrizId || !fechaVisita || !horaLlegada || !horaSalida) {
+    const tipoRegistroEntrada =
+      typeof esTicket !== "undefined"
+        ? esTicket
+        : typeof bodyData?.tipo !== "undefined"
+        ? bodyData.tipo
+        : bodyData?.tipoRegistro;
+    const esTicketFlag = parseTicketFlag(tipoRegistroEntrada, false);
+
+    if (!casaMatrizId || !fechaVisita) {
       return res.status(400).json({
-        error:
-          "Los campos casaMatrizId, fechaVisita, horaLlegada y horaSalida son obligatorios.",
+        error: "Los campos casaMatrizId y fechaVisita son obligatorios.",
       });
+    }
+
+    if (!isValidDateValue(fechaVisita)) {
+      return res
+        .status(400)
+        .json({ error: "La fecha de la visita no es valida." });
     }
 
     const descripcionLimpia = descripcion ? `${descripcion}`.trim() : "";
@@ -2900,24 +2995,62 @@ const crearBitacora = async (req, res) => {
         .json({ error: "La nota de la bitacora no puede estar vacia." });
     }
 
-    if (!isValidDateValue(fechaVisita)) {
-      return res
-        .status(400)
-        .json({ error: "La fecha de la visita no es valida." });
+    const estadoEntrada =
+      typeof estadoTicketEntrada !== "undefined"
+        ? estadoTicketEntrada
+        : typeof ticketEstado !== "undefined"
+        ? ticketEstado
+        : null;
+    const estadoTicketNormalizado = esTicketFlag
+      ? parseEstadoTicket(estadoEntrada, ESTADO_TICKET_INGRESADO)
+      : null;
+
+    const fechaTerminoEntrada =
+      typeof fechaTermino !== "undefined" ? fechaTermino : ticketFechaTermino;
+    const detalleTerminoEntrada =
+      typeof detalleTermino !== "undefined"
+        ? detalleTermino
+        : ticketDetalleTermino;
+
+    let fechaTerminoNormalizada = null;
+    let detalleTerminoNormalizado = null;
+
+    if (esTicketFlag && estadoTicketNormalizado === ESTADO_TICKET_TERMINADO) {
+      const fechaNormalizada = toISODateOnly(fechaTerminoEntrada);
+      if (!fechaNormalizada) {
+        return res.status(400).json({
+          error: "La fecha de termino del ticket es obligatoria.",
+        });
+      }
+      const detalleLimpio = limpiarDetalleTermino(detalleTerminoEntrada);
+      if (!detalleLimpio) {
+        return res.status(400).json({
+          error:
+            "Debes indicar el detalle de lo realizado para cerrar el ticket.",
+        });
+      }
+      fechaTerminoNormalizada = fechaNormalizada;
+      detalleTerminoNormalizado = detalleLimpio;
     }
 
-    if (!isValidDateValue(horaLlegada) || !isValidDateValue(horaSalida)) {
-      return res.status(400).json({
-        error: "Las horas de llegada y salida deben tener un formato valido.",
-      });
+    let llegadaDate = null;
+    if (horaLlegada) {
+      if (!isValidDateValue(horaLlegada)) {
+        return res.status(400).json({
+          error: "La hora de llegada debe tener un formato valido.",
+        });
+      }
+      llegadaDate = new Date(horaLlegada);
     }
 
-    const llegadaDate = new Date(horaLlegada);
-    const salidaDate = new Date(horaSalida);
-    if (salidaDate <= llegadaDate) {
-      return res.status(400).json({
-        error: "La hora de salida debe ser posterior a la hora de llegada.",
-      });
+    let salidaDate = null;
+    if (horaSalida) {
+      if (!isValidDateValue(horaSalida)) {
+        return res.status(400).json({
+          error: "La hora de salida debe tener un formato valido.",
+        });
+      }
+      salidaDate = new Date(horaSalida);
     }
 
     const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
@@ -2945,6 +3078,12 @@ const crearBitacora = async (req, res) => {
       });
     }
 
+    if (llegadaDate && salidaDate && salidaDate < llegadaDate) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
     const nuevaBitacora = await BitacoraModel.create({
       casaMatrizId,
       sucursalId: sucursal ? sucursal.id : null,
@@ -2957,17 +3096,17 @@ const crearBitacora = async (req, res) => {
       creadoPorId: usuario.id,
       actualizadoPorId: usuario.id,
       isEmergencia: parseBooleanFlag(isEmergencia, false),
+      esTicket: esTicketFlag,
+      estadoTicket: esTicketFlag
+        ? estadoTicketNormalizado ?? ESTADO_TICKET_INGRESADO
+        : null,
+      fechaTermino: fechaTerminoNormalizada,
+      detalleTermino: detalleTerminoNormalizado,
+      adjuntos: Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [],
+      adjuntosTermino: Array.isArray(req.uploadedEvidenceFiles)
+        ? req.uploadedEvidenceFiles
+        : [],
     });
-
-    // Si hay archivos subidos por multipart/form-data, guardarlos en adjuntos
-    if (req.uploadedFiles && Array.isArray(req.uploadedFiles) && req.uploadedFiles.length > 0) {
-      try {
-        nuevaBitacora.adjuntos = req.uploadedFiles;
-        await nuevaBitacora.save();
-      } catch (err) {
-        console.error('Error guardando adjuntos en bitacora:', err);
-      }
-    }
 
     const bitacoraCreada = await BitacoraModel.findByPk(nuevaBitacora.id, {
       include: bitacoraIncludes,
@@ -3153,6 +3292,7 @@ const actualizarBitacora = async (req, res) => {
       descripcion,
       titulo,
       isEmergencia,
+      esTicket,
     } = bodyData;
 
     const cambios = {};
@@ -3206,26 +3346,34 @@ const actualizarBitacora = async (req, res) => {
           return res
             .status(400)
             .json({ error: "La fecha de la visita no es valida." });
-        }
+      }
         cambios.fechaVisita = fechaVisita;
       }
 
       if (typeof horaLlegada !== "undefined") {
-        if (!isValidDateValue(horaLlegada)) {
-          return res.status(400).json({
-            error: "La hora de llegada debe tener un formato valido.",
-          });
+        if (!horaLlegada) {
+          cambios.horaLlegada = null;
+        } else {
+          if (!isValidDateValue(horaLlegada)) {
+            return res.status(400).json({
+              error: "La hora de llegada debe tener un formato valido.",
+            });
+          }
+          cambios.horaLlegada = new Date(horaLlegada);
         }
-        cambios.horaLlegada = new Date(horaLlegada);
       }
 
       if (typeof horaSalida !== "undefined") {
-        if (!isValidDateValue(horaSalida)) {
-          return res.status(400).json({
-            error: "La hora de salida debe tener un formato valido.",
-          });
+        if (!horaSalida) {
+          cambios.horaSalida = null;
+        } else {
+          if (!isValidDateValue(horaSalida)) {
+            return res.status(400).json({
+              error: "La hora de salida debe tener un formato valido.",
+            });
+          }
+          cambios.horaSalida = new Date(horaSalida);
         }
-        cambios.horaSalida = new Date(horaSalida);
       }
 
       if (typeof tecnicos !== "undefined") {
@@ -3243,6 +3391,77 @@ const actualizarBitacora = async (req, res) => {
           isEmergencia,
           bitacora.isEmergencia
         );
+      }
+
+      if (
+        typeof esTicket !== "undefined" ||
+        typeof bodyData?.tipo !== "undefined" ||
+        typeof bodyData?.tipoRegistro !== "undefined"
+      ) {
+        const entradaTipo =
+          typeof esTicket !== "undefined"
+            ? esTicket
+            : typeof bodyData?.tipo !== "undefined"
+            ? bodyData.tipo
+            : bodyData?.tipoRegistro;
+        cambios.esTicket = parseTicketFlag(
+          entradaTipo,
+          bitacora.esTicket
+        );
+      }
+
+      const tieneEstadoTicketEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
+      if (tieneEstadoTicketEntrada) {
+        const entradaEstado = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "estadoTicket"
+        )
+          ? bodyData.estadoTicket
+          : bodyData.ticketEstado;
+        cambios.estadoTicket = parseEstadoTicket(
+          entradaEstado,
+          ESTADO_TICKET_INGRESADO
+        );
+      }
+
+      const tieneFechaTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "fechaTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketFechaTermino");
+      if (tieneFechaTerminoEntrada) {
+        const entradaFecha = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "fechaTermino"
+        )
+          ? bodyData.fechaTermino
+          : bodyData.ticketFechaTermino;
+        if (entradaFecha) {
+          const fechaNormalizada = toISODateOnly(entradaFecha);
+          if (!fechaNormalizada) {
+            return res.status(400).json({
+              error: "La fecha de termino del ticket no es valida.",
+            });
+          }
+          cambios.fechaTermino = fechaNormalizada;
+        } else {
+          cambios.fechaTermino = null;
+        }
+      }
+
+      const tieneDetalleTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "detalleTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketDetalleTermino");
+      if (tieneDetalleTerminoEntrada) {
+        const entradaDetalle = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "detalleTermino"
+        )
+          ? bodyData.detalleTermino
+          : bodyData.ticketDetalleTermino;
+        const detalleLimpio = limpiarDetalleTermino(entradaDetalle);
+        cambios.detalleTermino =
+          detalleLimpio.length > 0 ? detalleLimpio : null;
       }
 
       if (typeof sucursalId !== "undefined") {
@@ -3269,19 +3488,96 @@ const actualizarBitacora = async (req, res) => {
       }
     }
 
-    if (cambios.horaLlegada || cambios.horaSalida) {
-      const llegada = cambios.horaLlegada
-        ? new Date(cambios.horaLlegada)
-        : new Date(bitacora.horaLlegada);
-      const salida = cambios.horaSalida
-        ? new Date(cambios.horaSalida)
-        : new Date(bitacora.horaSalida);
+    const tieneCambio = (campo) =>
+      Object.prototype.hasOwnProperty.call(cambios, campo);
 
-      if (salida <= llegada) {
+    const esTicketFinal = tieneCambio("esTicket")
+      ? cambios.esTicket
+      : bitacora.esTicket;
+
+    const horaLlegadaFinal = tieneCambio("horaLlegada")
+      ? cambios.horaLlegada
+      : bitacora.horaLlegada;
+    const horaSalidaFinal = tieneCambio("horaSalida")
+      ? cambios.horaSalida
+      : bitacora.horaSalida;
+
+    const llegadaDateFinal = horaLlegadaFinal ? new Date(horaLlegadaFinal) : null;
+    const salidaDateFinal = horaSalidaFinal ? new Date(horaSalidaFinal) : null;
+
+    if (!esTicketFinal) {
+      if (!llegadaDateFinal || !salidaDateFinal) {
+        return res.status(400).json({
+          error:
+            "Las horas de llegada y salida son obligatorias para bitacoras.",
+        });
+      }
+      if (salidaDateFinal <= llegadaDateFinal) {
         return res.status(400).json({
           error: "La hora de salida debe ser posterior a la hora de llegada.",
         });
       }
+    } else if (
+      llegadaDateFinal &&
+      salidaDateFinal &&
+      salidaDateFinal < llegadaDateFinal
+    ) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
+    if (!esTicketFinal) {
+      cambios.estadoTicket = null;
+      if (tieneCambio("fechaTermino")) {
+        cambios.fechaTermino = null;
+      }
+      if (tieneCambio("detalleTermino")) {
+        cambios.detalleTermino = null;
+      }
+    } else {
+      let estadoTicketFinal = tieneCambio("estadoTicket")
+        ? cambios.estadoTicket
+        : parseEstadoTicket(bitacora.estadoTicket, ESTADO_TICKET_INGRESADO);
+      if (!estadoTicketFinal) {
+        estadoTicketFinal = ESTADO_TICKET_INGRESADO;
+      }
+
+      const fechaTerminoFinal = tieneCambio("fechaTermino")
+        ? cambios.fechaTermino
+        : bitacora.fechaTermino;
+      const detalleTerminoFinal = tieneCambio("detalleTermino")
+        ? cambios.detalleTermino
+        : bitacora.detalleTermino;
+
+      if (estadoTicketFinal === ESTADO_TICKET_TERMINADO) {
+        if (!fechaTerminoFinal) {
+          return res.status(400).json({
+            error: "La fecha de termino del ticket es obligatoria.",
+          });
+        }
+        if (!isValidDateValue(fechaTerminoFinal)) {
+          return res.status(400).json({
+            error: "La fecha de termino del ticket no es valida.",
+          });
+        }
+        if (!limpiarDetalleTermino(detalleTerminoFinal)) {
+          return res.status(400).json({
+            error:
+              "Debes indicar el detalle de lo realizado para cerrar el ticket.",
+          });
+        }
+      } else {
+        if (tieneCambio("fechaTermino")) {
+          cambios.fechaTermino = null;
+        }
+        if (tieneCambio("detalleTermino")) {
+          cambios.detalleTermino = null;
+        }
+        estadoTicketFinal = ESTADO_TICKET_INGRESADO;
+      }
+
+      cambios.estadoTicket = estadoTicketFinal;
     }
 
     if (Object.keys(cambios).length === 0) {
@@ -3292,12 +3588,29 @@ const actualizarBitacora = async (req, res) => {
     cambios.actualizadoPorId = usuario.id;
 
     await bitacora.update(cambios);
-    // Si llegaron archivos subidos, anexarlos a adjuntos existentes
-    if (req.uploadedFiles && Array.isArray(req.uploadedFiles) && req.uploadedFiles.length > 0) {
+    // Si llegaron archivos subidos, anexarlos a los arreglos correspondientes
+    const nuevosAdjuntosIngreso = Array.isArray(req.uploadedFiles)
+      ? req.uploadedFiles
+      : [];
+    const nuevosAdjuntosEvidencia = Array.isArray(req.uploadedEvidenceFiles)
+      ? req.uploadedEvidenceFiles
+      : [];
+
+    if (nuevosAdjuntosIngreso.length || nuevosAdjuntosEvidencia.length) {
       try {
-        const actuales = bitacora.adjuntos || [];
-        const nuevos = Array.isArray(actuales) ? actuales.concat(req.uploadedFiles) : req.uploadedFiles;
-        bitacora.adjuntos = nuevos;
+        if (nuevosAdjuntosIngreso.length) {
+          const actualesIngreso = Array.isArray(bitacora.adjuntos)
+            ? bitacora.adjuntos
+            : [];
+          bitacora.adjuntos = actualesIngreso.concat(nuevosAdjuntosIngreso);
+        }
+        if (nuevosAdjuntosEvidencia.length) {
+          const actualesEvidencia = Array.isArray(bitacora.adjuntosTermino)
+            ? bitacora.adjuntosTermino
+            : [];
+          bitacora.adjuntosTermino =
+            actualesEvidencia.concat(nuevosAdjuntosEvidencia);
+        }
         await bitacora.save();
       } catch (err) {
         console.error('Error al anexar adjuntos a bitacora:', err);

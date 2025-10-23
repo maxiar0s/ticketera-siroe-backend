@@ -77,11 +77,11 @@ const bitacora = db.define(
     },
     horaLlegada: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     horaSalida: {
       type: DataTypes.DATE,
-      allowNull: false,
+      allowNull: true,
     },
     casaMatrizId: {
       type: DataTypes.STRING,
@@ -127,10 +127,54 @@ const bitacora = db.define(
         }
       },
     },
+    adjuntosTermino: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: '[]',
+      get() {
+        const raw = this.getDataValue('adjuntosTermino');
+        return normalizarLista(raw);
+      },
+      set(value) {
+        if (!value) {
+          this.setDataValue('adjuntosTermino', JSON.stringify([]));
+        } else if (Array.isArray(value)) {
+          this.setDataValue('adjuntosTermino', JSON.stringify(value));
+        } else if (typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+              this.setDataValue('adjuntosTermino', JSON.stringify(parsed));
+              return;
+            }
+          } catch (_err) {}
+          this.setDataValue('adjuntosTermino', JSON.stringify([value]));
+        } else {
+          this.setDataValue('adjuntosTermino', JSON.stringify([]));
+        }
+      },
+    },
     isEmergencia: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
+    },
+    esTicket: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    estadoTicket: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    fechaTermino: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    detalleTermino: {
+      type: DataTypes.TEXT,
+      allowNull: true,
     },
   },
   {
