@@ -1692,7 +1692,21 @@ const getSucursalById = async (req, res) => {
   const offset = (paginaActual - 1) * limit;
 
   const { id } = req.params;
-  const { option, sort } = req.query;
+  const {
+    option,
+    sort,
+    fechaInicio,
+    fechaFin,
+    tipoEquipoIds,
+    tipoEquipoId,
+    departamentos,
+    departamento,
+    ramMin,
+    ramMax,
+    almacenamientoMin,
+    almacenamientoMax,
+    conRegistroFotografico,
+  } = req.query;
   const usuario = req.usuario;
 
   let filtroEstado = { [Op.in]: [1, 2, 3] };
@@ -1728,6 +1742,82 @@ const getSucursalById = async (req, res) => {
     whereEquipos.estado = filtroEstado;
   } else if (filtroEstado) {
     whereEquipos.estado = filtroEstado;
+  }
+
+  const parseDateOnly = (value) => {
+    if (!value || typeof value !== "string") {
+      return null;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return null;
+    }
+    return parsed.toISOString().slice(0, 10);
+  };
+
+  const fechaInicioFiltro = parseDateOnly(fechaInicio);
+  const fechaFinFiltro = parseDateOnly(fechaFin);
+  if (fechaInicioFiltro && fechaFinFiltro) {
+    whereEquipos.fechaIngreso = { [Op.between]: [fechaInicioFiltro, fechaFinFiltro] };
+  } else if (fechaInicioFiltro) {
+    whereEquipos.fechaIngreso = { [Op.gte]: fechaInicioFiltro };
+  } else if (fechaFinFiltro) {
+    whereEquipos.fechaIngreso = { [Op.lte]: fechaFinFiltro };
+  }
+
+  const tiposFiltro = parseStringArray(tipoEquipoIds ?? tipoEquipoId)
+    .map((valor) => Number.parseInt(valor, 10))
+    .filter((valor) => Number.isInteger(valor));
+  if (tiposFiltro.length > 0) {
+    whereEquipos.tipoEquipoId = { [Op.in]: tiposFiltro };
+  }
+
+  const departamentosFiltro = parseStringArray(departamentos ?? departamento);
+  if (departamentosFiltro.length > 0) {
+    whereEquipos.departamento = { [Op.in]: departamentosFiltro };
+  }
+
+  const parseOptionalInt = (value) => {
+    if (value === undefined || value === null || value === "") {
+      return null;
+    }
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const ramMinValor = parseOptionalInt(ramMin);
+  const ramMaxValor = parseOptionalInt(ramMax);
+  if (ramMinValor !== null || ramMaxValor !== null) {
+    const rangoRam = {};
+    if (ramMinValor !== null) {
+      rangoRam[Op.gte] = ramMinValor;
+    }
+    if (ramMaxValor !== null) {
+      rangoRam[Op.lte] = ramMaxValor;
+    }
+    whereEquipos.ram = rangoRam;
+  }
+
+  const almacenamientoMinValor = parseOptionalInt(almacenamientoMin);
+  const almacenamientoMaxValor = parseOptionalInt(almacenamientoMax);
+  if (almacenamientoMinValor !== null || almacenamientoMaxValor !== null) {
+    const rangoAlmacenamiento = {};
+    if (almacenamientoMinValor !== null) {
+      rangoAlmacenamiento[Op.gte] = almacenamientoMinValor;
+    }
+    if (almacenamientoMaxValor !== null) {
+      rangoAlmacenamiento[Op.lte] = almacenamientoMaxValor;
+    }
+    whereEquipos.cantidadAlmacenamiento = rangoAlmacenamiento;
+  }
+
+  if (conRegistroFotografico === "true") {
+    whereEquipos.imagen = { [Op.notIn]: [null, ""] };
+  } else if (conRegistroFotografico === "false") {
+    whereEquipos.imagen = { [Op.or]: [{ [Op.is]: null }, { [Op.eq]: "" }] };
   }
 
   const { rows: equipos, count: totalEquipos } =
