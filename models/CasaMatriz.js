@@ -43,6 +43,10 @@ const casaMatriz = db.define('CasasMatrices', {
         allowNull: false,
         defaultValue: 0,
     },
+    servicios: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
     },

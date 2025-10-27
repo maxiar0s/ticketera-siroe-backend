@@ -8,9 +8,10 @@
     "server": "nodemon api/index.js",
     "db:importar": "node ./seed/seeder.js -i",
     "db:eliminar": "node ./seed/seeder.js -e",
-    "departamentos:sync": "node ./scripts/sincronizar-departamentos.js"
+    "departamentos:sync": "node ./scripts/sincronizar-departamentos.js",
+    "db:servicios-arriendo": "node ./scripts/add-client-services-equipo-arriendo.js"
   },
-  "author": "Jonathan Muñoz",
+  "author": "Jonathan Muñoz, Maximiliano Aros",
   "license": "ISC",
   "description": "",
   "dependencies": {

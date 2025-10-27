@@ -32,7 +32,7 @@ const cuentaIncludes = [
   {
     model: CasaMatrizModel,
     as: "clientesAutorizados",
-    attributes: ["id", "razonSocial"],
+    attributes: ["id", "razonSocial", "servicios"],
     through: { attributes: [] },
   },
 ];
@@ -106,6 +106,37 @@ const parseStringArray = (value) => {
   }
 
   return [];
+};
+
+const parseBooleanFlag = (value, defaultValue = false) => {
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value === 1;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized.length) {
+      return defaultValue;
+    }
+
+    if (["1", "true", "si", "sí", "yes", "arriendo", "rentado"].includes(normalized)) {
+      return true;
+    }
+
+    if (["0", "false", "no", "sin arriendo"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return defaultValue;
 };
 
 const parseNonNegativeInt = (value, defaultValue = 0) => {
@@ -202,25 +233,6 @@ const obtenerConteoVisitasPorCliente = async (clienteIds = []) => {
   });
 
   return { mensuales, emergencias };
-};
-
-const parseBooleanFlag = (value, defaultValue = false) => {
-  if (typeof value === "boolean") {
-    return value;
-  }
-  if (typeof value === "string") {
-    const lowered = value.trim().toLowerCase();
-    if (lowered === "true" || lowered === "1") {
-      return true;
-    }
-    if (lowered === "false" || lowered === "0") {
-      return false;
-    }
-  }
-  if (typeof value === "number") {
-    return value !== 0;
-  }
-  return defaultValue;
 };
 
 const parseTicketFlag = (value, defaultValue = false) => {
@@ -633,7 +645,15 @@ const getPerfil = async (req, res) => {
       return res.status(404).json({ error: "Cuenta no encontrada." });
     }
 
-    return res.json(perfil);
+    const perfilPlano = perfil?.toJSON ? perfil.toJSON() : perfil;
+    if (perfilPlano) {
+      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map((cliente) => ({
+        ...cliente,
+        servicios: parseStringArray(cliente?.servicios),
+      }));
+    }
+
+    return res.json(perfilPlano);
   } catch (error) {
     console.error("Error al obtener perfil:", error);
     return res
@@ -732,9 +752,17 @@ const actualizarPerfil = async (req, res) => {
       "eliminarCampos"
     ).findByPk(cuenta.id, { include: cuentaIncludes });
 
+    const perfilPlano = perfilActualizado?.toJSON ? perfilActualizado.toJSON() : perfilActualizado;
+    if (perfilPlano) {
+      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map((cliente) => ({
+        ...cliente,
+        servicios: parseStringArray(cliente?.servicios),
+      }));
+    }
+
     return res.json({
       mensaje: "Perfil actualizado correctamente.",
-      perfil: perfilActualizado,
+      perfil: perfilPlano,
     });
   } catch (error) {
     console.error("Error al actualizar perfil:", error);
@@ -754,6 +782,7 @@ const postCliente = async (req, res) => {
       telefonoEncargado,
       visitasMensuales,
       visitasEmergenciaAnuales,
+      servicios,
     } = req.body;
     const imagenName = req.uploadedFile;
     console.log('Valor de req.uploadedFile en postCliente:', imagenName);
@@ -802,6 +831,8 @@ const postCliente = async (req, res) => {
     }
 
     const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales);
+    const serviciosSanitizados = parseStringArray(servicios);
+
     if (!visitasEmergenciaParse.valid) {
       return res.status(400).json({
         resp: "Error: La cantidad de visitas de emergencia anuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
@@ -821,6 +852,7 @@ const postCliente = async (req, res) => {
       telefonoEncargado: telefonoEncargadoNum,
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
+      servicios: serviciosSanitizados,
     });
 
     const nuevoCliente = await CasaMatrizModel.create({
@@ -832,6 +864,7 @@ const postCliente = async (req, res) => {
       telefonoEncargado: telefonoEncargadoNum,
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
+      servicios: serviciosSanitizados,
     });
 
     return res.json({ resp: "Cliente creado correctamente" });
@@ -867,6 +900,7 @@ const postModificarCliente = async (req, res) => {
       telefonoEncargado,
       visitasMensuales,
       visitasEmergenciaAnuales,
+      servicios,
     } = req.body;
 
     // Verificar que todos los campos requeridos estÃ©n presentes
@@ -927,6 +961,10 @@ const postModificarCliente = async (req, res) => {
     if (telefonoEncargadoNum) updateData.telefonoEncargado = telefonoEncargadoNum;
     updateData.visitasMensuales = visitasMensualesParse.parsed;
     updateData.visitasEmergenciaAnuales = visitasEmergenciaParse.parsed;
+
+    if (Object.prototype.hasOwnProperty.call(req.body, "servicios")) {
+      updateData.servicios = parseStringArray(servicios);
+    }
 
     // Si se subiÃ³ una nueva imagen, actualizar el campo imagen
     if (req.uploadedFile) {
@@ -1169,6 +1207,7 @@ const postEquipo = async (req, res) => {
       ofimatica: req.body.ofimatica || null,
       antivirus: req.body.antivirus || null,
       tipoEquipoId: tipoEquipo.id,
+      esArriendo: parseBooleanFlag(req.body.esArriendo),
     };
     if (imagenName) {
       equipoData.imagen = imagenName;
@@ -1249,6 +1288,7 @@ const postModificarEquipo = async (req, res) => {
       antivirus,
       departamento: departamentoTexto,
       departamentoId,
+      esArriendo,
     } = req.body;
 
     const limpiarCadena = (valor) => {
@@ -1293,6 +1333,13 @@ const postModificarEquipo = async (req, res) => {
       }
     };
 
+    const asignarBooleano = (clave, valor, actual = false) => {
+      if (valor === undefined) {
+        return;
+      }
+      datosActualizados[clave] = parseBooleanFlag(valor, actual);
+    };
+
     asignarCadena('marca', marca);
     asignarCadena('modelo', modelo);
     asignarCadena('numeroSerie', numeroSerie);
@@ -1305,6 +1352,8 @@ const postModificarEquipo = async (req, res) => {
     asignarCadena('antivirus', antivirus);
     asignarEntero('ram', ram);
     asignarEntero('cantidadAlmacenamiento', cantidadAlmacenamiento);
+
+    asignarBooleano('esArriendo', esArriendo, Boolean(equipo.esArriendo));
 
     if (
       departamentoId !== undefined ||
@@ -1497,6 +1546,7 @@ const getResults = async (req, res) => {
       const clienteId = data.id ?? cliente.id;
       return {
         ...data,
+        servicios: parseStringArray(data.servicios),
         visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
         visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
       };
@@ -1523,11 +1573,19 @@ const getClientesResumen = async (req, res) => {
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial"],
+      attributes: ["id", "razonSocial", "servicios"],
       order: [["razonSocial", "ASC"]],
     });
 
-    return res.json(clientes);
+    const respuesta = clientes.map((cliente) => {
+      const data = cliente?.toJSON ? cliente.toJSON() : cliente;
+      return {
+        ...data,
+        servicios: parseStringArray(data?.servicios),
+      };
+    });
+
+    return res.json(respuesta);
   } catch (error) {
     console.error(error);
     return res
@@ -1558,11 +1616,19 @@ const getClientesBitacora = async (req, res) => {
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial", "rut"],
+      attributes: ["id", "razonSocial", "rut", "servicios"],
       order: [["razonSocial", "ASC"]],
     });
 
-    return res.json(clientes);
+    const respuesta = clientes.map((cliente) => {
+      const data = cliente?.toJSON ? cliente.toJSON() : cliente;
+      return {
+        ...data,
+        servicios: parseStringArray(data?.servicios),
+      };
+    });
+
+    return res.json(respuesta);
   } catch (error) {
     console.error("Error al obtener clientes para bitacora:", error);
     return res
@@ -1640,6 +1706,7 @@ const getClientById = async (req, res) => {
     const clienteId = data.id ?? cliente.id;
     clienteRespuesta = {
       ...data,
+      servicios: parseStringArray(data.servicios),
       visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
       visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
     };

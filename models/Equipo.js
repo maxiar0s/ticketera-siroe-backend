@@ -81,6 +81,11 @@ const equipo = db.define('Equipos', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    esArriendo: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+    },
 },{
     timestamps: false,
     hooks: {
