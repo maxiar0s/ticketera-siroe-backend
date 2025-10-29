@@ -1,0 +1,602 @@
+import { ImapFlow } from "imapflow";
+import { simpleParser } from "mailparser";
+import { htmlToText } from "html-to-text";
+import { randomUUID } from "crypto";
+import path from "path";
+import nodemailer from "nodemailer";
+
+import bucket from "../../config/gcs.js";
+import db from "../../config/db.js";
+import { emailTicketConfig } from "../../config/emailTicketConfig.js";
+import {
+  BitacoraModel,
+  CasaMatrizModel,
+  CuentaModel,
+} from "../../models/index.js";
+
+const ESTADO_TICKET_INGRESADO = "ingresado";
+
+const normalizeEmail = (value) =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
+
+const toDateOnly = (date, timezone = "UTC") => {
+  const reference = date instanceof Date ? date : new Date(date);
+  // eslint-disable-next-line no-restricted-globals
+  if (!(reference instanceof Date) || Number.isNaN(reference.getTime())) {
+    const now = new Date();
+    return now.toISOString().slice(0, 10);
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  // en-CA returns YYYY-MM-DD by default
+  return formatter.format(reference);
+};
+
+const ensureArray = (value, fallback = []) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+  return Array.isArray(fallback) ? fallback : [];
+};
+
+const cleanBody = (parsed) => {
+  if (!parsed) {
+    return "";
+  }
+  if (parsed.text && parsed.text.trim()) {
+    return parsed.text.trim();
+  }
+  if (parsed.html && parsed.html.trim()) {
+    return htmlToText(parsed.html, {
+      wordwrap: 120,
+      selectors: [{ selector: "img", format: "skip" }],
+    }).trim();
+  }
+  return "";
+};
+
+const primaryAddress = (addressObject) => {
+  if (!addressObject) {
+    return null;
+  }
+  const list = Array.isArray(addressObject.value) ? addressObject.value : [];
+  if (!list.length) {
+    return null;
+  }
+  const first = list[0];
+  if (first && typeof first.address === "string") {
+    return first.address.trim();
+  }
+  return null;
+};
+
+const getSenderName = (addressObject) => {
+  if (!addressObject) {
+    return null;
+  }
+  const list = Array.isArray(addressObject.value) ? addressObject.value : [];
+  if (!list.length) {
+    return null;
+  }
+  const first = list[0];
+  if (first && typeof first.name === "string" && first.name.trim().length) {
+    return first.name.trim();
+  }
+  return null;
+};
+
+const uploadAttachmentToGcs = async (attachment) => {
+  if (!attachment) {
+    return null;
+  }
+
+  const originalName =
+    attachment.filename && attachment.filename.trim().length
+      ? attachment.filename.trim()
+      : `adjunto-${randomUUID()}`;
+  const extension = path.extname(originalName);
+  const gcsFileName = `${randomUUID()}${extension}`;
+  const file = bucket.file(gcsFileName);
+  const contentType =
+    typeof attachment.contentType === "string" && attachment.contentType.length
+      ? attachment.contentType
+      : "application/octet-stream";
+
+  // mailparser provides attachment.content as a Buffer by default
+  const content =
+    attachment.content && Buffer.isBuffer(attachment.content)
+      ? attachment.content
+      : Buffer.from([]);
+
+  if (!content.length) {
+    return null;
+  }
+
+  await file.save(content, {
+    resumable: false,
+    metadata: {
+      contentType,
+      originalName,
+    },
+  });
+
+  return gcsFileName;
+};
+
+export class EmailTicketProcessor {
+  constructor(config = emailTicketConfig) {
+    this.config = config;
+    this.connected = false;
+    this.smtpTransporter = null;
+  }
+
+  async ensureDatabaseConnection() {
+    if (this.connected) {
+      return;
+    }
+    await db.authenticate();
+    // No llamar a sync para evitar migraciones involuntarias en ejecuciones programadas
+    this.connected = true;
+  }
+
+  async getSmtpTransporter() {
+    if (!this.config.outboundEnabled) {
+      return null;
+    }
+
+    if (this.smtpTransporter) {
+      return this.smtpTransporter;
+    }
+
+    const {
+      smtpHost,
+      smtpPort,
+      smtpSecure,
+      smtpUser,
+      smtpPassword,
+      imapHost,
+      imapUser,
+      imapPassword,
+    } = this.config;
+
+    let resolvedHost =
+      smtpHost && smtpHost.trim().length ? smtpHost.trim() : imapHost;
+    if (resolvedHost && resolvedHost.startsWith("imap.")) {
+      resolvedHost = resolvedHost.replace(/^imap\./i, "smtp.");
+    }
+    const resolvedUser =
+      smtpUser && smtpUser.trim().length ? smtpUser.trim() : imapUser?.trim();
+    const resolvedPassword =
+      smtpPassword && smtpPassword.trim().length
+        ? smtpPassword.trim()
+        : imapPassword?.trim();
+
+    if (!resolvedHost || !resolvedUser || !resolvedPassword) {
+      console.warn(
+        "[EmailTicketProcessor] Configuración SMTP incompleta, no se enviará acuse de recibo."
+      );
+      this.config.outboundEnabled = false;
+      return null;
+    }
+
+    this.smtpTransporter = nodemailer.createTransport({
+      host: resolvedHost,
+      port: typeof smtpPort === "number" && smtpPort > 0 ? smtpPort : 465,
+      secure: typeof smtpSecure === "boolean" ? smtpSecure : true,
+      auth: {
+        user: resolvedUser,
+        pass: resolvedPassword,
+      },
+    });
+
+    return this.smtpTransporter;
+  }
+
+  async enviarAcuseRecibo({
+    destinatario,
+    ticket,
+    asuntoOriginal,
+    clienteNombre,
+  }) {
+    try {
+      const transporter = await this.getSmtpTransporter();
+      if (!transporter || !destinatario) {
+        return;
+      }
+
+      const {
+        outboundFromAddress,
+        outboundFromName,
+        outboundSubjectPrefix,
+        outboundAckBodyTemplate,
+        smtpUser,
+        imapUser,
+      } = this.config;
+
+      const fromAddress = outboundFromAddress && outboundFromAddress.trim().length
+        ? outboundFromAddress.trim()
+        : smtpUser || imapUser;
+
+      if (!fromAddress) {
+        console.warn(
+          "[EmailTicketProcessor] No se pudo determinar el remitente para el acuse de recibo."
+        );
+        return;
+      }
+
+      const from = outboundFromName
+        ? `${outboundFromName} <${fromAddress}>`
+        : fromAddress;
+
+      const subjectBase =
+        asuntoOriginal && asuntoOriginal.trim().length
+          ? asuntoOriginal.trim()
+          : ticket?.titulo || "Ticket sin asunto";
+      const subject = `${outboundSubjectPrefix ?? "[Ticket creado]"} ${subjectBase}`.trim();
+
+      const cuerpoBase =
+        outboundAckBodyTemplate ??
+        "Hola,\n\nAcusamos recibo de tu correo. Se ha creado el ticket #{ticketId}.\n\nSaludos,\nMesa de Ayuda";
+      const body = cuerpoBase
+        .replaceAll("{ticketId}", `${ticket?.id ?? ""}`)
+        .replaceAll("{ticketTitle}", ticket?.titulo ?? subjectBase)
+        .replaceAll("{originalSubject}", subjectBase)
+        .replaceAll("{clientName}", clienteNombre ?? "")
+        .replaceAll(
+          "{createdAt}",
+          ticket?.createdAt?.toISOString?.() ?? new Date().toISOString()
+        );
+
+      await transporter.sendMail({
+        from,
+        to: destinatario,
+        subject,
+        text: body,
+      });
+    } catch (error) {
+      console.error(
+        "[EmailTicketProcessor] Error al enviar acuse de recibo:",
+        error
+      );
+    }
+  }
+
+  isSenderAllowed(email) {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+      return false;
+    }
+
+    const { allowedSenderEmails, allowedSenderDomains } = this.config;
+
+    const normalizedAllowedEmails = ensureArray(allowedSenderEmails).map(
+      normalizeEmail
+    );
+    if (normalizedAllowedEmails.length > 0) {
+      if (normalizedAllowedEmails.includes(normalized)) {
+        return true;
+      }
+      // Si se configuraron correos exactos y no hay match, rechazamos
+      return false;
+    }
+
+    const normalizedAllowedDomains = ensureArray(allowedSenderDomains).map(
+      (domain) => (domain.startsWith("@") ? domain.slice(1) : domain).toLowerCase()
+    );
+    if (normalizedAllowedDomains.length === 0) {
+      return true;
+    }
+
+    const domain = normalized.split("@")[1];
+    if (!domain) {
+      return false;
+    }
+    return normalizedAllowedDomains.includes(domain.toLowerCase());
+  }
+
+  async resolveClienteDesdeCorreo(email) {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+      return null;
+    }
+
+    let casaMatriz = await CasaMatrizModel.findOne({
+      where: db.where(
+        db.fn("LOWER", db.col("correo")),
+        normalized
+      ),
+    });
+
+    const cuenta = await CuentaModel.findOne({
+      where: db.where(db.fn("LOWER", db.col("email")), normalized),
+      include: [
+        {
+          model: CasaMatrizModel,
+          as: "clientesAutorizados",
+          through: { attributes: [] },
+        },
+      ],
+    });
+
+    if (cuenta) {
+      const clientes = Array.isArray(cuenta.clientesAutorizados)
+        ? cuenta.clientesAutorizados
+        : [];
+
+      if (clientes.length === 1 && !casaMatriz) {
+        casaMatriz = clientes[0];
+      } else if (!casaMatriz) {
+        const clientePorCorreo = clientes.find(
+          (cliente) =>
+            typeof cliente.correo === "string" &&
+            normalizeEmail(cliente.correo) === normalized
+        );
+
+        if (clientePorCorreo) {
+          casaMatriz = clientePorCorreo;
+        } else if (clientes.length > 0) {
+          casaMatriz = clientes[0];
+        }
+      }
+
+      return { casaMatriz: casaMatriz ?? null, cuenta };
+    }
+
+    return { casaMatriz: casaMatriz ?? null, cuenta: null };
+  }
+
+  async crearTicketDesdeCorreo(parsedEmail, metadata = {}) {
+    const remitente = primaryAddress(parsedEmail.from);
+    if (!remitente) {
+      throw new Error("No fue posible determinar el remitente del correo.");
+    }
+
+    if (!this.isSenderAllowed(remitente)) {
+      throw new Error(
+        `El remitente ${remitente} no esta autorizado para crear tickets automaticamente.`
+      );
+    }
+
+    const resultado = await this.resolveClienteDesdeCorreo(remitente);
+    let casaMatriz = resultado?.casaMatriz ?? null;
+    const cuentaRemitente = resultado?.cuenta ?? null;
+
+    if (!casaMatriz && this.config.fallbackCasaMatrizId) {
+      casaMatriz = await CasaMatrizModel.findByPk(
+        this.config.fallbackCasaMatrizId
+      );
+    }
+
+    if (!casaMatriz) {
+      throw new Error(
+        `No se encontro un cliente asociado al correo ${remitente} y no hay fallback configurado.`
+      );
+    }
+
+    let creadorId = null;
+    if (this.config.useSenderAccountAsCreator && cuentaRemitente) {
+      creadorId = cuentaRemitente.id;
+    } else if (this.config.defaultCreatorAccountId) {
+      creadorId = this.config.defaultCreatorAccountId;
+    } else if (cuentaRemitente) {
+      creadorId = cuentaRemitente.id;
+    }
+
+    if (!creadorId) {
+      throw new Error(
+        "No se pudo determinar el usuario creador del ticket (configure TICKET_INBOUND_FALLBACK_CREATOR_ID)."
+      );
+    }
+
+    const tituloBase =
+      typeof parsedEmail.subject === "string" && parsedEmail.subject.trim().length
+        ? parsedEmail.subject.trim()
+        : "Ticket sin asunto";
+
+    const cuerpoBase = cleanBody(parsedEmail);
+
+    const descripcionFinal = [
+      cuerpoBase.length
+        ? cuerpoBase
+        : "Ticket generado automaticamente desde correo sin contenido de texto.",
+      "",
+      "---",
+      `Correo original: ${remitente}`,
+      `Nombre remitente: ${getSenderName(parsedEmail.from) ?? "No especificado"}`,
+      `Asunto original: ${tituloBase}`,
+      `Fecha correo: ${
+        parsedEmail.date?.toISOString?.() ??
+        metadata.internalDate?.toISOString?.() ??
+        new Date().toISOString()
+      }`,
+    ]
+      .join("\n")
+      .trim();
+
+    const attachments = Array.isArray(parsedEmail.attachments)
+      ? parsedEmail.attachments
+      : [];
+
+    const archivosSubidos = [];
+    for (const attachment of attachments) {
+      try {
+        const referencia = await uploadAttachmentToGcs(attachment);
+        if (referencia) {
+          archivosSubidos.push(referencia);
+        }
+      } catch (error) {
+        console.error(
+          "Error al subir un adjunto a GCS. Continuando con el resto:",
+          error
+        );
+      }
+    }
+
+    const tecnicos = ensureArray(this.config.defaultTechnicians, [
+      "Mesa de ayuda",
+    ]);
+    if (tecnicos.length === 0) {
+      tecnicos.push("Mesa de ayuda");
+    }
+
+    const fechaVisita = toDateOnly(
+      metadata.internalDate || parsedEmail.date || new Date(),
+      this.config.timezone
+    );
+
+    const nuevaBitacora = await BitacoraModel.create({
+      casaMatrizId: casaMatriz.id,
+      sucursalId: null,
+      fechaVisita,
+      horaLlegada: null,
+      horaSalida: null,
+      tecnicos,
+      descripcion: descripcionFinal,
+      titulo: tituloBase,
+      creadoPorId: creadorId,
+      actualizadoPorId: creadorId,
+      isEmergencia: false,
+      esTicket: true,
+      estadoTicket: ESTADO_TICKET_INGRESADO,
+      fechaTermino: null,
+      detalleTermino: null,
+      adjuntos: archivosSubidos,
+      adjuntosTermino: [],
+    });
+
+    await this.enviarAcuseRecibo({
+      destinatario: remitente,
+      ticket: nuevaBitacora,
+      asuntoOriginal: tituloBase,
+      clienteNombre: casaMatriz?.razonSocial ?? "",
+    });
+
+    return nuevaBitacora;
+  }
+
+  async procesarBuzon() {
+    if (!this.config.enabled) {
+      console.log(
+        "[EmailTicketProcessor] Integracion deshabilitada (TICKET_INBOUND_ENABLED=false)."
+      );
+      return { processed: 0, success: 0, errors: 0 };
+    }
+
+    await this.ensureDatabaseConnection();
+
+    const client = new ImapFlow({
+      host: this.config.imapHost,
+      port: this.config.imapPort,
+      secure: this.config.imapSecure,
+      auth: {
+        user: this.config.imapUser,
+        pass: this.config.imapPassword,
+      },
+    });
+
+    await client.connect();
+
+    let lock;
+    let processed = 0;
+    let success = 0;
+    let errors = 0;
+
+    try {
+      lock = await client.getMailboxLock(this.config.mailbox);
+
+      const unseenMessages = await client.search({
+        seen: false,
+      });
+
+      const unseenSorted = [...unseenMessages].sort((a, b) => b - a);
+
+      const limit =
+        typeof this.config.maxEmailsPerRun === "number" &&
+        this.config.maxEmailsPerRun > 0
+          ? this.config.maxEmailsPerRun
+          : unseenSorted.length;
+
+      for (let index = 0; index < unseenSorted.length; index += 1) {
+        if (index >= limit) {
+          break;
+        }
+
+        const sequence = unseenSorted[index];
+        const message = await client.fetchOne(sequence, {
+          uid: true,
+          envelope: true,
+          source: true,
+          internalDate: true,
+        });
+
+        processed += 1;
+
+        try {
+          const parsed = await simpleParser(message.source);
+          await this.crearTicketDesdeCorreo(parsed, {
+            internalDate: message.internalDate,
+            uid: message.uid,
+          });
+          success += 1;
+
+          await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true });
+
+          if (this.config.archiveMailboxOnSuccess) {
+            try {
+              await client.messageMove(
+                message.uid,
+                this.config.archiveMailboxOnSuccess,
+                { uid: true }
+              );
+            } catch (moveError) {
+              console.error(
+                `[EmailTicketProcessor] No se pudo mover el correo procesado al buzón ${this.config.archiveMailboxOnSuccess}:`,
+                moveError
+              );
+            }
+          }
+        } catch (error) {
+          errors += 1;
+          console.error(
+            "[EmailTicketProcessor] Error al procesar correo y crear ticket:",
+            error
+          );
+
+          if (this.config.markSeenOnError) {
+            try {
+              await client.messageFlagsAdd(message.uid, ["\\Seen"], {
+                uid: true,
+              });
+            } catch (flagError) {
+              console.error(
+                "[EmailTicketProcessor] Error al marcar correo fallido como visto:",
+                flagError
+              );
+            }
+          }
+        }
+      }
+    } finally {
+      if (lock) {
+        lock.release();
+      }
+      await client.logout();
+    }
+
+    return { processed, success, errors };
+  }
+}
+
+export default EmailTicketProcessor;
