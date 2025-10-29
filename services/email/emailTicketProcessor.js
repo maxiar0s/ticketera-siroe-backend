@@ -15,6 +15,19 @@ import {
 } from "../../models/index.js";
 
 const ESTADO_TICKET_INGRESADO = "ingresado";
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "hotmail.com",
+  "hotmail.cl",
+  "hotmail.es",
+  "outlook.com",
+  "outlook.cl",
+  "outlook.es",
+  "live.com",
+  "live.cl",
+]);
+const ALLOWLIST_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
+const LINK_LABEL = "[LINK]";
 
 const normalizeEmail = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -77,11 +90,16 @@ const enhanceBodyText = (text) => {
   sanitized = sanitized.replace(/\[cid:[^\]]+\]/gi, "").replace(/cid:[^\s]+/gi, "");
 
   sanitized = sanitized.replace(/\[(https?:\/\/[^\]\s]+)\]/gi, (_match, url) => {
-    return `\n🔗 ${url}\n`;
+    return `\n${LINK_LABEL} ${url}\n`;
   });
 
-  sanitized = sanitized.replace(/(?<!🔗\s)(https?:\/\/\S+)/gi, (match) => {
-    return `\n🔗 ${match}\n`;
+  sanitized = sanitized.replace(/https?:\/\/\S+/gi, (url, offset, full) => {
+    const prefixStart = Math.max(0, offset - (LINK_LABEL.length + 2));
+    const prefix = full.slice(prefixStart, offset);
+    if (prefix.includes(LINK_LABEL)) {
+      return url;
+    }
+    return `\n${LINK_LABEL} ${url}\n`;
   });
 
   sanitized = sanitized.replace(/\n{3,}/g, "\n\n");
@@ -176,6 +194,21 @@ export class EmailTicketProcessor {
     this.config = config;
     this.connected = false;
     this.smtpTransporter = null;
+    this.allowedEmails = new Set(
+      ensureArray(config.allowedSenderEmails)
+        .map(normalizeEmail)
+        .filter((email) => email.length > 0)
+    );
+    this.allowedDomains = new Set(
+      ensureArray(config.allowedSenderDomains)
+        .map((domain) =>
+          domain && typeof domain === "string"
+            ? domain.replace(/^@/, "").trim().toLowerCase()
+            : null
+        )
+        .filter((domain) => domain && domain.length > 0)
+    );
+    this.lastAllowListRefresh = 0;
   }
 
   async ensureDatabaseConnection() {
@@ -185,6 +218,7 @@ export class EmailTicketProcessor {
     await db.authenticate();
     // No llamar a sync para evitar migraciones involuntarias en ejecuciones programadas
     this.connected = true;
+    await this.refreshDynamicAllowLists(true);
   }
 
   async getSmtpTransporter() {
@@ -315,31 +349,68 @@ export class EmailTicketProcessor {
       return false;
     }
 
-    const { allowedSenderEmails, allowedSenderDomains } = this.config;
+    const domain = normalized.split("@")[1];
+    const hasEmailAllow = this.allowedEmails.size > 0;
+    const hasDomainAllow = this.allowedDomains.size > 0;
 
-    const normalizedAllowedEmails = ensureArray(allowedSenderEmails).map(
-      normalizeEmail
-    );
-    if (normalizedAllowedEmails.length > 0) {
-      if (normalizedAllowedEmails.includes(normalized)) {
-        return true;
-      }
-      // Si se configuraron correos exactos y no hay match, rechazamos
-      return false;
-    }
-
-    const normalizedAllowedDomains = ensureArray(allowedSenderDomains).map(
-      (domain) => (domain.startsWith("@") ? domain.slice(1) : domain).toLowerCase()
-    );
-    if (normalizedAllowedDomains.length === 0) {
+    if (hasEmailAllow && this.allowedEmails.has(normalized)) {
       return true;
     }
 
-    const domain = normalized.split("@")[1];
-    if (!domain) {
+    if (hasDomainAllow && domain && this.allowedDomains.has(domain.toLowerCase())) {
+      return true;
+    }
+
+    if (hasEmailAllow || hasDomainAllow) {
       return false;
     }
-    return normalizedAllowedDomains.includes(domain.toLowerCase());
+
+    return true;
+  }
+
+  async refreshDynamicAllowLists(force = false) {
+    const now = Date.now();
+    if (!force && now - this.lastAllowListRefresh < ALLOWLIST_REFRESH_INTERVAL_MS) {
+      return;
+    }
+
+    try {
+      const [casas, cuentas] = await Promise.all([
+        CasaMatrizModel.findAll({
+          attributes: ["correo"],
+          raw: true,
+        }),
+        CuentaModel.findAll({
+          attributes: ["email"],
+          raw: true,
+        }),
+      ]);
+
+      const agregarCorreo = (correo) => {
+        const normalizado = normalizeEmail(correo);
+        if (!normalizado) {
+          return;
+        }
+        const dominio = normalizado.split("@")[1];
+        if (!dominio || FREE_EMAIL_DOMAINS.has(dominio)) {
+          return;
+        }
+        this.allowedEmails.add(normalizado);
+        this.allowedDomains.add(dominio.toLowerCase());
+      };
+
+      casas.forEach(({ correo }) => agregarCorreo(correo));
+      cuentas.forEach(({ email }) => agregarCorreo(email));
+
+      this.config.allowedSenderEmails = Array.from(this.allowedEmails);
+      this.config.allowedSenderDomains = Array.from(this.allowedDomains);
+      this.lastAllowListRefresh = now;
+    } catch (error) {
+      console.error(
+        "[EmailTicketProcessor] Error al refrescar remitentes permitidos dinámicos:",
+        error
+      );
+    }
   }
 
   async resolveClienteDesdeCorreo(email) {
@@ -547,6 +618,7 @@ export class EmailTicketProcessor {
     }
 
     await this.ensureDatabaseConnection();
+    await this.refreshDynamicAllowLists(false);
 
     const client = new ImapFlow({
       host: this.config.imapHost,
