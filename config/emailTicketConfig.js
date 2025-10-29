@@ -61,6 +61,7 @@ const emailTicketConfig = {
   allowedSenderDomains: parseList(process.env.TICKET_INBOUND_ALLOWED_SENDER_DOMAINS, []),
   archiveMailboxOnSuccess: process.env.TICKET_INBOUND_ARCHIVE_MAILBOX ?? null,
   timezone: process.env.TICKET_INBOUND_TIMEZONE ?? "America/Santiago",
+  cronExpression: process.env.TICKET_INBOUND_CRON_EXPRESSION ?? "*/5 * * * *",
   outboundEnabled: toBoolean(process.env.TICKET_OUTBOUND_ENABLED ?? "true", true),
   smtpHost: process.env.TICKET_OUTBOUND_SMTP_HOST ?? process.env.TICKET_INBOUND_SMTP_HOST ?? "",
   smtpPort: parseInteger(process.env.TICKET_OUTBOUND_SMTP_PORT, 465),

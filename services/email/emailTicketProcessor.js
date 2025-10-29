@@ -67,6 +67,42 @@ const cleanBody = (parsed) => {
   return "";
 };
 
+const enhanceBodyText = (text) => {
+  if (!text) {
+    return "";
+  }
+
+  let sanitized = `${text}`;
+
+  sanitized = sanitized.replace(/\[cid:[^\]]+\]/gi, "").replace(/cid:[^\s]+/gi, "");
+
+  sanitized = sanitized.replace(/\[(https?:\/\/[^\]\s]+)\]/gi, (_match, url) => {
+    return `\n🔗 ${url}\n`;
+  });
+
+  sanitized = sanitized.replace(/(?<!🔗\s)(https?:\/\/\S+)/gi, (match) => {
+    return `\n🔗 ${match}\n`;
+  });
+
+  sanitized = sanitized.replace(/\n{3,}/g, "\n\n");
+
+  return sanitized.trim();
+};
+
+const toValidDate = (value) => {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  if (!value) {
+    return new Date();
+  }
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return new Date();
+};
+
 const primaryAddress = (addressObject) => {
   if (!addressObject) {
     return null;
@@ -400,33 +436,50 @@ export class EmailTicketProcessor {
       );
     }
 
+    const correoDate = toValidDate(
+      metadata.internalDate ?? parsedEmail.date ?? new Date()
+    );
+
     const tituloBase =
       typeof parsedEmail.subject === "string" && parsedEmail.subject.trim().length
         ? parsedEmail.subject.trim()
         : "Ticket sin asunto";
 
     const cuerpoBase = cleanBody(parsedEmail);
+    const cuerpoFormateado = enhanceBodyText(cuerpoBase);
 
     const descripcionFinal = [
-      cuerpoBase.length
-        ? cuerpoBase
+      cuerpoFormateado.length
+        ? cuerpoFormateado
         : "Ticket generado automaticamente desde correo sin contenido de texto.",
       "",
       "---",
       `Correo original: ${remitente}`,
       `Nombre remitente: ${getSenderName(parsedEmail.from) ?? "No especificado"}`,
       `Asunto original: ${tituloBase}`,
-      `Fecha correo: ${
-        parsedEmail.date?.toISOString?.() ??
-        metadata.internalDate?.toISOString?.() ??
-        new Date().toISOString()
-      }`,
+      `Fecha correo: ${correoDate.toISOString()}`,
     ]
       .join("\n")
       .trim();
 
     const attachments = Array.isArray(parsedEmail.attachments)
-      ? parsedEmail.attachments
+      ? parsedEmail.attachments.filter((attachment) => {
+          const disposition = (attachment.contentDisposition || "").toLowerCase();
+          if (disposition === "inline") {
+            return false;
+          }
+          if (attachment.cid) {
+            return false;
+          }
+          const contentType = (attachment.contentType || "").toLowerCase();
+          if (contentType === "application/pkcs7-signature") {
+            return false;
+          }
+          if (!attachment.content || !attachment.content.length) {
+            return false;
+          }
+          return true;
+        })
       : [];
 
     const archivosSubidos = [];
@@ -451,16 +504,13 @@ export class EmailTicketProcessor {
       tecnicos.push("Mesa de ayuda");
     }
 
-    const fechaVisita = toDateOnly(
-      metadata.internalDate || parsedEmail.date || new Date(),
-      this.config.timezone
-    );
+    const fechaVisita = toDateOnly(correoDate, this.config.timezone);
 
     const nuevaBitacora = await BitacoraModel.create({
       casaMatrizId: casaMatriz.id,
       sucursalId: null,
       fechaVisita,
-      horaLlegada: null,
+      horaLlegada: correoDate,
       horaSalida: null,
       tecnicos,
       descripcion: descripcionFinal,
@@ -474,6 +524,8 @@ export class EmailTicketProcessor {
       detalleTermino: null,
       adjuntos: archivosSubidos,
       adjuntosTermino: [],
+      createdAt: correoDate,
+      updatedAt: correoDate,
     });
 
     await this.enviarAcuseRecibo({
@@ -528,6 +580,8 @@ export class EmailTicketProcessor {
           ? this.config.maxEmailsPerRun
           : unseenSorted.length;
 
+      const fetchedMessages = [];
+
       for (let index = 0; index < unseenSorted.length; index += 1) {
         if (index >= limit) {
           break;
@@ -545,18 +599,53 @@ export class EmailTicketProcessor {
 
         try {
           const parsed = await simpleParser(message.source);
-          await this.crearTicketDesdeCorreo(parsed, {
-            internalDate: message.internalDate,
+          fetchedMessages.push({
             uid: message.uid,
+            internalDate: message.internalDate,
+            parsed,
+          });
+        } catch (parseError) {
+          errors += 1;
+          console.error(
+            "[EmailTicketProcessor] Error al parsear correo:",
+            parseError
+          );
+
+          if (this.config.markSeenOnError) {
+            try {
+              await client.messageFlagsAdd(message.uid, ["\\Seen"], {
+                uid: true,
+              });
+            } catch (flagError) {
+              console.error(
+                "[EmailTicketProcessor] Error al marcar correo fallido como visto:",
+                flagError
+              );
+            }
+          }
+        }
+      }
+
+      const orderedBatch = fetchedMessages.sort((a, b) => {
+        const dateA = a.internalDate ? new Date(a.internalDate) : new Date(0);
+        const dateB = b.internalDate ? new Date(b.internalDate) : new Date(0);
+        return dateA.getTime() - dateB.getTime();
+      });
+
+      for (const item of orderedBatch) {
+        try {
+          await this.crearTicketDesdeCorreo(item.parsed, {
+            internalDate: item.internalDate,
+            uid: item.uid,
           });
           success += 1;
 
-          await client.messageFlagsAdd(message.uid, ["\\Seen"], { uid: true });
+          await client.messageFlagsAdd(item.uid, ["\\Seen"], { uid: true });
 
           if (this.config.archiveMailboxOnSuccess) {
             try {
               await client.messageMove(
-                message.uid,
+                item.uid,
                 this.config.archiveMailboxOnSuccess,
                 { uid: true }
               );
@@ -576,7 +665,7 @@ export class EmailTicketProcessor {
 
           if (this.config.markSeenOnError) {
             try {
-              await client.messageFlagsAdd(message.uid, ["\\Seen"], {
+              await client.messageFlagsAdd(item.uid, ["\\Seen"], {
                 uid: true,
               });
             } catch (flagError) {

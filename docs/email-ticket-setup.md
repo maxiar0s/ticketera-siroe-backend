@@ -31,6 +31,7 @@ TICKET_INBOUND_IMAP_MAILBOX=INBOX      # carpeta a monitorear
 TICKET_INBOUND_POLL_INTERVAL_MS=60000  # sólo para modo --watch
 TICKET_INBOUND_MAX_EMAILS_PER_RUN=20   # opcional
 TICKET_INBOUND_TIMEZONE=America/Santiago
+TICKET_INBOUND_CRON_EXPRESSION=*/5 * * * *   # frecuencia del cron interno
 
 # Autorización de remitentes (opcionales)
 TICKET_INBOUND_ALLOWED_SENDER_EMAILS=cliente1@midominio.com,cliente2@otra.cl
@@ -90,17 +91,22 @@ npm run tickets:email
 
 ### Ejecución continua (cron / servicio)
 ```bash
-npm run tickets:email -- --watch
+npm run tickets:email -- --watch         # pooling en vivo
+npm run tickets:cron -- --now            # cron interno (ejecuta ahora y queda programado)
 ```
 
-En modo `--watch`, el proceso consulta la casilla cada `TICKET_INBOUND_POLL_INTERVAL_MS` milisegundos.
+En modo `--watch`, el proceso consulta la casilla cada `TICKET_INBOUND_POLL_INTERVAL_MS` milisegundos.  
+El cron interno usa `TICKET_INBOUND_CRON_EXPRESSION` (por defecto cada 5 minutos) y respeta la zona horaria definida en `TICKET_INBOUND_TIMEZONE`.
 
 ## 5. Automatizar en producción
 
-1. **Cron/Supervisor**  
-   - Linux (cron): `* * * * * /usr/bin/node /ruta/app-soporte-siroe/scripts/email-ticket-processor.js`  
+1. **Cron interno (recomendado)**  
+   - Arranca con `npm run tickets:cron -- --now`.  
+   - Supervísalo con PM2, systemd o el Programador de tareas de Windows para reiniciarlo si la instancia se cae.
+2. **Cron/PM2 tradicional**  
+   - Linux (cron): `*/5 * * * * /usr/bin/node /ruta/app-soporte-siroe/scripts/email-ticket-processor.js`  
    - PM2: `pm2 start scripts/email-ticket-processor.js --name tickets-email --watch -- --watch`
-2. **Logs**  
+3. **Logs**  
    - Revisa los logs para detectar remitentes sin cliente asociado u otros errores.  
    - Ajusta `TICKET_INBOUND_MARK_SEEN_ON_ERROR` si prefieres que los correos con errores no queden sin leer.
 

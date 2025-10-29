@@ -10,7 +10,8 @@
     "db:eliminar": "node ./seed/seeder.js -e",
     "departamentos:sync": "node ./scripts/sincronizar-departamentos.js",
     "db:servicios-arriendo": "node ./scripts/add-client-services-equipo-arriendo.js",
-    "tickets:email": "node ./scripts/email-ticket-processor.js"
+    "tickets:email": "node ./scripts/email-ticket-processor.js",
+    "tickets:cron": "node ./scripts/email-ticket-cron.js"
   },
   "author": "Jonathan Muñoz, Maximiliano Aros",
   "license": "ISC",
@@ -26,6 +27,7 @@
     "html-to-text": "^9.0.5",
     "imapflow": "^1.1.1",
     "mailparser": "^3.7.5",
+    "node-cron": "^3.0.3",
     "nodemailer": "^6.9.15",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.11.4",
