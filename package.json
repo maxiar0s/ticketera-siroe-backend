@@ -10,6 +10,7 @@
     "db:eliminar": "node ./seed/seeder.js -e",
     "departamentos:sync": "node ./scripts/sincronizar-departamentos.js",
     "db:servicios-arriendo": "node ./scripts/add-client-services-equipo-arriendo.js",
+    "db:proyectos": "node ./scripts/add-proyectos-module.js",
     "tickets:email": "node ./scripts/email-ticket-processor.js",
     "tickets:cron": "node ./scripts/email-ticket-cron.js"
   },

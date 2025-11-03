@@ -176,6 +176,10 @@ const bitacora = db.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    proyectoId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   },
   {
     tableName: "Bitacoras",

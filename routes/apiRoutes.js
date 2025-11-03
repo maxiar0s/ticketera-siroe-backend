@@ -1,5 +1,5 @@
 import express from "express";
-import { handleUpload, processFile, handleFiles, processFiles } from "../middleware/imagenes.js";
+import { handleUpload, processFile, handleFiles, processFiles, handleProjectAssets, processProjectAssets } from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
@@ -61,7 +61,16 @@ import {
   obtenerDepartamentosEquipo,
   crearDepartamentoEquipo,
   actualizarDepartamentoEquipo,
-  eliminarDepartamentoEquipo
+  eliminarDepartamentoEquipo,
+  getProyectos,
+  getProyecto,
+  crearProyecto,
+  actualizarProyecto,
+  eliminarProyecto,
+  agregarAdjuntosProyecto,
+  agregarBitacorasAProyecto,
+  removerBitacoraDeProyecto,
+  eliminarProyectoAdjunto
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -175,6 +184,47 @@ router.get("/sucursal/:id", protegerRuta, getSucursalById);
 
 // Para obtener un equipo basado en su ID
 router.get("/equipo/:id", protegerRuta, getEquipmentById);
+
+// Proyectos
+router.get("/proyectos", protegerRuta, getProyectos);
+router.get("/proyectos/:id", protegerRuta, getProyecto);
+router.post(
+  "/proyectos",
+  protegerRutaTecnico,
+  handleProjectAssets,
+  processProjectAssets,
+  crearProyecto
+);
+router.put(
+  "/proyectos/:id",
+  protegerRutaTecnico,
+  handleProjectAssets,
+  processProjectAssets,
+  actualizarProyecto
+);
+router.delete("/proyectos/:id", protegerRutaAdmin, eliminarProyecto);
+router.post(
+  "/proyectos/:id/adjuntos",
+  protegerRutaTecnico,
+  handleProjectAssets,
+  processProjectAssets,
+  agregarAdjuntosProyecto
+);
+router.post(
+  "/proyectos/:id/bitacoras",
+  protegerRutaTecnico,
+  agregarBitacorasAProyecto
+);
+router.delete(
+  "/proyectos/:id/bitacoras/:bitacoraId",
+  protegerRutaTecnico,
+  removerBitacoraDeProyecto
+);
+router.delete(
+  "/proyectos/:id/adjuntos/:adjuntoId",
+  protegerRutaTecnico,
+  eliminarProyectoAdjunto
+);
 
 // Bitacoras
 router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);

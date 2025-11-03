@@ -92,3 +92,57 @@ export const processFiles = async (req, res, next) => {
     next();
   }
 };
+
+export const handleProjectAssets = upload.fields([
+  { name: 'foto', maxCount: 1 },
+  { name: 'archivos', maxCount: 20 },
+]);
+
+export const processProjectAssets = async (req, res, next) => {
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return next();
+    }
+
+    const procesarLista = async (lista) => {
+      if (!Array.isArray(lista) || lista.length === 0) {
+        return [];
+      }
+
+      const resultados = [];
+      for (const file of lista) {
+        try {
+          const storageName = await uploadToGCS(file);
+          resultados.push({
+            storageName,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+          });
+        } catch (err) {
+          console.error('Error subiendo archivo de proyecto a GCS:', err);
+        }
+      }
+      return resultados;
+    };
+
+    if (Array.isArray(req.files.foto) && req.files.foto.length) {
+      const fotoProcesada = await procesarLista([req.files.foto[0]]);
+      if (fotoProcesada.length) {
+        req.projectFoto = fotoProcesada[0];
+      }
+    }
+
+    if (Array.isArray(req.files.archivos) && req.files.archivos.length) {
+      const archivosProcesados = await procesarLista(req.files.archivos);
+      if (archivosProcesados.length) {
+        req.projectArchivos = archivosProcesados;
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.log(error);
+    next();
+  }
+};

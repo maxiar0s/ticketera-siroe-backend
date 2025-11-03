@@ -13,6 +13,8 @@ import TipoEquipoCampo from './TipoEquipoCampo.js';
 import Campo from './Campos.js';
 import Bitacora from './Bitacora.js';
 import DepartamentoEquipo from './DepartamentoEquipo.js';
+import Proyecto from './Proyecto.js';
+import ProyectoAdjunto from './ProyectoAdjunto.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -49,6 +51,10 @@ const CampoModel = Campo;
 const TipoEquipoCampoModel = TipoEquipoCampo
 // Modelo de Departamentos de Equipos
 const DepartamentoEquipoModel = DepartamentoEquipo;
+// Modelo de Proyectos
+const ProyectoModel = Proyecto;
+// Modelo de adjuntos de proyectos
+const ProyectoAdjuntoModel = ProyectoAdjunto;
 
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
@@ -61,6 +67,18 @@ const BitacoraModel = Bitacora;
 
 // Modelo de Visitas Programadas
 const VisitaProgramadaModel = VisitaProgramada;
+
+// Relaciones Proyectos
+ProyectoModel.belongsTo(CuentaModel, { foreignKey: 'creadoPorId', as: 'creadoPor' });
+ProyectoModel.belongsTo(CuentaModel, { foreignKey: 'actualizadoPorId', as: 'actualizadoPor' });
+CuentaModel.hasMany(ProyectoModel, { foreignKey: 'creadoPorId', as: 'proyectosCreados' });
+CuentaModel.hasMany(ProyectoModel, { foreignKey: 'actualizadoPorId', as: 'proyectosActualizados' });
+
+ProyectoModel.hasMany(ProyectoAdjuntoModel, { foreignKey: 'proyectoId', as: 'adjuntos', onDelete: 'CASCADE', hooks: true });
+ProyectoAdjuntoModel.belongsTo(ProyectoModel, { foreignKey: 'proyectoId', as: 'proyecto', onDelete: 'CASCADE' });
+
+ProyectoAdjuntoModel.belongsTo(CuentaModel, { foreignKey: 'subidoPorId', as: 'subidoPor', onDelete: 'SET NULL' });
+CuentaModel.hasMany(ProyectoAdjuntoModel, { foreignKey: 'subidoPorId', as: 'proyectoAdjuntosSubidos' });
 
 // Relacion que un Tipo de Cuenta pertenece a una Cuenta
 CuentaModel.belongsTo(TipoCuentaModel, { foreignKey: 'tipoCuentaId', as:'tipoCuenta' });
@@ -111,8 +129,10 @@ SucursalModel.hasMany(BitacoraModel, { foreignKey: 'sucursalId', as: 'bitacoras'
 // Relacion Bitacora - Usuario (creador/actualizador)
 BitacoraModel.belongsTo(CuentaModel, { foreignKey: 'creadoPorId', as: 'creadoPor' });
 BitacoraModel.belongsTo(CuentaModel, { foreignKey: 'actualizadoPorId', as: 'actualizadoPor' });
+BitacoraModel.belongsTo(ProyectoModel, { foreignKey: 'proyectoId', as: 'proyecto', onDelete: 'SET NULL' });
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'creadoPorId', as: 'bitacorasCreadas' });
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'actualizadoPorId', as: 'bitacorasActualizadas' });
+ProyectoModel.hasMany(BitacoraModel, { foreignKey: 'proyectoId', as: 'bitacoras', onDelete: 'SET NULL' });
 
 // Relaciones Visita Programada
 VisitaProgramadaModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' });
@@ -160,5 +180,7 @@ export {
     //?estado de sucursales
     EstadoSucursalModel,
     BitacoraModel,
-    VisitaProgramadaModel
+    VisitaProgramadaModel,
+    ProyectoModel,
+    ProyectoAdjuntoModel
 }

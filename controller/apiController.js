@@ -22,7 +22,9 @@ import {
   EstadoEquipoModel,
   //?estado de sucursales
   EstadoSucursalModel,
-  VisitaProgramadaModel
+  VisitaProgramadaModel,
+  ProyectoModel,
+  ProyectoAdjuntoModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 
@@ -103,6 +105,65 @@ const parseStringArray = (value) => {
       .split(",")
       .map((item) => item.trim())
       .filter((item) => item.length > 0);
+  }
+
+  return [];
+};
+
+const parseIdArray = (value) => {
+  if (value === null || value === undefined) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .map((item) => {
+            if (item === null || item === undefined || item === "") {
+              return null;
+            }
+            const numero = Number.parseInt(`${item}`, 10);
+            return Number.isNaN(numero) ? null : numero;
+          })
+          .filter((numero) => Number.isInteger(numero) && numero > 0)
+      )
+    );
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parseIdArray(parsed);
+      }
+    } catch (_error) {
+      // fallthrough
+    }
+
+    if (trimmed.includes(",")) {
+      return parseIdArray(
+        trimmed
+          .split(",")
+          .map((fragment) => fragment.trim())
+          .filter((fragment) => fragment.length > 0)
+      );
+    }
+
+    const numero = Number.parseInt(trimmed, 10);
+    return Number.isNaN(numero) ? [] : [numero];
+  }
+
+  if (typeof value === "number") {
+    if (Number.isInteger(value) && value > 0) {
+      return [value];
+    }
+    return [];
   }
 
   return [];
@@ -306,7 +367,212 @@ const bitacoraIncludes = [
     as: "actualizadoPor",
     attributes: ["id", "name", "email"],
   },
+  {
+    model: ProyectoModel,
+    as: "proyecto",
+    attributes: ["id", "nombre", "fotoPortada"],
+  },
 ];
+
+const proyectoIncludes = [
+  {
+    model: ProyectoAdjuntoModel,
+    as: "adjuntos",
+    include: [
+      {
+        model: CuentaModel,
+        as: "subidoPor",
+        attributes: ["id", "name", "email"],
+      },
+    ],
+    separate: true,
+    order: [["createdAt", "DESC"]],
+  },
+  {
+    model: CuentaModel,
+    as: "creadoPor",
+    attributes: ["id", "name", "email"],
+  },
+  {
+    model: CuentaModel,
+    as: "actualizadoPor",
+    attributes: ["id", "name", "email"],
+  },
+];
+
+const buildProyectoResponse = (proyecto, opciones = {}) => {
+  if (!proyecto) {
+    return null;
+  }
+
+  const plain = proyecto.toJSON ? proyecto.toJSON() : { ...proyecto };
+
+  const encargadoIds = Array.isArray(plain.encargados)
+    ? plain.encargados
+    : parseIdArray(plain.encargados);
+
+  const encargadosMap = opciones.encargadosMap;
+  let encargadosDetalle = [];
+  if (encargadoIds.length) {
+    if (encargadosMap instanceof Map) {
+      encargadosDetalle = encargadoIds
+        .map((id) => encargadosMap.get(id))
+        .filter(Boolean);
+    } else {
+      encargadosDetalle = encargadoIds.map((id) => ({ id }));
+    }
+  }
+
+  plain.encargadoIds = encargadoIds;
+  plain.encargados = encargadosDetalle;
+
+  const adjuntosPlano = Array.isArray(plain.adjuntos)
+    ? plain.adjuntos.map((adjunto) => {
+        const item = adjunto?.toJSON ? adjunto.toJSON() : adjunto;
+        if (item?.subidoPor && item.subidoPor.toJSON) {
+          item.subidoPor = item.subidoPor.toJSON();
+        }
+        return item;
+      })
+    : [];
+  adjuntosPlano.sort((a, b) => {
+    const fechaA = new Date(a?.createdAt ?? 0).getTime();
+    const fechaB = new Date(b?.createdAt ?? 0).getTime();
+    return fechaB - fechaA;
+  });
+  plain.adjuntos = adjuntosPlano;
+
+  if (plain.creadoPor && plain.creadoPor.toJSON) {
+    plain.creadoPor = plain.creadoPor.toJSON();
+  }
+  if (plain.actualizadoPor && plain.actualizadoPor.toJSON) {
+    plain.actualizadoPor = plain.actualadoPor.toJSON();
+  }
+
+  if (opciones.bitacoraCountMap) {
+    plain.totalBitacoras = opciones.bitacoraCountMap[plain.id] ?? 0;
+  } else if (typeof plain.totalBitacoras !== "number") {
+    plain.totalBitacoras = 0;
+  }
+
+  if (opciones.ticketCountMap) {
+    plain.totalTickets = opciones.ticketCountMap[plain.id] ?? 0;
+  } else if (typeof plain.totalTickets !== "number") {
+    plain.totalTickets = 0;
+  }
+
+  return plain;
+};
+
+const obtenerConteosBitacorasPorProyecto = async (proyectoIds) => {
+  if (!Array.isArray(proyectoIds) || proyectoIds.length === 0) {
+    return {
+      bitacoraCountMap: {},
+      ticketCountMap: {},
+    };
+  }
+
+  const bitacoras = await BitacoraModel.findAll({
+    attributes: ["proyectoId", [fn("COUNT", col("id")), "total"]],
+    where: { proyectoId: { [Op.in]: proyectoIds } },
+    group: ["proyectoId"],
+    raw: true,
+  });
+
+  const tickets = await BitacoraModel.findAll({
+    attributes: ["proyectoId", [fn("COUNT", col("id")), "total"]],
+    where: { proyectoId: { [Op.in]: proyectoIds }, esTicket: true },
+    group: ["proyectoId"],
+    raw: true,
+  });
+
+  const bitacoraCountMap = bitacoras.reduce((acc, row) => {
+    if (row.proyectoId !== null && row.proyectoId !== undefined) {
+      acc[row.proyectoId] = Number(row.total) || 0;
+    }
+    return acc;
+  }, {});
+
+  const ticketCountMap = tickets.reduce((acc, row) => {
+    if (row.proyectoId !== null && row.proyectoId !== undefined) {
+      acc[row.proyectoId] = Number(row.total) || 0;
+    }
+    return acc;
+  }, {});
+
+  return { bitacoraCountMap, ticketCountMap };
+};
+
+const cargarEncargadosMap = async (ids) => {
+  const valores = Array.isArray(ids)
+    ? Array.from(
+        new Set(
+          ids
+            .map((valor) => Number.parseInt(`${valor}`, 10))
+            .filter((valor) => Number.isInteger(valor) && valor > 0)
+        )
+      )
+    : [];
+
+  if (!valores.length) {
+    return new Map();
+  }
+
+  const cuentas = await CuentaModel.findAll({
+    where: { id: { [Op.in]: valores } },
+    attributes: ["id", "name", "email", "tipoCuentaId"],
+    order: [["name", "ASC"]],
+  });
+
+  return new Map(
+    cuentas.map((cuenta) => {
+      const plain = cuenta.toJSON ? cuenta.toJSON() : cuenta;
+      return [plain.id, plain];
+    })
+  );
+};
+
+const cargarProyectoDetalle = async (proyectoId) => {
+  const proyecto = await ProyectoModel.findByPk(proyectoId, {
+    include: proyectoIncludes,
+  });
+
+  if (!proyecto) {
+    return null;
+  }
+
+  const encargadoIds = Array.isArray(proyecto.encargados)
+    ? proyecto.encargados
+    : parseIdArray(proyecto.encargados);
+  const encargadosMap = await cargarEncargadosMap(encargadoIds);
+  const { bitacoraCountMap, ticketCountMap } =
+    await obtenerConteosBitacorasPorProyecto([proyecto.id]);
+
+  const respuesta = buildProyectoResponse(proyecto, {
+    encargadosMap,
+    bitacoraCountMap,
+    ticketCountMap,
+  });
+
+  const bitacoras = await BitacoraModel.findAll({
+    where: { proyectoId: proyecto.id },
+    include: bitacoraIncludes,
+    order: [
+      ["fechaVisita", "DESC"],
+      ["createdAt", "DESC"],
+    ],
+  });
+
+  respuesta.bitacoras = bitacoras.map((row) =>
+    row.toJSON ? row.toJSON() : row
+  );
+  respuesta.totalBitacoras = respuesta.bitacoras.length;
+  respuesta.totalTickets = respuesta.bitacoras.filter(
+    (bitacora) => !!bitacora.esTicket
+  ).length;
+
+  return respuesta;
+};
 
 const generateSignedUrl = async (fileName) => {
   try {
@@ -2912,6 +3178,8 @@ const getBitacoras = async (req, res) => {
       sucursalId,
       buscar,
       tipo,
+      proyectoId,
+      sinProyecto,
     } = req.query;
 
     const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
@@ -2939,12 +3207,26 @@ const getBitacoras = async (req, res) => {
     const tipoFiltro = typeof tipo === "string" ? tipo.trim().toLowerCase() : "";
     if (tipoFiltro === "ticket" || tipoFiltro === "tickets") {
       where.esTicket = true;
-    } else if (
-      tipoFiltro === "bitacora" ||
-      tipoFiltro === "bitácora" ||
-      tipoFiltro === "bit\u00e1cora"
-    ) {
+    } else if (tipoFiltro === "bitacora" || tipoFiltro === "bit\u00e1cora") {
       where.esTicket = false;
+    }
+
+    const proyectoIdValor =
+      typeof proyectoId === "string" ? proyectoId.trim() : proyectoId;
+    if (
+      proyectoIdValor !== undefined &&
+      proyectoIdValor !== null &&
+      `${proyectoIdValor}`.trim() !== ""
+    ) {
+      const proyectoIdNumero = Number.parseInt(`${proyectoIdValor}`, 10);
+      if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+        return res.status(400).json({
+          error: "El identificador del proyecto indicado no es valido.",
+        });
+      }
+      where.proyectoId = proyectoIdNumero;
+    } else if (parseBooleanFlag(sinProyecto, false)) {
+      where.proyectoId = null;
     }
 
     if (usuario.tipoCuentaId === 4) {
@@ -3123,6 +3405,7 @@ const crearBitacora = async (req, res) => {
       detalleTermino,
       ticketFechaTermino,
       ticketDetalleTermino,
+      proyectoId,
     } = bodyData;
 
     const tipoRegistroEntrada =
@@ -3228,6 +3511,25 @@ const crearBitacora = async (req, res) => {
       }
     }
 
+    let proyectoSeleccionado = null;
+    if (
+      typeof proyectoId !== "undefined" &&
+      proyectoId !== null &&
+      `${proyectoId}`.trim() !== "" &&
+      `${proyectoId}`.trim().toLowerCase() !== "null"
+    ) {
+      const proyectoIdNumero = Number.parseInt(`${proyectoId}`, 10);
+      if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+        return res
+          .status(400)
+          .json({ error: "El proyecto indicado no es valido." });
+      }
+      proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
+      if (!proyectoSeleccionado) {
+        return res.status(404).json({ error: "Proyecto no encontrado." });
+      }
+    }
+
     const tecnicosArray = parseStringArray(tecnicos);
     if (tecnicosArray.length === 0) {
       return res.status(400).json({
@@ -3252,6 +3554,7 @@ const crearBitacora = async (req, res) => {
       titulo: titulo ? `${titulo}`.trim() || null : null,
       creadoPorId: usuario.id,
       actualizadoPorId: usuario.id,
+      proyectoId: proyectoSeleccionado ? proyectoSeleccionado.id : null,
       isEmergencia: parseBooleanFlag(isEmergencia, false),
       esTicket: esTicketFlag,
       estadoTicket: esTicketFlag
@@ -3452,23 +3755,55 @@ const actualizarBitacora = async (req, res) => {
       esTicket,
     } = bodyData;
 
+    let proyectoCambioSolicitado = false;
+    let proyectoIdFinal = bitacora.proyectoId;
+    let proyectoSeleccionado = null;
+
+    if (Object.prototype.hasOwnProperty.call(bodyData, "proyectoId")) {
+      proyectoCambioSolicitado = true;
+      const rawProyectoId = bodyData.proyectoId;
+      if (
+        rawProyectoId === null ||
+        rawProyectoId === undefined ||
+        `${rawProyectoId}`.trim() === "" ||
+        `${rawProyectoId}`.trim().toLowerCase() === "null"
+      ) {
+        proyectoIdFinal = null;
+      } else {
+        const proyectoIdNumero = Number.parseInt(`${rawProyectoId}`, 10);
+        if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+          return res.status(400).json({
+            error: "El proyecto indicado no es valido.",
+          });
+        }
+        proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
+        if (!proyectoSeleccionado) {
+          return res.status(404).json({ error: "Proyecto no encontrado." });
+        }
+        proyectoIdFinal = proyectoSeleccionado.id;
+      }
+    }
+
     const cambios = {};
 
     if (usuario.tipoCuentaId === 2) {
-      if (typeof descripcion === "undefined") {
+      const descripcionDefinida = typeof descripcion !== "undefined";
+      if (!descripcionDefinida && !proyectoCambioSolicitado) {
         return res.status(400).json({
           error: "El tecnico solo puede modificar la nota de la bitacora.",
         });
       }
 
-      const descripcionLimpia = `${descripcion ?? ""}`.trim();
-      if (!descripcionLimpia) {
-        return res
-          .status(400)
-          .json({ error: "La nota de la bitacora no puede estar vacia." });
-      }
+      if (descripcionDefinida) {
+        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        if (!descripcionLimpia) {
+          return res
+            .status(400)
+            .json({ error: "La nota de la bitacora no puede estar vacia." });
+        }
 
-      cambios.descripcion = descripcionLimpia;
+        cambios.descripcion = descripcionLimpia;
+      }
     } else if (usuario.tipoCuentaId === 1) {
       if (typeof descripcion !== "undefined") {
         const descripcionLimpia = `${descripcion ?? ""}`.trim();
@@ -3643,6 +3978,10 @@ const actualizarBitacora = async (req, res) => {
           cambios.sucursalId = sucursalId;
         }
       }
+    }
+
+    if (proyectoCambioSolicitado) {
+      cambios.proyectoId = proyectoIdFinal;
     }
 
     const tieneCambio = (campo) =>
@@ -3864,6 +4203,581 @@ const actualizarEstadoSucursal = async (req, res) => {
   }
 };
 
+
+
+
+
+
+const getProyectos = async (req, res) => {
+  try {
+    const { pagina = 1, limite = 10, buscar } = req.query;
+
+    const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limite, 10) || 10, 1), 100);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const where = {};
+    const terminoBusqueda = buscar ? `${buscar}`.trim() : "";
+    if (terminoBusqueda) {
+      where[Op.or] = [
+        { nombre: { [Op.like]: `%${terminoBusqueda}%` } },
+        { descripcion: { [Op.like]: `%${terminoBusqueda}%` } },
+      ];
+    }
+
+    const { rows, count } = await ProyectoModel.findAndCountAll({
+      where,
+      include: proyectoIncludes,
+      order: [["createdAt", "DESC"]],
+      limit: limitNumber,
+      offset,
+      distinct: true,
+    });
+
+    const proyectoIds = rows.map((row) => row.id);
+    const { bitacoraCountMap, ticketCountMap } =
+      await obtenerConteosBitacorasPorProyecto(proyectoIds);
+
+    const encargadoIds = new Set();
+    rows.forEach((row) => {
+      const ids = Array.isArray(row.encargados)
+        ? row.encargados
+        : parseIdArray(row.encargados);
+      ids.forEach((id) => encargadoIds.add(id));
+    });
+
+    const encargadosMap = await cargarEncargadosMap(Array.from(encargadoIds));
+
+    const data = rows.map((row) =>
+      buildProyectoResponse(row, {
+        encargadosMap,
+        bitacoraCountMap,
+        ticketCountMap,
+      })
+    );
+
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
+  } catch (error) {
+    console.error("Error al obtener proyectos:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los proyectos." });
+  }
+};
+
+const getProyecto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el proyecto que desea consultar." });
+    }
+
+    const detalle = await cargarProyectoDetalle(id);
+    if (!detalle) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al obtener proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener el proyecto." });
+  }
+};
+
+const crearProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para crear proyectos." });
+    }
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const { nombre, descripcion, encargados, fechaInicio, fechaTermino } =
+      bodyData;
+
+    const nombreLimpio = nombre ? `${nombre}`.trim() : "";
+    if (!nombreLimpio) {
+      return res
+        .status(400)
+        .json({ error: "El nombre del proyecto es obligatorio." });
+    }
+
+    const descripcionLimpia = descripcion ? `${descripcion}`.trim() : null;
+
+    const encargadosIds = parseIdArray(encargados);
+    if (encargadosIds.length) {
+      const existentes = await CuentaModel.findAll({
+        where: { id: { [Op.in]: encargadosIds } },
+        attributes: ["id"],
+        raw: true,
+      });
+      const existentesSet = new Set(existentes.map((row) => row.id));
+      const faltantes = encargadosIds.filter((idEncargado) => !existentesSet.has(idEncargado));
+      if (faltantes.length) {
+        return res.status(400).json({
+          error: "Uno o mas encargados seleccionados no existen.",
+        });
+      }
+    }
+
+    let fechaInicioNormalizada = null;
+    if (
+      typeof fechaInicio !== "undefined" &&
+      fechaInicio !== null &&
+      `${fechaInicio}`.trim() !== ""
+    ) {
+      const normalizada = toISODateOnly(fechaInicio);
+      if (!normalizada) {
+        return res.status(400).json({
+          error: "La fecha de inicio del proyecto no es valida.",
+        });
+      }
+      fechaInicioNormalizada = normalizada;
+    }
+
+    let fechaTerminoNormalizada = null;
+    if (
+      typeof fechaTermino !== "undefined" &&
+      fechaTermino !== null &&
+      `${fechaTermino}`.trim() !== ""
+    ) {
+      const normalizada = toISODateOnly(fechaTermino);
+      if (!normalizada) {
+        return res.status(400).json({
+          error: "La fecha de termino del proyecto no es valida.",
+        });
+      }
+      fechaTerminoNormalizada = normalizada;
+    }
+
+    if (
+      fechaInicioNormalizada &&
+      fechaTerminoNormalizada &&
+      fechaTerminoNormalizada < fechaInicioNormalizada
+    ) {
+      return res.status(400).json({
+        error: "La fecha de termino no puede ser anterior a la fecha de inicio.",
+      });
+    }
+
+    const proyecto = await ProyectoModel.create({
+      nombre: nombreLimpio,
+      descripcion: descripcionLimpia ?? null,
+      encargados: encargadosIds,
+      fechaInicio: fechaInicioNormalizada,
+      fechaTermino: fechaTerminoNormalizada,
+      fotoPortada: req.projectFoto?.storageName ?? null,
+      creadoPorId: usuario.id,
+      actualizadoPorId: usuario.id,
+    });
+
+    if (Array.isArray(req.projectArchivos) && req.projectArchivos.length) {
+      await ProyectoAdjuntoModel.bulkCreate(
+        req.projectArchivos.map((archivo) => ({
+          proyectoId: proyecto.id,
+          archivo: archivo.storageName,
+          nombreArchivo: archivo.originalName ?? null,
+          mimeType: archivo.mimeType ?? null,
+          subidoPorId: usuario.id,
+        }))
+      );
+    }
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.status(201).json(detalle);
+  } catch (error) {
+    console.error("Error al crear proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al crear el proyecto." });
+  }
+};
+
+const actualizarProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para actualizar proyectos." });
+    }
+
+    const { id } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const {
+      nombre,
+      descripcion,
+      encargados,
+      fechaInicio,
+      fechaTermino,
+      eliminarFoto,
+    } = bodyData;
+
+    const cambios = {};
+
+    if (typeof nombre !== "undefined") {
+      const nombreLimpio = `${nombre ?? ""}`.trim();
+      if (!nombreLimpio) {
+        return res.status(400).json({
+          error: "El nombre del proyecto no puede quedar vacio.",
+        });
+      }
+      cambios.nombre = nombreLimpio;
+    }
+
+    if (typeof descripcion !== "undefined") {
+      const descripcionLimpia = `${descripcion ?? ""}`.trim();
+      cambios.descripcion = descripcionLimpia.length ? descripcionLimpia : null;
+    }
+
+    if (typeof encargados !== "undefined") {
+      const encargadosIds = parseIdArray(encargados);
+      if (encargadosIds.length) {
+        const existentes = await CuentaModel.findAll({
+          where: { id: { [Op.in]: encargadosIds } },
+          attributes: ["id"],
+          raw: true,
+        });
+        const existentesSet = new Set(existentes.map((row) => row.id));
+        const faltantes = encargadosIds.filter((idEncargado) => !existentesSet.has(idEncargado));
+        if (faltantes.length) {
+          return res.status(400).json({
+            error: "Uno o mas encargados seleccionados no existen.",
+          });
+        }
+      }
+      cambios.encargados = encargadosIds;
+    }
+
+    if (typeof fechaInicio !== "undefined") {
+      const valor = `${fechaInicio ?? ""}`.trim();
+      if (!valor || valor.toLowerCase() === "null") {
+        cambios.fechaInicio = null;
+      } else {
+        const normalizada = toISODateOnly(valor);
+        if (!normalizada) {
+          return res.status(400).json({
+            error: "La fecha de inicio del proyecto no es valida.",
+          });
+        }
+        cambios.fechaInicio = normalizada;
+      }
+    }
+
+    if (typeof fechaTermino !== "undefined") {
+      const valor = `${fechaTermino ?? ""}`.trim();
+      if (!valor || valor.toLowerCase() === "null") {
+        cambios.fechaTermino = null;
+      } else {
+        const normalizada = toISODateOnly(valor);
+        if (!normalizada) {
+          return res.status(400).json({
+            error: "La fecha de termino del proyecto no es valida.",
+          });
+        }
+        cambios.fechaTermino = normalizada;
+      }
+    }
+
+    const fechaInicioFinal = Object.prototype.hasOwnProperty.call(
+      cambios,
+      "fechaInicio"
+    )
+      ? cambios.fechaInicio
+      : proyecto.fechaInicio;
+    const fechaTerminoFinal = Object.prototype.hasOwnProperty.call(
+      cambios,
+      "fechaTermino"
+    )
+      ? cambios.fechaTermino
+      : proyecto.fechaTermino;
+
+    if (
+      fechaInicioFinal &&
+      fechaTerminoFinal &&
+      fechaTerminoFinal < fechaInicioFinal
+    ) {
+      return res.status(400).json({
+        error: "La fecha de termino no puede ser anterior a la fecha de inicio.",
+      });
+    }
+
+    const eliminarFotoFlag = parseBooleanFlag(eliminarFoto, false);
+    if (req.projectFoto?.storageName) {
+      cambios.fotoPortada = req.projectFoto.storageName;
+    } else if (eliminarFotoFlag) {
+      cambios.fotoPortada = null;
+    }
+
+    if (Object.keys(cambios).length) {
+      cambios.actualizadoPorId = usuario.id;
+      await proyecto.update(cambios);
+    }
+
+    if (Array.isArray(req.projectArchivos) && req.projectArchivos.length) {
+      await ProyectoAdjuntoModel.bulkCreate(
+        req.projectArchivos.map((archivo) => ({
+          proyectoId: proyecto.id,
+          archivo: archivo.storageName,
+          nombreArchivo: archivo.originalName ?? null,
+          mimeType: archivo.mimeType ?? null,
+          subidoPorId: usuario.id,
+        }))
+      );
+    }
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al actualizar proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar el proyecto." });
+  }
+};
+
+const eliminarProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (usuario.tipoCuentaId !== 1) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para eliminar proyectos." });
+    }
+
+    const { id } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    await BitacoraModel.update(
+      { proyectoId: null },
+      { where: { proyectoId: proyecto.id } }
+    );
+
+    await ProyectoAdjuntoModel.destroy({ where: { proyectoId: proyecto.id } });
+    await proyecto.destroy();
+
+    return res.json({ mensaje: "Proyecto eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el proyecto." });
+  }
+};
+
+const agregarAdjuntosProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para adjuntar archivos." });
+    }
+
+    const { id } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    if (!Array.isArray(req.projectArchivos) || req.projectArchivos.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "Debe adjuntar al menos un archivo." });
+    }
+
+    await ProyectoAdjuntoModel.bulkCreate(
+      req.projectArchivos.map((archivo) => ({
+        proyectoId: proyecto.id,
+        archivo: archivo.storageName,
+        nombreArchivo: archivo.originalName ?? null,
+        mimeType: archivo.mimeType ?? null,
+        subidoPorId: usuario.id,
+      }))
+    );
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al adjuntar archivos al proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al adjuntar archivos al proyecto." });
+  }
+};
+
+const agregarBitacorasAProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para asignar bitacoras." });
+    }
+
+    const { id } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const bitacoraIdsEntrada =
+      bodyData?.bitacoraIds ?? bodyData?.bitacoras ?? bodyData?.tickets;
+    const bitacoraIds = parseIdArray(bitacoraIdsEntrada);
+
+    if (!bitacoraIds.length) {
+      return res.status(400).json({
+        error: "Debe indicar al menos una bitacora o ticket a asignar.",
+      });
+    }
+
+    const registros = await BitacoraModel.findAll({
+      where: { id: { [Op.in]: bitacoraIds } },
+      attributes: ["id"],
+      raw: true,
+    });
+    const existentes = new Set(registros.map((row) => row.id));
+    const faltantes = bitacoraIds.filter((idBitacora) => !existentes.has(idBitacora));
+    if (faltantes.length) {
+      return res.status(404).json({
+        error: "Una o mas bitacoras o tickets no existen.",
+        faltantes,
+      });
+    }
+
+    await BitacoraModel.update(
+      { proyectoId: proyecto.id, actualizadoPorId: usuario.id },
+      { where: { id: bitacoraIds } }
+    );
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al asignar bitacoras al proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al asignar bitacoras al proyecto." });
+  }
+};
+
+const removerBitacoraDeProyecto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para quitar bitacoras." });
+    }
+
+    const { id, bitacoraId } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    const bitacora = await BitacoraModel.findOne({
+      where: { id: bitacoraId, proyectoId: proyecto.id },
+    });
+    if (!bitacora) {
+      return res.status(404).json({
+        error: "La bitacora indicada no esta asociada al proyecto.",
+      });
+    }
+
+    bitacora.proyectoId = null;
+    bitacora.actualizadoPorId = usuario.id;
+    await bitacora.save();
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al quitar bitacora del proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al quitar la bitacora del proyecto." });
+  }
+};
+
+const eliminarProyectoAdjunto = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para eliminar adjuntos." });
+    }
+
+    const { id, adjuntoId } = req.params;
+    const proyecto = await ProyectoModel.findByPk(id);
+    if (!proyecto) {
+      return res.status(404).json({ error: "Proyecto no encontrado." });
+    }
+
+    const adjunto = await ProyectoAdjuntoModel.findOne({
+      where: { id: adjuntoId, proyectoId: proyecto.id },
+    });
+
+    if (!adjunto) {
+      return res.status(404).json({
+        error: "El adjunto indicado no pertenece al proyecto.",
+      });
+    }
+
+    await adjunto.destroy();
+
+    const detalle = await cargarProyectoDetalle(proyecto.id);
+    return res.json(detalle);
+  } catch (error) {
+    console.error("Error al eliminar adjunto del proyecto:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el adjunto del proyecto." });
+  }
+};
 export {
   postCuenta,
   getVerificarCorreo,
@@ -3921,9 +4835,15 @@ export {
   actualizarSoloEstadoEquipo,
   //? Estados de sucursales
   getEstadosSucursal,
-  actualizarEstadoSucursal
+  actualizarEstadoSucursal,
+  // Proyectos
+  getProyectos,
+  getProyecto,
+  crearProyecto,
+  actualizarProyecto,
+  eliminarProyecto,
+  agregarAdjuntosProyecto,
+  agregarBitacorasAProyecto,
+  removerBitacoraDeProyecto,
+  eliminarProyectoAdjunto
 };
-
-
-
-
