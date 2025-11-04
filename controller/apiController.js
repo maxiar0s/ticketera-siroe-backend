@@ -2270,6 +2270,10 @@ const getEquipmentForm = async (req, res) => {
       type: campo.type,
       placeholder: campo.placeholder,
       required: campo.required,
+      presetOptions: Array.isArray(campo.presetOptions)
+        ? campo.presetOptions
+        : [],
+      standards: Array.isArray(campo.standards) ? campo.standards : [],
     }));
 
     res.json(camposTransformados);
@@ -2291,6 +2295,169 @@ const normalizarTexto = (valor) => {
     return "";
   }
   return valor.trim();
+};
+
+const COLORES_CRITERIO = new Set(["rojo", "amarillo", "verde"]);
+
+const normalizarColorCriticidad = (valor, fallback = "amarillo") => {
+  if (typeof valor !== "string") {
+    return fallback;
+  }
+
+  const normalizado = valor.trim().toLowerCase();
+  return COLORES_CRITERIO.has(normalizado) ? normalizado : fallback;
+};
+
+const parseValorComparable = (valor) => {
+  if (valor === null || valor === undefined) {
+    return null;
+  }
+
+  if (typeof valor === "number") {
+    return Number.isFinite(valor) ? valor : null;
+  }
+
+  if (typeof valor === "string") {
+    const trimmed = valor.trim();
+
+    if (!trimmed.length) {
+      return null;
+    }
+
+    const numero = Number(trimmed);
+    return Number.isNaN(numero) ? trimmed : numero;
+  }
+
+  if (typeof valor === "boolean") {
+    return valor;
+  }
+
+  return null;
+};
+
+const parseJsonFlexible = (valor) => {
+  if (valor === null || valor === undefined) {
+    return undefined;
+  }
+
+  if (Array.isArray(valor)) {
+    return valor;
+  }
+
+  if (typeof valor === "string") {
+    const trimmed = valor.trim();
+    if (!trimmed.length) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+      return [];
+    } catch (_error) {
+      return [];
+    }
+  }
+
+  return [];
+};
+
+const parsePresetOptions = (rawValue) => {
+  const lista = parseJsonFlexible(rawValue);
+
+  if (!Array.isArray(lista)) {
+    return [];
+  }
+
+  return lista
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const label = normalizarTexto(item.label);
+      const value =
+        item.value !== undefined && item.value !== null
+          ? normalizarTexto(`${item.value}`)
+          : "";
+
+      if (!label || !value) {
+        return null;
+      }
+
+      const color = normalizarColorCriticidad(item.color, "amarillo");
+
+      return {
+        label,
+        value,
+        color,
+      };
+    })
+    .filter((item) => item !== null);
+};
+
+const parseStandards = (rawValue) => {
+  const lista = parseJsonFlexible(rawValue);
+
+  if (!Array.isArray(lista)) {
+    return [];
+  }
+
+  return lista
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+
+      const label = normalizarTexto(item.label);
+      const description = normalizarTexto(item.description);
+      const color = normalizarColorCriticidad(item.color, "amarillo");
+      const operator = normalizarTexto(item.operator).toLowerCase();
+      const value = parseValorComparable(
+        Object.prototype.hasOwnProperty.call(item, "value") ? item.value : null
+      );
+      const secondaryValue = parseValorComparable(
+        Object.prototype.hasOwnProperty.call(item, "secondaryValue")
+          ? item.secondaryValue
+          : null
+      );
+      const unit = normalizarTexto(item.unit);
+
+      const etiqueta = label || description;
+      if (!etiqueta) {
+        return null;
+      }
+
+      const regla = {
+        color,
+        label: etiqueta,
+      };
+
+      if (description) {
+        regla.description = description;
+      }
+
+      if (operator) {
+        regla.operator = operator;
+      }
+
+      if (value !== null) {
+        regla.value = value;
+      }
+
+      if (secondaryValue !== null) {
+        regla.secondaryValue = secondaryValue;
+      }
+
+      if (unit) {
+        regla.unit = unit;
+      }
+
+      return regla;
+    })
+    .filter((item) => item !== null);
 };
 
 const formatearNombreCampo = (valor) => {
@@ -2598,6 +2765,10 @@ const obtenerCamposTipoEquipo = async (req, res) => {
       type: campo.type,
       placeholder: campo.placeholder,
       required: campo.required,
+      presetOptions: Array.isArray(campo.presetOptions)
+        ? campo.presetOptions
+        : [],
+      standards: Array.isArray(campo.standards) ? campo.standards : [],
     }));
 
     return res.json(resultado);
@@ -2664,6 +2835,10 @@ const sincronizarCamposTipoEquipo = async (req, res) => {
         type: campo.type,
         placeholder: campo.placeholder,
         required: campo.required,
+        presetOptions: Array.isArray(campo.presetOptions)
+          ? campo.presetOptions
+          : [],
+        standards: Array.isArray(campo.standards) ? campo.standards : [],
       }));
 
       return res.json(respuesta);
@@ -2704,6 +2879,8 @@ const crearCampo = async (req, res) => {
   const type = normalizarTexto(req.body?.type);
   const placeholder = normalizarTexto(req.body?.placeholder);
   const required = parseBooleanFlag(req.body?.required, false);
+  const presetOptions = parsePresetOptions(req.body?.presetOptions);
+  const standards = parseStandards(req.body?.standards);
 
   if (!nombreNormalizado) {
     return res
@@ -2742,6 +2919,8 @@ const crearCampo = async (req, res) => {
       type,
       placeholder: placeholder || null,
       required,
+      presetOptions,
+      standards,
     });
 
     return res.status(201).json(campo);
@@ -2774,17 +2953,27 @@ const actualizarCampo = async (req, res) => {
     req.body?.required !== undefined
       ? parseBooleanFlag(req.body.required, campo.required)
       : undefined;
+  const presetOptions =
+    req.body?.presetOptions !== undefined
+      ? parsePresetOptions(req.body.presetOptions)
+      : undefined;
+  const standards =
+    req.body?.standards !== undefined
+      ? parseStandards(req.body.standards)
+      : undefined;
 
   if (
     nombre === undefined &&
     label === undefined &&
     type === undefined &&
     placeholder === undefined &&
-    required === undefined
+    required === undefined &&
+    presetOptions === undefined &&
+    standards === undefined
   ) {
     return res.status(400).json({
       error:
-        "Debe indicar al menos un atributo para actualizar (nombre, etiqueta, tipo, placeholder o requerido).",
+        "Debe indicar al menos un atributo para actualizar (nombre, etiqueta, tipo, placeholder, requerido, opciones o estándares).",
     });
   }
 
@@ -2831,6 +3020,12 @@ const actualizarCampo = async (req, res) => {
       cambios.placeholder = placeholder || null;
     }
     if (required !== undefined) cambios.required = required;
+    if (presetOptions !== undefined) {
+      cambios.presetOptions = presetOptions;
+    }
+    if (standards !== undefined) {
+      cambios.standards = standards;
+    }
 
     await campo.update(cambios);
     return res.json(campo);
