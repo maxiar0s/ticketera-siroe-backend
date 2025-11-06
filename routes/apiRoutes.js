@@ -79,7 +79,9 @@ import {
   crearVehiculoSalida,
   actualizarVehiculoSalida,
   eliminarVehiculoSalida,
-  eliminarVehiculoSalidaAdjunto
+  eliminarVehiculoSalidaAdjunto,
+  getNotificaciones,
+  marcarNotificacionesLeidas
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -190,6 +192,14 @@ router.get("/cliente/:id/equipos", protegerRuta, getEquipmentsByCasaMatriz);
 
 // Para obtener la sucursal por la ID
 router.get("/sucursal/:id", protegerRuta, getSucursalById);
+
+// Notificaciones
+router.get("/notificaciones", protegerRuta, getNotificaciones);
+router.patch(
+  "/notificaciones/leidas",
+  protegerRuta,
+  marcarNotificacionesLeidas
+);
 
 // Para obtener un equipo basado en su ID
 router.get("/equipo/:id", protegerRuta, getEquipmentById);

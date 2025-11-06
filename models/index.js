@@ -19,6 +19,7 @@ import Vehiculo from './Vehiculo.js';
 import VehiculoSalida from './VehiculoSalida.js';
 import VehiculoSalidaAdjunto from './VehiculoSalidaAdjunto.js';
 import VehiculoSalidaTecnico from './VehiculoSalidaTecnico.js';
+import Notificacion from './Notificacion.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -63,6 +64,7 @@ const VehiculoModel = Vehiculo;
 const VehiculoSalidaModel = VehiculoSalida;
 const VehiculoSalidaAdjuntoModel = VehiculoSalidaAdjunto;
 const VehiculoSalidaTecnicoModel = VehiculoSalidaTecnico;
+const NotificacionModel = Notificacion;
 
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
@@ -180,6 +182,18 @@ CuentaModel.belongsToMany(VehiculoSalidaModel, {
   as: 'vehiculoSalidas',
 });
 
+// Relaciones Notificaciones
+NotificacionModel.belongsTo(CuentaModel, {
+  foreignKey: 'cuentaId',
+  as: 'destinatario',
+  onDelete: 'CASCADE',
+});
+CuentaModel.hasMany(NotificacionModel, {
+  foreignKey: 'cuentaId',
+  as: 'notificaciones',
+  onDelete: 'CASCADE',
+});
+
 VehiculoSalidaModel.hasMany(VehiculoSalidaAdjuntoModel, {
   foreignKey: 'vehiculoSalidaId',
   as: 'adjuntos',
@@ -232,5 +246,6 @@ export {
     VehiculoModel,
     VehiculoSalidaModel,
     VehiculoSalidaAdjuntoModel,
-    VehiculoSalidaTecnicoModel
+    VehiculoSalidaTecnicoModel,
+    NotificacionModel
 }

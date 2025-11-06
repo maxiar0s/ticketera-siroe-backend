@@ -28,7 +28,8 @@ import {
   VehiculoModel,
   VehiculoSalidaModel,
   VehiculoSalidaAdjuntoModel,
-  VehiculoSalidaTecnicoModel
+  VehiculoSalidaTecnicoModel,
+  NotificacionModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 import { metodosPago as vehiculoMetodosPago } from "../models/VehiculoSalida.js";
@@ -2492,6 +2493,163 @@ const parseJsonFlexible = (valor) => {
   return [];
 };
 
+const normalizarNombreTecnico = (valor) => {
+  if (typeof valor !== "string") {
+    return "";
+  }
+  return valor.trim().toLowerCase();
+};
+
+const obtenerCuentaIdsPorNombres = async (nombres) => {
+  if (!Array.isArray(nombres) || nombres.length === 0) {
+    return [];
+  }
+
+  const normalizados = Array.from(
+    new Set(
+      nombres
+        .map((item) => `${item}`.trim())
+        .filter((item) => item.length > 0)
+    )
+  );
+
+  if (!normalizados.length) {
+    return [];
+  }
+
+  const cuentas = await CuentaModel.findAll({
+    where: {
+      name: {
+        [Op.in]: normalizados,
+      },
+    },
+    attributes: ["id", "name"],
+  });
+
+  return cuentas.map((cuenta) => cuenta.id);
+};
+
+const extraerIdsTecnicosAsignacion = async (body, tecnicosNombres) => {
+  const idsEntrada = parseIdArray(
+    body?.tecnicosIds ??
+      body?.tecnicoIds ??
+      body?.tecnicosId ??
+      body?.tecnicoId ??
+      []
+  );
+
+  if (idsEntrada.length > 0) {
+    return Array.from(
+      new Set(idsEntrada.filter((id) => Number.isInteger(id) && id > 0))
+    );
+  }
+
+  return obtenerCuentaIdsPorNombres(tecnicosNombres);
+};
+
+const construirNotificacionBitacora = (bitacora) => {
+  const cliente =
+    bitacora?.casaMatriz?.razonSocial ?? "Cliente sin nombre";
+  let fecha = null;
+  if (bitacora?.fechaVisita) {
+    const date = new Date(bitacora.fechaVisita);
+    if (!Number.isNaN(date.getTime())) {
+      fecha = date.toISOString().slice(0, 10);
+    }
+  }
+  const resumenBase =
+    typeof bitacora?.titulo === "string" && bitacora.titulo.trim().length
+      ? bitacora.titulo.trim()
+      : typeof bitacora?.descripcion === "string"
+      ? bitacora.descripcion.trim().slice(0, 120)
+      : "";
+  const resumen = resumenBase.length ? resumenBase : "Sin descripcion";
+
+  const titulo = bitacora?.esTicket
+    ? "Nuevo ticket asignado"
+    : "Nueva bitacora asignada";
+
+  return {
+    titulo,
+    mensaje: `${cliente} · ${resumen}`,
+    metadata: {
+      cliente,
+      fecha,
+      esTicket: !!bitacora?.esTicket,
+      bitacoraId: bitacora?.id ?? null,
+      titulo: bitacora?.titulo ?? null,
+    },
+  };
+};
+
+const crearNotificacionesAsignacionBitacora = async (
+  bitacora,
+  cuentaIds,
+  asignadoPorId
+) => {
+  if (
+    !bitacora ||
+    !Array.isArray(cuentaIds) ||
+    cuentaIds.length === 0
+  ) {
+    return;
+  }
+
+  const idsUnicos = Array.from(
+    new Set(
+      cuentaIds.filter((id) => Number.isInteger(id) && id > 0)
+    )
+  );
+
+  if (!idsUnicos.length) {
+    return;
+  }
+
+  const datos = construirNotificacionBitacora(bitacora);
+  const referenciaTipo = bitacora?.esTicket ? "ticket" : "bitacora";
+  const ahora = new Date();
+
+  await Promise.all(
+    idsUnicos.map(async (cuentaId) => {
+      const [registro, creado] = await NotificacionModel.findOrCreate({
+        where: {
+          cuentaId,
+          referenciaId: bitacora.id,
+          referenciaTipo,
+        },
+        defaults: {
+          cuentaId,
+          tipo: referenciaTipo,
+          titulo: datos.titulo,
+          mensaje: datos.mensaje,
+          referenciaId: bitacora.id,
+          referenciaTipo,
+          metadata: {
+            ...datos.metadata,
+            asignadoPorId,
+          },
+          leida: false,
+          createdAt: ahora,
+          updatedAt: ahora,
+        },
+      });
+
+      if (!creado) {
+        await registro.update({
+          titulo: datos.titulo,
+          mensaje: datos.mensaje,
+          metadata: {
+            ...datos.metadata,
+            asignadoPorId,
+          },
+          leida: false,
+          updatedAt: ahora,
+        });
+      }
+    })
+  );
+};
+
 const parsePresetOptions = (rawValue) => {
   const lista = parseJsonFlexible(rawValue);
 
@@ -3860,6 +4018,11 @@ const crearBitacora = async (req, res) => {
       });
     }
 
+    const tecnicosIdsAsignados = await extraerIdsTecnicosAsignacion(
+      bodyData,
+      tecnicosArray
+    );
+
     if (llegadaDate && salidaDate && salidaDate < llegadaDate) {
       return res.status(400).json({
         error: "La hora de salida debe ser posterior a la hora de llegada.",
@@ -3894,6 +4057,12 @@ const crearBitacora = async (req, res) => {
     const bitacoraCreada = await BitacoraModel.findByPk(nuevaBitacora.id, {
       include: bitacoraIncludes,
     });
+
+    await crearNotificacionesAsignacionBitacora(
+      bitacoraCreada,
+      tecnicosIdsAsignados,
+      usuario.id
+    );
 
     return res.status(201).json(bitacoraCreada);
   } catch (error) {
@@ -4054,6 +4223,13 @@ const actualizarBitacora = async (req, res) => {
       return res.status(404).json({ error: "Bitacora no encontrada." });
     }
 
+    const tecnicosPrevios = Array.isArray(bitacora.tecnicos)
+      ? bitacora.tecnicos
+          .map((item) => `${item}`.trim())
+          .filter((item) => item.length > 0)
+      : [];
+    let idsAsignacionEntrada = null;
+
     // Support parsing when payload is sent as formData.payload (frontend sends payload + files)
     let bodyData = req.body;
     if (req.body && req.body.payload) {
@@ -4199,6 +4375,10 @@ const actualizarBitacora = async (req, res) => {
           });
         }
         cambios.tecnicos = tecnicosArray;
+        idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
+          bodyData,
+          tecnicosArray
+        );
       }
 
       if (typeof isEmergencia !== "undefined") {
@@ -4437,6 +4617,42 @@ const actualizarBitacora = async (req, res) => {
     }
     await bitacora.reload({ include: bitacoraIncludes });
 
+    let nuevosIdsNotificacion = [];
+    if (Array.isArray(idsAsignacionEntrada) && idsAsignacionEntrada?.length) {
+      const idsPrevios =
+        tecnicosPrevios.length > 0
+          ? await obtenerCuentaIdsPorNombres(tecnicosPrevios)
+          : [];
+      nuevosIdsNotificacion = idsAsignacionEntrada.filter(
+        (id) => !idsPrevios.includes(id)
+      );
+    } else if (Object.prototype.hasOwnProperty.call(cambios, "tecnicos")) {
+      const previosSet = new Set(
+        tecnicosPrevios.map((nombre) => normalizarNombreTecnico(nombre))
+      );
+      const actualesSet = new Set(
+        (Array.isArray(bitacora.tecnicos) ? bitacora.tecnicos : []).map(
+          (nombre) => normalizarNombreTecnico(nombre)
+        )
+      );
+      const nuevosNombres = Array.from(actualesSet).filter(
+        (nombre) => !previosSet.has(nombre)
+      );
+      if (nuevosNombres.length) {
+        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(
+          nuevosNombres
+        );
+      }
+    }
+
+    if (Array.isArray(nuevosIdsNotificacion) && nuevosIdsNotificacion.length) {
+      await crearNotificacionesAsignacionBitacora(
+        bitacora,
+        nuevosIdsNotificacion,
+        usuario.id
+      );
+    }
+
     return res.json(bitacora);
   } catch (error) {
     console.error("Error al actualizar bitacora:", error);
@@ -4462,6 +4678,117 @@ const eliminarBitacora = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Hubo un error al eliminar la bitacora." });
+  }
+};
+
+const getNotificaciones = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const soloNoLeidas =
+      `${req.query?.soloNoLeidas ?? ""}`.trim().toLowerCase() === "true";
+    const limiteRaw = Number.parseInt(`${req.query?.limite ?? 20}`, 10);
+    const limite = Number.isInteger(limiteRaw)
+      ? Math.min(Math.max(limiteRaw, 1), 100)
+      : 20;
+
+    const filtrosListado = {
+      cuentaId: usuarioId,
+    };
+    if (soloNoLeidas) {
+      filtrosListado.leida = false;
+    }
+
+    const [notificaciones, totalNoLeidas] = await Promise.all([
+      NotificacionModel.findAll({
+        where: filtrosListado,
+        order: [["createdAt", "DESC"]],
+        limit: limite,
+      }),
+      NotificacionModel.count({
+        where: {
+          cuentaId: usuarioId,
+          leida: false,
+        },
+      }),
+    ]);
+
+    const data = notificaciones.map((item) => ({
+      id: item.id,
+      tipo: item.tipo,
+      titulo: item.titulo,
+      mensaje: item.mensaje,
+      referenciaId: item.referenciaId,
+      referenciaTipo: item.referenciaTipo,
+      leida: item.leida,
+      metadata: item.metadata,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+    }));
+
+    return res.json({
+      notificaciones: data,
+      totalNoLeidas,
+    });
+  } catch (error) {
+    console.error("Error al obtener notificaciones:", error);
+    return res
+      .status(500)
+      .json({ error: "Ocurrio un error al obtener las notificaciones." });
+  }
+};
+
+const marcarNotificacionesLeidas = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const idsEntrada = Array.isArray(req.body?.ids)
+      ? req.body.ids
+      : [];
+    const marcarTodas =
+      `${req.body?.marcarTodas ?? ""}`.trim().toLowerCase() === "true";
+
+    if (marcarTodas) {
+      const [actualizadas] = await NotificacionModel.update(
+        { leida: true },
+        {
+          where: {
+            cuentaId: usuarioId,
+            leida: false,
+          },
+        }
+      );
+      return res.json({ actualizadas });
+    }
+
+    const ids = Array.from(
+      new Set(
+        idsEntrada
+          .map((valor) => Number.parseInt(`${valor}`, 10))
+          .filter((valor) => Number.isInteger(valor) && valor > 0)
+      )
+    );
+
+    if (!ids.length) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar las notificaciones a marcar como leidas." });
+    }
+
+    const [actualizadas] = await NotificacionModel.update(
+      { leida: true },
+      {
+        where: {
+          cuentaId: usuarioId,
+          id: { [Op.in]: ids },
+        },
+      }
+    );
+
+    return res.json({ actualizadas });
+  } catch (error) {
+    console.error("Error al actualizar notificaciones:", error);
+    return res
+      .status(500)
+      .json({ error: "Ocurrio un error al actualizar las notificaciones." });
   }
 };
 
@@ -5792,6 +6119,8 @@ export {
   crearBitacora,
   actualizarBitacora,
   eliminarBitacora,
+  getNotificaciones,
+  marcarNotificacionesLeidas,
   getVisitasProgramadas,
   crearVisitaProgramada,
   eliminarVisitaProgramada,
