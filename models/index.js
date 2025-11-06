@@ -15,6 +15,10 @@ import Bitacora from './Bitacora.js';
 import DepartamentoEquipo from './DepartamentoEquipo.js';
 import Proyecto from './Proyecto.js';
 import ProyectoAdjunto from './ProyectoAdjunto.js';
+import Vehiculo from './Vehiculo.js';
+import VehiculoSalida from './VehiculoSalida.js';
+import VehiculoSalidaAdjunto from './VehiculoSalidaAdjunto.js';
+import VehiculoSalidaTecnico from './VehiculoSalidaTecnico.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -55,6 +59,10 @@ const DepartamentoEquipoModel = DepartamentoEquipo;
 const ProyectoModel = Proyecto;
 // Modelo de adjuntos de proyectos
 const ProyectoAdjuntoModel = ProyectoAdjunto;
+const VehiculoModel = Vehiculo;
+const VehiculoSalidaModel = VehiculoSalida;
+const VehiculoSalidaAdjuntoModel = VehiculoSalidaAdjunto;
+const VehiculoSalidaTecnicoModel = VehiculoSalidaTecnico;
 
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
@@ -146,6 +154,44 @@ VisitaProgramadaModel.belongsTo(CuentaModel, { foreignKey: 'actualizadoPorId', a
 CuentaModel.hasMany(VisitaProgramadaModel, { foreignKey: 'creadoPorId', as: 'visitasProgramadasCreadas' });
 CuentaModel.hasMany(VisitaProgramadaModel, { foreignKey: 'actualizadoPorId', as: 'visitasProgramadasActualizadas' });
 
+// Relaciones Vehiculos
+VehiculoModel.hasMany(VehiculoSalidaModel, {
+  foreignKey: 'vehiculoId',
+  as: 'salidas',
+  onDelete: 'CASCADE',
+  hooks: true,
+});
+VehiculoSalidaModel.belongsTo(VehiculoModel, {
+  foreignKey: 'vehiculoId',
+  as: 'vehiculo',
+  onDelete: 'CASCADE',
+});
+
+VehiculoSalidaModel.belongsToMany(CuentaModel, {
+  through: VehiculoSalidaTecnicoModel,
+  foreignKey: 'vehiculoSalidaId',
+  otherKey: 'tecnicoId',
+  as: 'tecnicos',
+});
+CuentaModel.belongsToMany(VehiculoSalidaModel, {
+  through: VehiculoSalidaTecnicoModel,
+  foreignKey: 'tecnicoId',
+  otherKey: 'vehiculoSalidaId',
+  as: 'vehiculoSalidas',
+});
+
+VehiculoSalidaModel.hasMany(VehiculoSalidaAdjuntoModel, {
+  foreignKey: 'vehiculoSalidaId',
+  as: 'adjuntos',
+  onDelete: 'CASCADE',
+  hooks: true,
+});
+VehiculoSalidaAdjuntoModel.belongsTo(VehiculoSalidaModel, {
+  foreignKey: 'vehiculoSalidaId',
+  as: 'salida',
+  onDelete: 'CASCADE',
+});
+
 // Relación Equipo - TipoEquipo (uno a muchos)
 EquipoModel.belongsTo(TipoEquipoModel, { foreignKey: 'tipoEquipoId', as: 'tipoEquipo' });
 TipoEquipoModel.hasMany(EquipoModel, { foreignKey: 'tipoEquipoId', as: 'equipos' });
@@ -182,5 +228,9 @@ export {
     BitacoraModel,
     VisitaProgramadaModel,
     ProyectoModel,
-    ProyectoAdjuntoModel
+    ProyectoAdjuntoModel,
+    VehiculoModel,
+    VehiculoSalidaModel,
+    VehiculoSalidaAdjuntoModel,
+    VehiculoSalidaTecnicoModel
 }

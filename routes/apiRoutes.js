@@ -1,5 +1,5 @@
 import express from "express";
-import { handleUpload, processFile, handleFiles, processFiles, handleProjectAssets, processProjectAssets } from "../middleware/imagenes.js";
+import { handleUpload, processFile, handleFiles, processFiles, handleProjectAssets, processProjectAssets, handleVehiculoSalidaArchivos, processVehiculoSalidaArchivos } from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
@@ -70,7 +70,16 @@ import {
   agregarAdjuntosProyecto,
   agregarBitacorasAProyecto,
   removerBitacoraDeProyecto,
-  eliminarProyectoAdjunto
+  eliminarProyectoAdjunto,
+  getVehiculos,
+  getVehiculo,
+  crearVehiculo,
+  actualizarVehiculo,
+  eliminarVehiculo,
+  crearVehiculoSalida,
+  actualizarVehiculoSalida,
+  eliminarVehiculoSalida,
+  eliminarVehiculoSalidaAdjunto
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -224,6 +233,49 @@ router.delete(
   "/proyectos/:id/adjuntos/:adjuntoId",
   protegerRutaTecnico,
   eliminarProyectoAdjunto
+);
+
+// Vehiculos
+router.get("/vehiculos", protegerRuta, getVehiculos);
+router.get("/vehiculos/:id", protegerRuta, getVehiculo);
+router.post(
+  "/vehiculos",
+  protegerRutaTecnico,
+  handleUpload,
+  processFile,
+  crearVehiculo
+);
+router.put(
+  "/vehiculos/:id",
+  protegerRutaTecnico,
+  handleUpload,
+  processFile,
+  actualizarVehiculo
+);
+router.delete("/vehiculos/:id", protegerRutaTecnico, eliminarVehiculo);
+router.post(
+  "/vehiculos/:vehiculoId/salidas",
+  protegerRutaTecnico,
+  handleVehiculoSalidaArchivos,
+  processVehiculoSalidaArchivos,
+  crearVehiculoSalida
+);
+router.put(
+  "/vehiculos/:vehiculoId/salidas/:salidaId",
+  protegerRutaTecnico,
+  handleVehiculoSalidaArchivos,
+  processVehiculoSalidaArchivos,
+  actualizarVehiculoSalida
+);
+router.delete(
+  "/vehiculos/:vehiculoId/salidas/:salidaId",
+  protegerRutaTecnico,
+  eliminarVehiculoSalida
+);
+router.delete(
+  "/vehiculos/:vehiculoId/salidas/:salidaId/adjuntos/:adjuntoId",
+  protegerRutaTecnico,
+  eliminarVehiculoSalidaAdjunto
 );
 
 // Bitacoras

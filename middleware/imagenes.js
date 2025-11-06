@@ -146,3 +146,57 @@ export const processProjectAssets = async (req, res, next) => {
     next();
   }
 };
+
+export const handleVehiculoSalidaArchivos = upload.fields([
+  { name: 'adjuntos', maxCount: 20 },
+  { name: 'comprobante', maxCount: 5 },
+]);
+
+export const processVehiculoSalidaArchivos = async (req, res, next) => {
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) {
+      return next();
+    }
+
+    const procesarLista = async (campo) => {
+      const lista = req.files?.[campo];
+      if (!Array.isArray(lista) || lista.length === 0) {
+        return [];
+      }
+
+      const resultados = [];
+      for (const file of lista) {
+        try {
+          const storageName = await uploadToGCS(file);
+          resultados.push({
+            storageName,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+          });
+        } catch (err) {
+          console.error(
+            `Error subiendo archivo (${campo}) de salida de vehículo a GCS:`,
+            err
+          );
+        }
+      }
+      return resultados;
+    };
+
+    const adjuntos = await procesarLista('adjuntos');
+    const comprobantes = await procesarLista('comprobante');
+
+    if (adjuntos.length) {
+      req.vehiculoSalidaAdjuntos = adjuntos;
+    }
+    if (comprobantes.length) {
+      req.vehiculoSalidaComprobante = comprobantes;
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error procesando archivos de salida de vehículo:', error);
+    next();
+  }
+};

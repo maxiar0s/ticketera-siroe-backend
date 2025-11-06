@@ -24,9 +24,14 @@ import {
   EstadoSucursalModel,
   VisitaProgramadaModel,
   ProyectoModel,
-  ProyectoAdjuntoModel
+  ProyectoAdjuntoModel,
+  VehiculoModel,
+  VehiculoSalidaModel,
+  VehiculoSalidaAdjuntoModel,
+  VehiculoSalidaTecnicoModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
+import { metodosPago as vehiculoMetodosPago } from "../models/VehiculoSalida.js";
 
 const cuentaIncludes = [
   { model: TipoCuentaModel, as: "tipoCuenta" },
@@ -211,6 +216,60 @@ const parseNonNegativeInt = (value, defaultValue = 0) => {
   }
 
   return { parsed, valid: true };
+};
+
+const parseDecimalValue = (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Number(value) : null;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) {
+      return null;
+    }
+    const parsed = Number.parseFloat(normalized);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+};
+
+const parseDateTimeValue = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const normalizarMetodoPagoCombustible = (value) => {
+  if (!value) {
+    return null;
+  }
+
+  if (vehiculoMetodosPago.includes(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    const encontrado = vehiculoMetodosPago.find(
+      (metodo) => metodo.toLowerCase() === normalized
+    );
+    return encontrado ?? null;
+  }
+
+  return null;
 };
 
 const obtenerFechasReferenciaVisitas = () => {
@@ -399,6 +458,75 @@ const proyectoIncludes = [
     attributes: ["id", "name", "email"],
   },
 ];
+
+const vehiculoSalidaIncludes = [
+  {
+    model: VehiculoSalidaAdjuntoModel,
+    as: "adjuntos",
+    separate: false,
+    order: [["createdAt", "DESC"]],
+  },
+  {
+    model: CuentaModel,
+    as: "tecnicos",
+    attributes: ["id", "name", "email", "tipoCuentaId"],
+    through: { attributes: [] },
+  },
+];
+
+const vehiculoIncludes = [
+  {
+    model: VehiculoSalidaModel,
+    as: "salidas",
+    include: vehiculoSalidaIncludes,
+    separate: true,
+    order: [["fechaHoraSalida", "DESC"]],
+  },
+];
+
+const buildVehiculoSalidaResponse = (salida) => {
+  if (!salida) {
+    return null;
+  }
+
+  const plain = salida.toJSON ? salida.toJSON() : { ...salida };
+
+  plain.adjuntos = Array.isArray(plain.adjuntos)
+    ? plain.adjuntos.map((adjunto) =>
+        adjunto?.toJSON ? adjunto.toJSON() : { ...adjunto }
+      )
+    : [];
+
+  plain.tecnicos = Array.isArray(plain.tecnicos)
+    ? plain.tecnicos.map((tecnico) =>
+        tecnico?.toJSON ? tecnico.toJSON() : { ...tecnico }
+      )
+    : [];
+
+  return plain;
+};
+
+const buildVehiculoResponse = (vehiculo, opciones = {}) => {
+  if (!vehiculo) {
+    return null;
+  }
+
+  const plain = vehiculo.toJSON ? vehiculo.toJSON() : { ...vehiculo };
+
+  if (Array.isArray(plain.salidas)) {
+    const salidasOrdenadas = [...plain.salidas]
+      .map((salida) => buildVehiculoSalidaResponse(salida))
+      .filter(Boolean);
+    salidasOrdenadas.sort((a, b) => {
+      const fechaA = new Date(a?.fechaHoraSalida ?? 0).getTime();
+      const fechaB = new Date(b?.fechaHoraSalida ?? 0).getTime();
+      return fechaB - fechaA;
+    });
+    plain.salidas = salidasOrdenadas;
+  }
+
+  return plain;
+};
 
 const buildProyectoResponse = (proyecto, opciones = {}) => {
   if (!proyecto) {
@@ -4973,6 +5101,649 @@ const eliminarProyectoAdjunto = async (req, res) => {
       .json({ error: "Hubo un error al eliminar el adjunto del proyecto." });
   }
 };
+
+const getVehiculos = async (req, res) => {
+  try {
+    const { pagina = 1, limite = 10, buscar } = req.query;
+
+    const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limite, 10) || 10, 1), 100);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const where = {};
+    const termino = buscar ? `${buscar}`.trim() : "";
+    if (termino) {
+      where[Op.or] = [
+        { patente: { [Op.like]: `%${termino}%` } },
+        { responsable: { [Op.like]: `%${termino}%` } },
+      ];
+    }
+
+    const { rows, count } = await VehiculoModel.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit: limitNumber,
+      offset,
+    });
+
+    const data = rows.map((row) => buildVehiculoResponse(row));
+
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
+  } catch (error) {
+    console.error("Error al obtener vehículos:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los vehículos." });
+  }
+};
+
+const getVehiculo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el vehículo que desea consultar." });
+    }
+
+    const vehiculo = await VehiculoModel.findByPk(id, {
+      include: vehiculoIncludes,
+    });
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado." });
+    }
+
+    return res.json(buildVehiculoResponse(vehiculo));
+  } catch (error) {
+    console.error("Error al obtener vehículo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener el vehículo." });
+  }
+};
+
+const crearVehiculo = async (req, res) => {
+  try {
+    const { patente, responsable, fechaUltimaMantencion, fechaSiguienteMantencion } =
+      req.body;
+
+    const patenteLimpia = patente ? `${patente}`.trim().toUpperCase() : "";
+    if (!patenteLimpia) {
+      return res
+        .status(400)
+        .json({ error: "La patente del vehículo es obligatoria." });
+    }
+
+    const responsableLimpio = responsable ? `${responsable}`.trim() : "";
+    if (!responsableLimpio) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el dueño o encargado del vehículo." });
+    }
+
+    const ultimaMantencionISO = fechaUltimaMantencion
+      ? toISODateOnly(fechaUltimaMantencion)
+      : null;
+    if (fechaUltimaMantencion && !ultimaMantencionISO) {
+      return res.status(400).json({
+        error: "La fecha de última mantención indicada no es válida.",
+      });
+    }
+
+    const siguienteMantencionISO = fechaSiguienteMantencion
+      ? toISODateOnly(fechaSiguienteMantencion)
+      : null;
+    if (fechaSiguienteMantencion && !siguienteMantencionISO) {
+      return res.status(400).json({
+        error: "La fecha de siguiente mantención indicada no es válida.",
+      });
+    }
+
+    const nuevoVehiculo = await VehiculoModel.create({
+      patente: patenteLimpia,
+      responsable: responsableLimpio,
+      imagen: req.uploadedFile ?? null,
+      fechaUltimaMantencion: ultimaMantencionISO,
+      fechaSiguienteMantencion: siguienteMantencionISO,
+    });
+
+    return res.status(201).json(buildVehiculoResponse(nuevoVehiculo));
+  } catch (error) {
+    console.error("Error al crear vehículo:", error);
+
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        error: "Ya existe un vehículo registrado con la patente indicada.",
+      });
+    }
+
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al crear el vehículo." });
+  }
+};
+
+const actualizarVehiculo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el vehículo que desea actualizar." });
+    }
+
+    const vehiculo = await VehiculoModel.findByPk(id);
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado." });
+    }
+
+    const {
+      patente,
+      responsable,
+      fechaUltimaMantencion,
+      fechaSiguienteMantencion,
+      eliminarImagen,
+    } = req.body;
+
+    if (patente !== undefined) {
+      const patenteLimpia = `${patente}`.trim().toUpperCase();
+      if (!patenteLimpia) {
+        return res
+          .status(400)
+          .json({ error: "La patente del vehículo no puede estar vacía." });
+      }
+      vehiculo.patente = patenteLimpia;
+    }
+
+    if (responsable !== undefined) {
+      const responsableLimpio = `${responsable}`.trim();
+      if (!responsableLimpio) {
+        return res.status(400).json({
+          error: "El dueño o encargado del vehículo no puede estar vacío.",
+        });
+      }
+      vehiculo.responsable = responsableLimpio;
+    }
+
+    if (fechaUltimaMantencion !== undefined) {
+      if (fechaUltimaMantencion === null || fechaUltimaMantencion === "") {
+        vehiculo.fechaUltimaMantencion = null;
+      } else {
+        const ultimaMantencionISO = toISODateOnly(fechaUltimaMantencion);
+        if (!ultimaMantencionISO) {
+          return res.status(400).json({
+            error: "La fecha de última mantención indicada no es válida.",
+          });
+        }
+        vehiculo.fechaUltimaMantencion = ultimaMantencionISO;
+      }
+    }
+
+    if (fechaSiguienteMantencion !== undefined) {
+      if (fechaSiguienteMantencion === null || fechaSiguienteMantencion === "") {
+        vehiculo.fechaSiguienteMantencion = null;
+      } else {
+        const siguienteMantencionISO = toISODateOnly(fechaSiguienteMantencion);
+        if (!siguienteMantencionISO) {
+          return res.status(400).json({
+            error: "La fecha de siguiente mantención indicada no es válida.",
+          });
+        }
+        vehiculo.fechaSiguienteMantencion = siguienteMantencionISO;
+      }
+    }
+
+    if (parseBooleanFlag(eliminarImagen, false)) {
+      vehiculo.imagen = null;
+    }
+
+    if (req.uploadedFile) {
+      vehiculo.imagen = req.uploadedFile;
+    }
+
+    await vehiculo.save();
+
+    const actualizado = await VehiculoModel.findByPk(vehiculo.id);
+    return res.json(buildVehiculoResponse(actualizado));
+  } catch (error) {
+    console.error("Error al actualizar vehículo:", error);
+
+    if (error.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        error: "Ya existe un vehículo registrado con la patente indicada.",
+      });
+    }
+
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar el vehículo." });
+  }
+};
+
+const eliminarVehiculo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el vehículo que desea eliminar." });
+    }
+
+    const vehiculo = await VehiculoModel.findByPk(id);
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado." });
+    }
+
+    await vehiculo.destroy();
+
+    return res.json({ mensaje: "Vehículo eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar vehículo:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el vehículo." });
+  }
+};
+
+const obtenerTecnicoIdsDesdeBody = (body) => {
+  if (!body || typeof body !== "object") {
+    return [];
+  }
+
+  if (body.tecnicoIds !== undefined) {
+    return parseIdArray(body.tecnicoIds);
+  }
+
+  if (body.tecnicos !== undefined) {
+    return parseIdArray(body.tecnicos);
+  }
+
+  if (body.encargados !== undefined) {
+    return parseIdArray(body.encargados);
+  }
+
+  return [];
+};
+
+const crearVehiculoSalida = async (req, res) => {
+  try {
+    const { vehiculoId } = req.params;
+    if (!vehiculoId) {
+      return res
+        .status(400)
+        .json({ error: "Debe indicar el vehículo para registrar la salida." });
+    }
+
+    const vehiculo = await VehiculoModel.findByPk(vehiculoId);
+    if (!vehiculo) {
+      return res.status(404).json({ error: "Vehículo no encontrado." });
+    }
+
+    const {
+      fechaHoraSalida,
+      fechaHoraLlegada,
+      odometroSalida,
+      odometroLlegada,
+      cargaCombustible,
+      metodoPago,
+      valorCarga,
+      comentarios,
+    } = req.body;
+
+    const salidaDate = parseDateTimeValue(fechaHoraSalida);
+    if (!salidaDate) {
+      return res.status(400).json({
+        error: "Debe indicar una fecha y hora de salida válidas.",
+      });
+    }
+
+    const odometroSalidaNumero = parseDecimalValue(odometroSalida);
+    if (odometroSalidaNumero === null) {
+      return res.status(400).json({
+        error: "Debe indicar un odómetro de salida válido.",
+      });
+    }
+
+    const llegadaDate = parseDateTimeValue(fechaHoraLlegada);
+    const odometroLlegadaNumero =
+      odometroLlegada !== undefined && odometroLlegada !== null && odometroLlegada !== ""
+        ? parseDecimalValue(odometroLlegada)
+        : null;
+
+    if (
+      odometroLlegada !== undefined &&
+      odometroLlegada !== null &&
+      odometroLlegada !== "" &&
+      odometroLlegadaNumero === null
+    ) {
+      return res.status(400).json({
+        error: "El odómetro de llegada indicado no es válido.",
+      });
+    }
+
+    const combustibleFlag = parseBooleanFlag(cargaCombustible, false);
+    const metodoPagoNormalizado = combustibleFlag
+      ? normalizarMetodoPagoCombustible(metodoPago)
+      : null;
+
+    if (combustibleFlag && !metodoPagoNormalizado) {
+      return res.status(400).json({
+        error: "Debe indicar un método de pago válido para la carga de combustible.",
+      });
+    }
+
+    const valorCargaNumero = combustibleFlag ? parseDecimalValue(valorCarga) : null;
+
+    const nuevaSalida = await VehiculoSalidaModel.create({
+      vehiculoId: vehiculo.id,
+      fechaHoraSalida: salidaDate,
+      fechaHoraLlegada: llegadaDate,
+      odometroSalida: odometroSalidaNumero,
+      odometroLlegada: odometroLlegadaNumero,
+      cargaCombustible: combustibleFlag,
+      metodoPago: combustibleFlag ? metodoPagoNormalizado : null,
+      valorCarga: combustibleFlag ? valorCargaNumero : null,
+      comentarios: comentarios ? `${comentarios}`.trim() : null,
+    });
+
+    const adjuntosGenerales = Array.isArray(req.vehiculoSalidaAdjuntos)
+      ? req.vehiculoSalidaAdjuntos
+      : [];
+    const adjuntosComprobante = Array.isArray(req.vehiculoSalidaComprobante)
+      ? req.vehiculoSalidaComprobante
+      : [];
+
+    const registrosAdjuntos = [
+      ...adjuntosGenerales.map((item) => ({
+        vehiculoSalidaId: nuevaSalida.id,
+        archivo: item.storageName,
+        nombreArchivo: item.originalName,
+        mimeType: item.mimeType,
+        tipo: "general",
+      })),
+      ...adjuntosComprobante.map((item) => ({
+        vehiculoSalidaId: nuevaSalida.id,
+        archivo: item.storageName,
+        nombreArchivo: item.originalName,
+        mimeType: item.mimeType,
+        tipo: "comprobante",
+      })),
+    ];
+
+    if (registrosAdjuntos.length) {
+      await VehiculoSalidaAdjuntoModel.bulkCreate(registrosAdjuntos);
+    }
+
+    const tecnicoIds = obtenerTecnicoIdsDesdeBody(req.body);
+    if (Array.isArray(tecnicoIds)) {
+      await nuevaSalida.setTecnicos(tecnicoIds);
+    }
+
+    const detalleSalida = await VehiculoSalidaModel.findByPk(nuevaSalida.id, {
+      include: vehiculoSalidaIncludes,
+    });
+
+    return res.status(201).json(buildVehiculoSalidaResponse(detalleSalida));
+  } catch (error) {
+    console.error("Error al crear salida de vehículo:", error);
+    return res.status(500).json({
+      error: "Hubo un error al registrar la salida del vehículo.",
+    });
+  }
+};
+
+const actualizarVehiculoSalida = async (req, res) => {
+  try {
+    const { vehiculoId, salidaId } = req.params;
+    if (!vehiculoId || !salidaId) {
+      return res.status(400).json({
+        error: "Debe indicar el vehículo y la salida que desea actualizar.",
+      });
+    }
+
+    const salida = await VehiculoSalidaModel.findOne({
+      where: { id: salidaId, vehiculoId },
+      include: vehiculoSalidaIncludes,
+    });
+
+    if (!salida) {
+      return res.status(404).json({
+        error: "No se encontró la salida indicada para este vehículo.",
+      });
+    }
+
+    const {
+      fechaHoraSalida,
+      fechaHoraLlegada,
+      odometroSalida,
+      odometroLlegada,
+      cargaCombustible,
+      metodoPago,
+      valorCarga,
+      comentarios,
+      adjuntosEliminar,
+    } = req.body;
+
+    if (fechaHoraSalida !== undefined) {
+      if (!fechaHoraSalida) {
+        return res.status(400).json({
+          error: "La fecha y hora de salida no pueden quedar vacías.",
+        });
+      }
+      const salidaDate = parseDateTimeValue(fechaHoraSalida);
+      if (!salidaDate) {
+        return res.status(400).json({
+          error: "Debe indicar una fecha y hora de salida válidas.",
+        });
+      }
+      salida.fechaHoraSalida = salidaDate;
+    }
+
+    if (fechaHoraLlegada !== undefined) {
+      if (!fechaHoraLlegada) {
+        salida.fechaHoraLlegada = null;
+      } else {
+        const llegadaDate = parseDateTimeValue(fechaHoraLlegada);
+        if (!llegadaDate) {
+          return res.status(400).json({
+            error: "La fecha y hora de llegada indicada no es válida.",
+          });
+        }
+        salida.fechaHoraLlegada = llegadaDate;
+      }
+    }
+
+    if (odometroSalida !== undefined) {
+      const odometroSalidaNumero = parseDecimalValue(odometroSalida);
+      if (odometroSalidaNumero === null) {
+        return res.status(400).json({
+          error: "Debe indicar un odómetro de salida válido.",
+        });
+      }
+      salida.odometroSalida = odometroSalidaNumero;
+    }
+
+    if (odometroLlegada !== undefined) {
+      if (odometroLlegada === null || odometroLlegada === "") {
+        salida.odometroLlegada = null;
+      } else {
+        const odometroLlegadaNumero = parseDecimalValue(odometroLlegada);
+        if (odometroLlegadaNumero === null) {
+          return res.status(400).json({
+            error: "El odómetro de llegada indicado no es válido.",
+          });
+        }
+        salida.odometroLlegada = odometroLlegadaNumero;
+      }
+    }
+
+    if (comentarios !== undefined) {
+      salida.comentarios = comentarios ? `${comentarios}`.trim() : null;
+    }
+
+    let combustibleFlag = salida.cargaCombustible;
+    if (cargaCombustible !== undefined) {
+      combustibleFlag = parseBooleanFlag(cargaCombustible, false);
+      salida.cargaCombustible = combustibleFlag;
+    }
+
+    if (combustibleFlag) {
+      if (metodoPago !== undefined) {
+        const metodoPagoNormalizado = normalizarMetodoPagoCombustible(metodoPago);
+        if (!metodoPagoNormalizado) {
+          return res.status(400).json({
+            error: "Debe indicar un método de pago válido para la carga de combustible.",
+          });
+        }
+        salida.metodoPago = metodoPagoNormalizado;
+      }
+
+      if (valorCarga !== undefined) {
+        const valorCargaNumero = parseDecimalValue(valorCarga);
+        if (valorCarga !== null && valorCarga !== "" && valorCargaNumero === null) {
+          return res.status(400).json({
+            error: "El valor de la carga indicado no es válido.",
+          });
+        }
+        salida.valorCarga =
+          valorCarga === null || valorCarga === "" ? null : valorCargaNumero;
+      }
+    } else {
+      salida.metodoPago = null;
+      salida.valorCarga = null;
+    }
+
+    await salida.save();
+
+    const idsAdjuntosEliminar = parseIdArray(adjuntosEliminar);
+    if (idsAdjuntosEliminar.length) {
+      await VehiculoSalidaAdjuntoModel.destroy({
+        where: {
+          id: idsAdjuntosEliminar,
+          vehiculoSalidaId: salida.id,
+        },
+      });
+    }
+
+    const adjuntosGenerales = Array.isArray(req.vehiculoSalidaAdjuntos)
+      ? req.vehiculoSalidaAdjuntos
+      : [];
+    const adjuntosComprobante = Array.isArray(req.vehiculoSalidaComprobante)
+      ? req.vehiculoSalidaComprobante
+      : [];
+
+    const registrosAdjuntos = [
+      ...adjuntosGenerales.map((item) => ({
+        vehiculoSalidaId: salida.id,
+        archivo: item.storageName,
+        nombreArchivo: item.originalName,
+        mimeType: item.mimeType,
+        tipo: "general",
+      })),
+      ...adjuntosComprobante.map((item) => ({
+        vehiculoSalidaId: salida.id,
+        archivo: item.storageName,
+        nombreArchivo: item.originalName,
+        mimeType: item.mimeType,
+        tipo: "comprobante",
+      })),
+    ];
+
+    if (registrosAdjuntos.length) {
+      await VehiculoSalidaAdjuntoModel.bulkCreate(registrosAdjuntos);
+    }
+
+    const tecnicoIds = obtenerTecnicoIdsDesdeBody(req.body);
+    if (Array.isArray(tecnicoIds)) {
+      await salida.setTecnicos(tecnicoIds);
+    }
+
+    await salida.reload({ include: vehiculoSalidaIncludes });
+
+    return res.json(buildVehiculoSalidaResponse(salida));
+  } catch (error) {
+    console.error("Error al actualizar salida de vehículo:", error);
+    return res.status(500).json({
+      error: "Hubo un error al actualizar la salida del vehículo.",
+    });
+  }
+};
+
+const eliminarVehiculoSalida = async (req, res) => {
+  try {
+    const { vehiculoId, salidaId } = req.params;
+    if (!vehiculoId || !salidaId) {
+      return res.status(400).json({
+        error: "Debe indicar el vehículo y la salida que desea eliminar.",
+      });
+    }
+
+    const salida = await VehiculoSalidaModel.findOne({
+      where: { id: salidaId, vehiculoId },
+    });
+
+    if (!salida) {
+      return res.status(404).json({
+        error: "No se encontró la salida indicada para este vehículo.",
+      });
+    }
+
+    await salida.destroy();
+
+    return res.json({
+      mensaje: "Salida eliminada correctamente.",
+    });
+  } catch (error) {
+    console.error("Error al eliminar salida de vehículo:", error);
+    return res.status(500).json({
+      error: "Hubo un error al eliminar la salida del vehículo.",
+    });
+  }
+};
+
+const eliminarVehiculoSalidaAdjunto = async (req, res) => {
+  try {
+    const { vehiculoId, salidaId, adjuntoId } = req.params;
+    if (!vehiculoId || !salidaId || !adjuntoId) {
+      return res.status(400).json({
+        error:
+          "Debe indicar el vehículo, la salida y el adjunto que desea eliminar.",
+      });
+    }
+
+    const adjunto = await VehiculoSalidaAdjuntoModel.findOne({
+      where: { id: adjuntoId, vehiculoSalidaId: salidaId },
+      include: [
+        {
+          model: VehiculoSalidaModel,
+          as: "salida",
+          attributes: ["id", "vehiculoId"],
+        },
+      ],
+    });
+
+    if (!adjunto || adjunto.salida?.vehiculoId !== Number.parseInt(vehiculoId, 10)) {
+      return res.status(404).json({
+        error: "No se encontró el adjunto indicado para esta salida.",
+      });
+    }
+
+    await adjunto.destroy();
+
+    return res.json({ mensaje: "Adjunto eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar adjunto de salida de vehículo:", error);
+    return res.status(500).json({
+      error: "Hubo un error al eliminar el adjunto de la salida.",
+    });
+  }
+};
+
 export {
   postCuenta,
   getVerificarCorreo,
@@ -5040,5 +5811,15 @@ export {
   agregarAdjuntosProyecto,
   agregarBitacorasAProyecto,
   removerBitacoraDeProyecto,
-  eliminarProyectoAdjunto
+  eliminarProyectoAdjunto,
+  // Vehiculos
+  getVehiculos,
+  getVehiculo,
+  crearVehiculo,
+  actualizarVehiculo,
+  eliminarVehiculo,
+  crearVehiculoSalida,
+  actualizarVehiculoSalida,
+  eliminarVehiculoSalida,
+  eliminarVehiculoSalidaAdjunto
 };
