@@ -11,6 +11,9 @@ const TipoCuentas = [
     {
         name: 'Cliente'
     },
+    {
+        name: 'Comercial'
+    },
 ]
 
 export default TipoCuentas;

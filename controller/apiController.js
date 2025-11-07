@@ -974,7 +974,7 @@ const getUsuarios = async (req, res) => {
   const offset = (paginaActual - 1) * limit;
 
   const { option } = req.query;
-  let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4] };
+  let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4, 5] };
   if (option === "Mesa de ayuda") {
     tipoCuentaFiltro = 3;
   } else if (option === "TÃ©cnico de soporte") {
@@ -983,6 +983,8 @@ const getUsuarios = async (req, res) => {
     tipoCuentaFiltro = 1;
   } else if (option === "Cliente") {
     tipoCuentaFiltro = 4;
+  } else if (option === "Comercial") {
+    tipoCuentaFiltro = 5;
   }
 
   const where = { tipoCuentaId: tipoCuentaFiltro };
@@ -5431,6 +5433,13 @@ const eliminarProyectoAdjunto = async (req, res) => {
 
 const getVehiculos = async (req, res) => {
   try {
+    const usuario = req.usuario;
+    if (usuario?.tipoCuentaId === 5) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para acceder al módulo de vehículos." });
+    }
+
     const { pagina = 1, limite = 10, buscar } = req.query;
 
     const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
@@ -5471,6 +5480,13 @@ const getVehiculos = async (req, res) => {
 
 const getVehiculo = async (req, res) => {
   try {
+    const usuario = req.usuario;
+    if (usuario?.tipoCuentaId === 5) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para acceder al módulo de vehículos." });
+    }
+
     const { id } = req.params;
     if (!id) {
       return res
