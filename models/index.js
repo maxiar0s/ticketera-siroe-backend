@@ -20,6 +20,7 @@ import VehiculoSalida from './VehiculoSalida.js';
 import VehiculoSalidaAdjunto from './VehiculoSalidaAdjunto.js';
 import VehiculoSalidaTecnico from './VehiculoSalidaTecnico.js';
 import Notificacion from './Notificacion.js';
+import ClienteDocumento from './ClienteDocumento.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -65,6 +66,7 @@ const VehiculoSalidaModel = VehiculoSalida;
 const VehiculoSalidaAdjuntoModel = VehiculoSalidaAdjunto;
 const VehiculoSalidaTecnicoModel = VehiculoSalidaTecnico;
 const NotificacionModel = Notificacion;
+const ClienteDocumentoModel = ClienteDocumento;
 
 //?estado de equipos
 const EstadoEquipoModel = EstadoEquipo;
@@ -143,6 +145,27 @@ BitacoraModel.belongsTo(ProyectoModel, { foreignKey: 'proyectoId', as: 'proyecto
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'creadoPorId', as: 'bitacorasCreadas' });
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'actualizadoPorId', as: 'bitacorasActualizadas' });
 ProyectoModel.hasMany(BitacoraModel, { foreignKey: 'proyectoId', as: 'bitacoras', onDelete: 'SET NULL' });
+
+// Relacion Documentos - Casa Matriz/Cuenta
+ClienteDocumentoModel.belongsTo(CasaMatrizModel, {
+  foreignKey: 'casaMatrizId',
+  as: 'casaMatriz',
+  onDelete: 'CASCADE',
+});
+CasaMatrizModel.hasMany(ClienteDocumentoModel, {
+  foreignKey: 'casaMatrizId',
+  as: 'documentos',
+  onDelete: 'CASCADE',
+});
+ClienteDocumentoModel.belongsTo(CuentaModel, {
+  foreignKey: 'subidoPorId',
+  as: 'subidoPor',
+  onDelete: 'SET NULL',
+});
+CuentaModel.hasMany(ClienteDocumentoModel, {
+  foreignKey: 'subidoPorId',
+  as: 'documentosSubidos',
+});
 
 // Relaciones Visita Programada
 VisitaProgramadaModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' });
@@ -247,5 +270,6 @@ export {
     VehiculoSalidaModel,
     VehiculoSalidaAdjuntoModel,
     VehiculoSalidaTecnicoModel,
-    NotificacionModel
+    NotificacionModel,
+    ClienteDocumentoModel
 }

@@ -44,6 +44,27 @@ export const processFile = async (req, res, next) => {
   }
 };
 
+export const handleDocumentoCliente = upload.single('archivo');
+export const processDocumentoCliente = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next();
+    }
+
+    const storageName = await uploadToGCS(req.file);
+    req.documentoClienteArchivo = {
+      storageName,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+    };
+    next();
+  } catch (error) {
+    console.error('Error subiendo documento de cliente:', error);
+    next();
+  }
+};
+
 // multiple files support for bitacoras
 export const handleFiles = upload.fields([
   { name: 'files', maxCount: 20 },

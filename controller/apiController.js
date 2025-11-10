@@ -29,10 +29,12 @@ import {
   VehiculoSalidaModel,
   VehiculoSalidaAdjuntoModel,
   VehiculoSalidaTecnicoModel,
-  NotificacionModel
+  NotificacionModel,
+  ClienteDocumentoModel
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 import { metodosPago as vehiculoMetodosPago } from "../models/VehiculoSalida.js";
+import { CLIENTE_DOCUMENTO_TIPOS } from "../models/ClienteDocumento.js";
 
 const cuentaIncludes = [
   { model: TipoCuentaModel, as: "tipoCuenta" },
@@ -205,6 +207,24 @@ const parseBooleanFlag = (value, defaultValue = false) => {
 
   return defaultValue;
 };
+
+const DOCUMENTO_TIPOS_SET = new Set(
+  CLIENTE_DOCUMENTO_TIPOS.map((tipo) => tipo.toLowerCase())
+);
+
+const normalizarTipoDocumento = (valor) => {
+  if (typeof valor !== "string") {
+    return null;
+  }
+  const normalized = valor.trim().toLowerCase();
+  if (!normalized.length) {
+    return null;
+  }
+  return DOCUMENTO_TIPOS_SET.has(normalized) ? normalized : null;
+};
+
+const cuentaPuedeGestionarDocumentos = (cuenta) =>
+  !!cuenta && [1, 5].includes(cuenta.tipoCuentaId);
 
 const parseNonNegativeInt = (value, defaultValue = 0) => {
   if (value === undefined || value === null || value === "") {
@@ -485,6 +505,19 @@ const vehiculoIncludes = [
   },
 ];
 
+const documentoClienteIncludes = [
+  {
+    model: CasaMatrizModel,
+    as: "casaMatriz",
+    attributes: ["id", "razonSocial", "rut"],
+  },
+  {
+    model: CuentaModel,
+    as: "subidoPor",
+    attributes: ["id", "name", "email", "tipoCuentaId"],
+  },
+];
+
 const buildVehiculoSalidaResponse = (salida) => {
   if (!salida) {
     return null;
@@ -506,6 +539,9 @@ const buildVehiculoSalidaResponse = (salida) => {
 
   return plain;
 };
+
+const buildDocumentoClienteResponse = (documento) =>
+  documento?.toJSON ? documento.toJSON() : documento;
 
 const buildVehiculoResponse = (vehiculo, opciones = {}) => {
   if (!vehiculo) {
@@ -4860,6 +4896,176 @@ const actualizarEstadoSucursal = async (req, res) => {
 
 
 
+
+
+const getDocumentacionClientes = async (req, res) => {
+  try {
+    if (!cuentaPuedeGestionarDocumentos(req.usuario)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para ver la documentación." });
+    }
+
+    const { pagina = 1, limite = 10, clienteId, tipo, buscar } = req.query;
+
+    const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
+    const limitNumber = Math.min(Math.max(parseInt(limite, 10) || 10, 1), 100);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const where = {};
+    const clienteFiltro = typeof clienteId === "string" ? clienteId.trim() : "";
+    if (clienteFiltro.length) {
+      where.casaMatrizId = clienteFiltro;
+    }
+
+    const tipoNormalizado = normalizarTipoDocumento(tipo);
+    if (tipoNormalizado) {
+      where.tipo = tipoNormalizado;
+    }
+
+    const termino = typeof buscar === "string" ? buscar.trim() : "";
+    if (termino.length) {
+      where[Op.or] = [
+        { nombreArchivo: { [Op.like]: `%${termino}%` } },
+        { descripcion: { [Op.like]: `%${termino}%` } },
+      ];
+    }
+
+    const { rows, count } = await ClienteDocumentoModel.findAndCountAll({
+      where,
+      include: documentoClienteIncludes,
+      order: [["createdAt", "DESC"]],
+      limit: limitNumber,
+      offset,
+    });
+
+    const data = rows.map((row) => buildDocumentoClienteResponse(row));
+
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
+  } catch (error) {
+    console.error("Error al obtener la documentación de clientes:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener la documentación." });
+  }
+};
+
+const crearDocumentoCliente = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (!cuentaPuedeGestionarDocumentos(usuario)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para crear documentos." });
+    }
+
+    const clienteId =
+      typeof req.body?.clienteId === "string"
+        ? req.body.clienteId.trim()
+        : "";
+
+    if (!clienteId.length) {
+      return res.status(400).json({ error: "Debe seleccionar un cliente." });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(clienteId, {
+      attributes: ["id"],
+    });
+    if (!cliente) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    const tipoNormalizado = normalizarTipoDocumento(req.body?.tipo);
+    if (!tipoNormalizado) {
+      return res.status(400).json({
+        error: "El tipo de documento seleccionado no es válido.",
+      });
+    }
+
+    const descripcionLimpia =
+      typeof req.body?.descripcion === "string"
+        ? req.body.descripcion.trim()
+        : "";
+
+    const archivoSubido = req.documentoClienteArchivo;
+    if (!archivoSubido) {
+      return res.status(400).json({ error: "Debe adjuntar un archivo." });
+    }
+
+    const documento = await ClienteDocumentoModel.create({
+      casaMatrizId: cliente.id,
+      tipo: tipoNormalizado,
+      descripcion: descripcionLimpia.length ? descripcionLimpia : null,
+      archivo: archivoSubido.storageName,
+      nombreArchivo: archivoSubido.originalName ?? null,
+      mimeType: archivoSubido.mimeType ?? null,
+      size:
+        typeof archivoSubido.size === "number" && archivoSubido.size >= 0
+          ? archivoSubido.size
+          : null,
+      subidoPorId: usuario?.id ?? null,
+    });
+
+    const documentoCompleto = await ClienteDocumentoModel.findByPk(
+      documento.id,
+      { include: documentoClienteIncludes }
+    );
+
+    return res
+      .status(201)
+      .json(buildDocumentoClienteResponse(documentoCompleto || documento));
+  } catch (error) {
+    console.error("Error al crear documento de cliente:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al guardar el documento." });
+  }
+};
+
+const eliminarDocumentoCliente = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    if (!cuentaPuedeGestionarDocumentos(usuario)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para eliminar documentos." });
+    }
+
+    const { id } = req.params;
+    const documento = await ClienteDocumentoModel.findByPk(id);
+    if (!documento) {
+      return res.status(404).json({ error: "Documento no encontrado." });
+    }
+
+    const archivo = documento.archivo;
+    await documento.destroy();
+
+    if (archivo) {
+      try {
+        await bucket.file(archivo).delete();
+      } catch (error) {
+        console.warn(
+          "No se pudo eliminar el archivo del almacenamiento:",
+          error?.message || error
+        );
+      }
+    }
+
+    return res.json({ mensaje: "Documento eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar documento de cliente:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el documento." });
+  }
+};
+
+
 const getProyectos = async (req, res) => {
   try {
     const { pagina = 1, limite = 10, buscar } = req.query;
@@ -6147,6 +6353,9 @@ export {
   //? Estados de sucursales
   getEstadosSucursal,
   actualizarEstadoSucursal,
+  getDocumentacionClientes,
+  crearDocumentoCliente,
+  eliminarDocumentoCliente,
   // Proyectos
   getProyectos,
   getProyecto,

@@ -1,8 +1,20 @@
 import express from "express";
-import { handleUpload, processFile, handleFiles, processFiles, handleProjectAssets, processProjectAssets, handleVehiculoSalidaArchivos, processVehiculoSalidaArchivos } from "../middleware/imagenes.js";
+import {
+  handleUpload,
+  processFile,
+  handleFiles,
+  processFiles,
+  handleProjectAssets,
+  processProjectAssets,
+  handleVehiculoSalidaArchivos,
+  processVehiculoSalidaArchivos,
+  handleDocumentoCliente,
+  processDocumentoCliente,
+} from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
+import protegerRutaAdminComercial from "../middleware/protegerRutaAdminComercial.js";
 import {
   // Admin
   postCuenta,
@@ -81,7 +93,10 @@ import {
   eliminarVehiculoSalida,
   eliminarVehiculoSalidaAdjunto,
   getNotificaciones,
-  marcarNotificacionesLeidas
+  marcarNotificacionesLeidas,
+  getDocumentacionClientes,
+  crearDocumentoCliente,
+  eliminarDocumentoCliente
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -112,6 +127,25 @@ router.post("/modificar-cliente/:id", protegerRutaAdmin, handleUpload, processFi
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);
 router.delete("/clientes/:id", protegerRutaAdmin, postEliminarCliente);
 router.get("/clientes/listado", protegerRutaAdmin, getClientesResumen);
+
+// Documentación de clientes
+router.get(
+  "/documentacion",
+  protegerRutaAdminComercial,
+  getDocumentacionClientes
+);
+router.post(
+  "/documentacion",
+  protegerRutaAdminComercial,
+  handleDocumentoCliente,
+  processDocumentoCliente,
+  crearDocumentoCliente
+);
+router.delete(
+  "/documentacion/:id",
+  protegerRutaAdminComercial,
+  eliminarDocumentoCliente
+);
 
 // Sucursales
 router.post("/ingresar-sucursal", protegerRutaAdmin, postSucursal);
