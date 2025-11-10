@@ -42,7 +42,18 @@ const cuentaIncludes = [
   {
     model: CasaMatrizModel,
     as: "clientesAutorizados",
-    attributes: ["id", "razonSocial", "servicios"],
+    attributes: [
+      "id",
+      "razonSocial",
+      "rut",
+      "servicios",
+      "banco",
+      "tipoCuentaBancaria",
+      "numeroCuentaBancaria",
+      "titularCuenta",
+      "rutTitularCuenta",
+      "correoNotificacionPago",
+    ],
     through: { attributes: [] },
   },
 ];
@@ -116,6 +127,194 @@ const parseStringArray = (value) => {
   }
 
   return [];
+};
+
+const DATOS_BANCARIOS_COLUMNAS_DB = [
+  "banco",
+  "tipoCuentaBancaria",
+  "numeroCuentaBancaria",
+  "titularCuenta",
+  "rutTitularCuenta",
+  "correoNotificacionPago",
+];
+
+const crearDatosBancariosVacios = () => ({
+  banco: null,
+  tipoCuenta: null,
+  numeroCuenta: null,
+  titular: null,
+  rutTitular: null,
+  correoNotificacion: null,
+});
+
+const sanitizarDatoBancario = (valor) => {
+  if (valor === null || valor === undefined) {
+    return null;
+  }
+  const texto = typeof valor === "string" ? valor : `${valor}`;
+  const trimmed = texto.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const normalizarDatosBancariosEntrada = (valor) => {
+  if (valor === undefined) {
+    return null;
+  }
+
+  let origen = valor;
+
+  if (typeof valor === "string") {
+    const trimmed = valor.trim();
+    if (!trimmed.length) {
+      return crearDatosBancariosVacios();
+    }
+    try {
+      origen = JSON.parse(trimmed);
+    } catch (_error) {
+      return crearDatosBancariosVacios();
+    }
+  }
+
+  if (!origen || typeof origen !== "object") {
+    return crearDatosBancariosVacios();
+  }
+
+  return {
+    banco: sanitizarDatoBancario(
+      origen.banco ?? origen.nombreBanco ?? origen.bancoNombre
+    ),
+    tipoCuenta: sanitizarDatoBancario(
+      origen.tipoCuenta ?? origen.tipoCuentaBancaria
+    ),
+    numeroCuenta: sanitizarDatoBancario(
+      origen.numeroCuenta ??
+        origen.numeroCuentaBancaria ??
+        origen.cuenta ??
+        origen.cuentaBancaria
+    ),
+    titular: sanitizarDatoBancario(
+      origen.titular ?? origen.titularCuenta ?? origen.nombreTitular
+    ),
+    rutTitular: sanitizarDatoBancario(
+      origen.rutTitular ?? origen.rutTitularCuenta
+    ),
+    correoNotificacion: sanitizarDatoBancario(
+      origen.correoNotificacion ??
+        origen.correoNotificacionPago ??
+        origen.correoPago ??
+        origen.correoTransferencia
+    ),
+  };
+};
+
+const obtenerDatosBancariosDesdeBody = (body) => {
+  if (!body) {
+    return { presente: false, datos: null };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "datosBancarios")) {
+    return {
+      presente: true,
+      datos: normalizarDatosBancariosEntrada(body.datosBancarios),
+    };
+  }
+
+  const candidatos = {
+    banco: body?.banco ?? body?.nombreBanco,
+    tipoCuenta: body?.tipoCuenta ?? body?.tipoCuentaBancaria,
+    numeroCuenta:
+      body?.numeroCuenta ?? body?.numeroCuentaBancaria ?? body?.cuenta,
+    titular: body?.titular ?? body?.titularCuenta,
+    rutTitular: body?.rutTitular ?? body?.rutTitularCuenta,
+    correoNotificacion:
+      body?.correoNotificacion ?? body?.correoNotificacionPago,
+  };
+
+  const tieneAlguno = Object.values(candidatos).some(
+    (valor) => valor !== undefined
+  );
+
+  if (!tieneAlguno) {
+    return { presente: false, datos: null };
+  }
+
+  return {
+    presente: true,
+    datos: normalizarDatosBancariosEntrada(candidatos),
+  };
+};
+
+const mapearDatosBancariosADB = (datos) => ({
+  banco: datos?.banco ?? null,
+  tipoCuentaBancaria: datos?.tipoCuenta ?? null,
+  numeroCuentaBancaria: datos?.numeroCuenta ?? null,
+  titularCuenta: datos?.titular ?? null,
+  rutTitularCuenta: datos?.rutTitular ?? null,
+  correoNotificacionPago: datos?.correoNotificacion ?? null,
+});
+
+const construirDatosBancariosDesdeRegistro = (registro) => {
+  if (!registro) {
+    return null;
+  }
+
+  const origen = registro?.datosBancarios && typeof registro.datosBancarios === "object"
+    ? registro.datosBancarios
+    : registro;
+
+  const datos = {
+    banco: sanitizarDatoBancario(
+      origen.banco ?? registro.banco ?? registro.nombreBanco
+    ),
+    tipoCuenta: sanitizarDatoBancario(
+      origen.tipoCuenta ?? registro.tipoCuentaBancaria
+    ),
+    numeroCuenta: sanitizarDatoBancario(
+      origen.numeroCuenta ?? registro.numeroCuentaBancaria
+    ),
+    titular: sanitizarDatoBancario(
+      origen.titular ?? registro.titularCuenta
+    ),
+    rutTitular: sanitizarDatoBancario(
+      origen.rutTitular ?? registro.rutTitularCuenta
+    ),
+    correoNotificacion: sanitizarDatoBancario(
+      origen.correoNotificacion ?? registro.correoNotificacionPago
+    ),
+  };
+
+  const tieneDatos = Object.values(datos).some((valor) => valor && valor.length);
+  return tieneDatos ? datos : null;
+};
+
+const removerColumnasDatosBancarios = (objeto) => {
+  DATOS_BANCARIOS_COLUMNAS_DB.forEach((columna) => {
+    if (objeto && Object.prototype.hasOwnProperty.call(objeto, columna)) {
+      delete objeto[columna];
+    }
+  });
+};
+
+const transformarClienteRespuesta = (
+  cliente,
+  { incluirDatosBancarios = false } = {}
+) => {
+  if (!cliente) {
+    return null;
+  }
+
+  const data = cliente?.toJSON ? cliente.toJSON() : cliente;
+  const respuesta = {
+    ...data,
+    servicios: parseStringArray(data.servicios),
+  };
+
+  respuesta.datosBancarios = incluirDatosBancarios
+    ? construirDatosBancariosDesdeRegistro(data)
+    : null;
+
+  removerColumnasDatosBancarios(respuesta);
+  return respuesta;
 };
 
 const parseIdArray = (value) => {
@@ -1080,10 +1279,13 @@ const getPerfil = async (req, res) => {
 
     const perfilPlano = perfil?.toJSON ? perfil.toJSON() : perfil;
     if (perfilPlano) {
-      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map((cliente) => ({
-        ...cliente,
-        servicios: parseStringArray(cliente?.servicios),
-      }));
+      const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
+      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map(
+        (cliente) =>
+          transformarClienteRespuesta(cliente, {
+            incluirDatosBancarios,
+          }) ?? cliente
+      );
     }
 
     return res.json(perfilPlano);
@@ -1187,10 +1389,13 @@ const actualizarPerfil = async (req, res) => {
 
     const perfilPlano = perfilActualizado?.toJSON ? perfilActualizado.toJSON() : perfilActualizado;
     if (perfilPlano) {
-      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map((cliente) => ({
-        ...cliente,
-        servicios: parseStringArray(cliente?.servicios),
-      }));
+      const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
+      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map(
+        (cliente) =>
+          transformarClienteRespuesta(cliente, {
+            incluirDatosBancarios,
+          }) ?? cliente
+      );
     }
 
     return res.json({
@@ -1217,6 +1422,10 @@ const postCliente = async (req, res) => {
       visitasEmergenciaAnuales,
       servicios,
     } = req.body;
+    const {
+      presente: datosBancariosPresentes,
+      datos: datosBancarios,
+    } = obtenerDatosBancariosDesdeBody(req.body);
     const imagenName = req.uploadedFile;
     console.log('Valor de req.uploadedFile en postCliente:', imagenName);
 
@@ -1286,6 +1495,7 @@ const postCliente = async (req, res) => {
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
+      datosBancarios,
     });
 
     const nuevoCliente = await CasaMatrizModel.create({
@@ -1298,6 +1508,7 @@ const postCliente = async (req, res) => {
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
+      ...mapearDatosBancariosADB(datosBancarios),
     });
 
     return res.json({ resp: "Cliente creado correctamente" });
@@ -1335,6 +1546,11 @@ const postModificarCliente = async (req, res) => {
       visitasEmergenciaAnuales,
       servicios,
     } = req.body;
+
+    const {
+      presente: datosBancariosPresentes,
+      datos: datosBancarios,
+    } = obtenerDatosBancariosDesdeBody(req.body);
 
     // Verificar que todos los campos requeridos estÃ©n presentes
     if (
@@ -1397,6 +1613,10 @@ const postModificarCliente = async (req, res) => {
 
     if (Object.prototype.hasOwnProperty.call(req.body, "servicios")) {
       updateData.servicios = parseStringArray(servicios);
+    }
+
+    if (datosBancariosPresentes) {
+      Object.assign(updateData, mapearDatosBancariosADB(datosBancarios));
     }
 
     // Si se subiÃ³ una nueva imagen, actualizar el campo imagen
@@ -1678,6 +1898,8 @@ const postObservacion = async (req, res) => {
   const { id } = req.params;
   const { text } = req.body;
   const usuario = req.usuario;
+  const puedeVerDatosBancarios =
+    usuario && [1, 5].includes(usuario.tipoCuentaId);
   if (usuario && usuario.tipoCuentaId === 4) {
     return res
       .status(403)
@@ -1964,6 +2186,9 @@ const getResults = async (req, res) => {
     CasaMatrizModel.count({ where }),
   ]);
 
+  const puedeVerDatosBancarios =
+    usuario && [1, 5].includes(usuario.tipoCuentaId);
+
   let paginas = Math.ceil(total / limit);
   if (total === 0) {
     paginas = 1;
@@ -1975,11 +2200,13 @@ const getResults = async (req, res) => {
     const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente(ids);
 
     clientesRespuesta = clientes.map((cliente) => {
-      const data = cliente.toJSON();
-      const clienteId = data.id ?? cliente.id;
+      const respuestaBase =
+        transformarClienteRespuesta(cliente, {
+          incluirDatosBancarios: puedeVerDatosBancarios,
+        }) ?? cliente;
+      const clienteId = respuestaBase.id ?? cliente.id;
       return {
-        ...data,
-        servicios: parseStringArray(data.servicios),
+        ...respuestaBase,
         visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
         visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
       };
@@ -2031,13 +2258,10 @@ const getClientesBitacora = async (req, res) => {
   try {
     const usuario = req.usuario;
     const where = {};
+    const esCliente = usuario && usuario.tipoCuentaId === 4;
+    const restringidoABitacoras = esCliente && !usuario.haveTickets;
 
     if (usuario && usuario.tipoCuentaId === 4) {
-      if (!usuario.haveTickets) {
-        return res.status(403).json({
-          error: "Esta cuenta no tiene acceso al modulo de tickets.",
-        });
-      }
       const autorizados =
         req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
       req.autorizados = autorizados;
@@ -2085,6 +2309,8 @@ const getClientById = async (req, res) => {
   const { id } = req.params;
   const { option } = req.query;
   const usuario = req.usuario;
+  const puedeVerDatosBancarios =
+    usuario && [1, 5].includes(usuario.tipoCuentaId);
   if (usuario && usuario.tipoCuentaId === 4) {
     const autorizados =
       req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
@@ -2134,12 +2360,16 @@ const getClientById = async (req, res) => {
 
   let clienteRespuesta = null;
   if (cliente) {
-    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente([cliente.id]);
-    const data = cliente.toJSON();
+    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente([
+      cliente.id,
+    ]);
+    const data =
+      transformarClienteRespuesta(cliente, {
+        incluirDatosBancarios: puedeVerDatosBancarios,
+      }) ?? cliente;
     const clienteId = data.id ?? cliente.id;
     clienteRespuesta = {
       ...data,
-      servicios: parseStringArray(data.servicios),
       visitasMensualesRealizadas: mensuales[clienteId] ?? 0,
       visitasEmergenciaAnualesRealizadas: emergencias[clienteId] ?? 0,
     };
@@ -3706,6 +3936,8 @@ const getBitacoras = async (req, res) => {
     const offset = (pageNumber - 1) * limitNumber;
 
     const where = {};
+    const esCliente = usuario && usuario.tipoCuentaId === 4;
+    const restringidoABitacoras = esCliente && !usuario.haveTickets;
 
     if (clienteId) {
       where.casaMatrizId = clienteId;
@@ -3748,12 +3980,16 @@ const getBitacoras = async (req, res) => {
       where.proyectoId = null;
     }
 
-    if (usuario.tipoCuentaId === 4) {
-      if (!usuario.haveTickets) {
+    if (restringidoABitacoras) {
+      if (where.esTicket === true) {
         return res.status(403).json({
           error: "Esta cuenta no tiene acceso al modulo de tickets.",
         });
       }
+      where.esTicket = false;
+    }
+
+    if (esCliente) {
       const autorizados = await getAuthorizedClientIds(usuario.id);
       if (autorizados.length === 0) {
         return res.json({
@@ -3821,15 +4057,15 @@ const getBitacoraById = async (req, res) => {
     }
 
     if (usuario.tipoCuentaId === 4) {
-      if (!usuario.haveTickets) {
-        return res.status(403).json({
-          error: "Esta cuenta no tiene acceso al modulo de tickets.",
-        });
-      }
       const autorizados = await getAuthorizedClientIds(usuario.id);
       if (!autorizados.includes(bitacora.casaMatrizId)) {
         return res.status(403).json({
           error: "No tiene permisos para ver la bitacora solicitada.",
+        });
+      }
+      if (!usuario.haveTickets && bitacora.esTicket) {
+        return res.status(403).json({
+          error: "Esta cuenta no tiene acceso al modulo de tickets.",
         });
       }
     }

@@ -203,7 +203,7 @@ router.post(
 router.post("/eliminar-equipo/:id", protegerRutaTecnico, deleteEquiptment);
 
 // Para obtener todos los tipos de equipos y su formulario
-router.get("/tipos-equipos", protegerRutaTecnico, getTypeEquipments);
+router.get("/tipos-equipos", protegerRuta, getTypeEquipments);
 router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
 
 //? Estados de equipos

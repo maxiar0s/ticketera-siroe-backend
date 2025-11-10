@@ -33,6 +33,30 @@ const casaMatriz = db.define('CasasMatrices', {
         type: DataTypes.INTEGER,
         allowNull: false
     },
+    banco: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    tipoCuentaBancaria: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    numeroCuentaBancaria: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    titularCuenta: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    rutTitularCuenta: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    correoNotificacionPago: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     visitasMensuales: {
         type: DataTypes.INTEGER,
         allowNull: false,
