@@ -15,23 +15,23 @@ const casaMatriz = db.define('CasasMatrices', {
     },
     rut: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true,
     },
     razonSocial: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true,
     },
     encargadoGeneral: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true,
     },
     correo: {
         type: DataTypes.STRING,
-        allowNull: false
+        allowNull: true,
     },
     telefonoEncargado: {
         type: DataTypes.INTEGER,
-        allowNull: false
+        allowNull: true,
     },
     banco: {
         type: DataTypes.STRING,
@@ -59,12 +59,12 @@ const casaMatriz = db.define('CasasMatrices', {
     },
     visitasMensuales: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         defaultValue: 0,
     },
     visitasEmergenciaAnuales: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,
         defaultValue: 0,
     },
     servicios: {
@@ -73,6 +73,11 @@ const casaMatriz = db.define('CasasMatrices', {
     },
     fechaIngreso: {
         type: DataTypes.DATEONLY,
+    },
+    esLead: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
     },
 }, {
     timestamps: false,

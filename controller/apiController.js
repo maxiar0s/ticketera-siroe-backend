@@ -708,7 +708,7 @@ const documentoClienteIncludes = [
   {
     model: CasaMatrizModel,
     as: "casaMatriz",
-    attributes: ["id", "razonSocial", "rut"],
+    attributes: ["id", "razonSocial", "rut", "esLead"],
   },
   {
     model: CuentaModel,
@@ -1421,72 +1421,102 @@ const postCliente = async (req, res) => {
       visitasMensuales,
       visitasEmergenciaAnuales,
       servicios,
-    } = req.body;
+      esLead: esLeadEntrada,
+    } = req.body ?? {};
     const {
       presente: datosBancariosPresentes,
       datos: datosBancarios,
     } = obtenerDatosBancariosDesdeBody(req.body);
     const imagenName = req.uploadedFile;
-    console.log('Valor de req.uploadedFile en postCliente:', imagenName);
+    const esLead = parseBooleanFlag(esLeadEntrada, false);
+    console.log("Valor de req.uploadedFile en postCliente:", imagenName);
 
-    if (!rut || !razonSocial || !encargadoGeneral || !correo || telefonoEncargado === undefined) {
+    const camposRequeridos =
+      !esLead &&
+      (!rut ||
+        !razonSocial ||
+        !encargadoGeneral ||
+        !correo ||
+        telefonoEncargado === undefined);
+
+    if (camposRequeridos) {
       return res.status(400).json({
         resp: "Error: Faltan campos requeridos",
-        recibido: req.body
+        recibido: req.body,
       });
     }
 
-    const clienteExistente = await CasaMatrizModel.findOne({
-      where: {
-        rut,
-      },
-    });
+    const rutNormalizado =
+      typeof rut === "string"
+        ? rut.trim().slice(0, 10)
+        : rut !== undefined && rut !== null
+        ? `${rut}`.slice(0, 10)
+        : null;
 
-    if (clienteExistente) {
-      return res.status(400).json({ 
-        resp: "Error: Ya existe un cliente con ese RUT" 
+    if (rutNormalizado && rutNormalizado.length) {
+      const clienteExistente = await CasaMatrizModel.findOne({
+        where: {
+          rut: rutNormalizado,
+        },
       });
+
+      if (clienteExistente) {
+        return res
+          .status(400)
+          .json({ resp: "Error: Ya existe un cliente con ese RUT" });
+      }
     }
 
-    // Procesar el nÃºmero de telÃ©fono
-    let telefonoEncargadoNum = telefonoEncargado;
-    if (typeof telefonoEncargado === 'string') {
-      // Eliminar cualquier carÃ¡cter no numÃ©rico
-      const phoneNumber = telefonoEncargado.replace(/\D/g, '');
-      telefonoEncargadoNum = parseInt(phoneNumber, 10);
+    let telefonoEncargadoNum = null;
+    if (telefonoEncargado !== undefined && telefonoEncargado !== null) {
+      const telefonoLimpio = `${telefonoEncargado}`.replace(/\D/g, "");
+      telefonoEncargadoNum = telefonoLimpio.length
+        ? Number.parseInt(telefonoLimpio, 10)
+        : null;
     }
 
-    // Validar que el nÃºmero de telÃ©fono sea vÃ¡lido (no mÃ¡s de 9 dÃ­gitos para Chile)
-    if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
-      return res.status(400).json({ 
-        resp: "Error: El nÃºmero de telÃ©fono no es vÃ¡lido", 
-        recibido: telefonoEncargado 
+    if (!esLead) {
+      if (
+        telefonoEncargadoNum === null ||
+        Number.isNaN(telefonoEncargadoNum) ||
+        telefonoEncargadoNum.toString().length > 9
+      ) {
+        return res.status(400).json({
+          resp: "Error: El número de teléfono no es válido",
+          recibido: telefonoEncargado,
+        });
+      }
+    } else if (
+      telefonoEncargadoNum !== null &&
+      telefonoEncargadoNum.toString().length > 9
+    ) {
+      return res.status(400).json({
+        resp: "Error: El número de teléfono no es válido",
+        recibido: telefonoEncargado,
       });
     }
 
     const visitasMensualesParse = parseNonNegativeInt(visitasMensuales);
     if (!visitasMensualesParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas mensuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
         recibido: visitasMensuales,
       });
     }
 
-    const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales);
-    const serviciosSanitizados = parseStringArray(servicios);
-
+    const visitasEmergenciaParse =
+      parseNonNegativeInt(visitasEmergenciaAnuales);
     if (!visitasEmergenciaParse.valid) {
       return res.status(400).json({
-        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
         recibido: visitasEmergenciaAnuales,
       });
     }
 
-    // Formatear el RUT
-    const rutCasaMatriz = rut.toString().slice(0, 10);
+    const serviciosSanitizados = parseStringArray(servicios);
 
-    console.log('Datos a crear:', {
-      rut: rutCasaMatriz,
+    console.log("Datos a crear:", {
+      rut: rutNormalizado,
       razonSocial,
       imagen: imagenName,
       encargadoGeneral,
@@ -1496,150 +1526,32 @@ const postCliente = async (req, res) => {
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
       datosBancarios,
+      esLead,
     });
 
-    const nuevoCliente = await CasaMatrizModel.create({
-      rut: rutCasaMatriz,
-      razonSocial,
+    await CasaMatrizModel.create({
+      rut: rutNormalizado ?? null,
+      razonSocial: razonSocial ?? null,
       imagen: imagenName,
-      encargadoGeneral,
-      correo,
+      encargadoGeneral: encargadoGeneral ?? null,
+      correo: correo ?? null,
       telefonoEncargado: telefonoEncargadoNum,
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
-      ...mapearDatosBancariosADB(datosBancarios),
+      esLead,
+      ...mapearDatosBancariosADB(datosBancariosPresentes ? datosBancarios : null),
     });
 
     return res.json({ resp: "Cliente creado correctamente" });
   } catch (error) {
-    console.error('Error al crear cliente:', error);
-    return res.status(500).json({ 
-      resp: "Error al crear cliente", 
-      error: error.message 
+    console.error("Error al crear cliente:", error);
+    return res.status(500).json({
+      resp: "Error al crear cliente",
+      error: error.message,
     });
   }
 };
-
-const postModificarCliente = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    if (!id) {
-      return res.json({ resp: "Error al intentar modificar cliente" });
-    }
-
-    const cliente = await CasaMatrizModel.findByPk(id);
-
-    if (!cliente) {
-      return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
-    }
-
-    // Extraer los datos del cuerpo de la solicitud
-    const {
-      rut,
-      razonSocial,
-      encargadoGeneral,
-      correo,
-      telefonoEncargado,
-      visitasMensuales,
-      visitasEmergenciaAnuales,
-      servicios,
-    } = req.body;
-
-    const {
-      presente: datosBancariosPresentes,
-      datos: datosBancarios,
-    } = obtenerDatosBancariosDesdeBody(req.body);
-
-    // Verificar que todos los campos requeridos estÃ©n presentes
-    if (
-      !rut ||
-      !razonSocial ||
-      !encargadoGeneral ||
-      !correo ||
-      telefonoEncargado === undefined ||
-      visitasMensuales === undefined ||
-      visitasEmergenciaAnuales === undefined
-    ) {
-      console.log('Datos recibidos:', req.body);
-      return res.status(400).json({ 
-        resp: "Error: Faltan campos requeridos", 
-        recibido: req.body 
-      });
-    }
-
-    // Asegurarse de que telefonoEncargado sea un nÃºmero
-    let telefonoEncargadoNum = telefonoEncargado;
-    if (typeof telefonoEncargado === 'string') {
-      // Eliminar cualquier carÃ¡cter no numÃ©rico
-      const phoneNumber = telefonoEncargado.replace(/\D/g, '');
-      telefonoEncargadoNum = parseInt(phoneNumber, 10);
-    }
-
-    // Validar que el nÃºmero de telÃ©fono sea vÃ¡lido (no mÃ¡s de 9 dÃ­gitos para Chile)
-    if (isNaN(telefonoEncargadoNum) || telefonoEncargadoNum.toString().length > 9) {
-      return res.status(400).json({ 
-        resp: "Error: El nÃºmero de telÃ©fono no es vÃ¡lido", 
-        recibido: telefonoEncargado 
-      });
-    }
-
-    const visitasMensualesParse = parseNonNegativeInt(visitasMensuales, cliente.visitasMensuales);
-    if (!visitasMensualesParse.valid) {
-      return res.status(400).json({
-        resp: "Error: La cantidad de visitas mensuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
-        recibido: visitasMensuales,
-      });
-    }
-
-    const visitasEmergenciaParse = parseNonNegativeInt(visitasEmergenciaAnuales, cliente.visitasEmergenciaAnuales);
-    if (!visitasEmergenciaParse.valid) {
-      return res.status(400).json({
-        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un nÃºmero vÃ¡lido mayor o igual a 0",
-        recibido: visitasEmergenciaAnuales,
-      });
-    }
-
-    // Actualizar solo los campos que estÃ¡n presentes
-    const updateData = {};
-    if (rut) updateData.rut = rut;
-    if (razonSocial) updateData.razonSocial = razonSocial;
-    if (encargadoGeneral) updateData.encargadoGeneral = encargadoGeneral;
-    if (correo) updateData.correo = correo;
-    if (telefonoEncargadoNum) updateData.telefonoEncargado = telefonoEncargadoNum;
-    updateData.visitasMensuales = visitasMensualesParse.parsed;
-    updateData.visitasEmergenciaAnuales = visitasEmergenciaParse.parsed;
-
-    if (Object.prototype.hasOwnProperty.call(req.body, "servicios")) {
-      updateData.servicios = parseStringArray(servicios);
-    }
-
-    if (datosBancariosPresentes) {
-      Object.assign(updateData, mapearDatosBancariosADB(datosBancarios));
-    }
-
-    // Si se subiÃ³ una nueva imagen, actualizar el campo imagen
-    if (req.uploadedFile) {
-      updateData.imagen = req.uploadedFile;
-      console.log('Nueva imagen subida en modificaciÃ³n:', req.uploadedFile);
-    }
-
-    console.log('Datos a actualizar:', updateData);
-
-    // Actualizar el cliente
-    await cliente.update(updateData);
-
-    return res.json({ resp: "Cliente modificado correctamente" });
-  } catch (error) {
-    console.error('Error al modificar cliente:', error);
-    return res.status(500).json({ 
-      resp: "Error al modificar cliente", 
-      error: error.message 
-    });
-  }
-};
-
 const postEliminarCliente = async (req, res) => {
   const { id } = req.params;
   if (!id) {
@@ -1680,6 +1592,206 @@ const postEliminarCliente = async (req, res) => {
       resp: "Error al eliminar cliente", 
       error: error.message,
       success: false
+    });
+  }
+};
+
+const postModificarCliente = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.json({ resp: "Error al intentar modificar cliente" });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(id);
+    if (!cliente) {
+      return res.json({ resp: "Cliente no encontrado, intente nuevamente" });
+    }
+
+    const body = req.body ?? {};
+    const {
+      rut,
+      razonSocial,
+      encargadoGeneral,
+      correo,
+      telefonoEncargado,
+      visitasMensuales,
+      visitasEmergenciaAnuales,
+      servicios,
+      esLead: esLeadEntrada,
+    } = body;
+
+    const {
+      presente: datosBancariosPresentes,
+      datos: datosBancarios,
+    } = obtenerDatosBancariosDesdeBody(body);
+
+    const esLead = parseBooleanFlag(esLeadEntrada, cliente.esLead);
+    const campoFueEnviado = (campo) =>
+      Object.prototype.hasOwnProperty.call(body, campo);
+
+    const normalizarCampoTexto = (valor) => {
+      if (valor === undefined) {
+        return undefined;
+      }
+      const texto = normalizarTexto(`${valor ?? ""}`);
+      return texto.length ? texto : null;
+    };
+
+    const normalizarRut = (valor) => {
+      if (valor === undefined) {
+        return undefined;
+      }
+      const texto = normalizarTexto(`${valor ?? ""}`);
+      if (!texto.length) {
+        return null;
+      }
+      return texto.slice(0, 10);
+    };
+
+    const rutNormalizado = normalizarRut(rut);
+    if (rutNormalizado && rutNormalizado !== cliente.rut) {
+      const clienteExistente = await CasaMatrizModel.findOne({
+        where: { rut: rutNormalizado },
+        attributes: ["id"],
+      });
+      if (clienteExistente && clienteExistente.id !== cliente.id) {
+        return res
+          .status(400)
+          .json({ resp: "Error: Ya existe un cliente con ese RUT" });
+      }
+    }
+
+    const razonSocialNormalizada = normalizarCampoTexto(razonSocial);
+    const encargadoNormalizado = normalizarCampoTexto(encargadoGeneral);
+    const correoNormalizado = normalizarCampoTexto(correo);
+
+    const telefonoFueEnviado = campoFueEnviado("telefonoEncargado");
+    let telefonoEncargadoNum = cliente.telefonoEncargado ?? null;
+    if (telefonoFueEnviado) {
+      const telefonoLimpio = `${telefonoEncargado ?? ""}`.replace(/\D/g, "");
+      telefonoEncargadoNum = telefonoLimpio.length
+        ? Number.parseInt(telefonoLimpio, 10)
+        : null;
+    }
+
+    if (
+      telefonoFueEnviado &&
+      telefonoEncargadoNum !== null &&
+      telefonoEncargadoNum.toString().length > 9
+    ) {
+      return res.status(400).json({
+        resp: "Error: El número de teléfono no es válido",
+        recibido: telefonoEncargado,
+      });
+    }
+
+    const visitasMensualesParse = parseNonNegativeInt(
+      visitasMensuales,
+      cliente.visitasMensuales
+    );
+    if (!visitasMensualesParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas mensuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasMensuales,
+      });
+    }
+
+    const visitasEmergenciaParse = parseNonNegativeInt(
+      visitasEmergenciaAnuales,
+      cliente.visitasEmergenciaAnuales
+    );
+    if (!visitasEmergenciaParse.valid) {
+      return res.status(400).json({
+        resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
+        recibido: visitasEmergenciaAnuales,
+      });
+    }
+
+    const rutFinal =
+      rutNormalizado !== undefined ? rutNormalizado : cliente.rut;
+    const razonFinal =
+      razonSocialNormalizada !== undefined
+        ? razonSocialNormalizada
+        : cliente.razonSocial;
+    const encargadoFinal =
+      encargadoNormalizado !== undefined
+        ? encargadoNormalizado
+        : cliente.encargadoGeneral;
+    const correoFinal =
+      correoNormalizado !== undefined ? correoNormalizado : cliente.correo;
+    const telefonoFinal = telefonoEncargadoNum;
+
+    if (
+      !esLead &&
+      (!rutFinal ||
+        !razonFinal ||
+        !encargadoFinal ||
+        !correoFinal ||
+        telefonoFinal === null)
+    ) {
+      return res.status(400).json({
+        resp: "Error: Faltan campos requeridos",
+        recibido: req.body,
+      });
+    }
+
+    if (
+      !esLead &&
+      telefonoFinal !== null &&
+      telefonoFinal.toString().length > 9
+    ) {
+      return res.status(400).json({
+        resp: "Error: El número de teléfono no es válido",
+        recibido: telefonoEncargado,
+      });
+    }
+
+    const updateData = {};
+    if (rutNormalizado !== undefined) {
+      updateData.rut = rutNormalizado;
+    }
+    if (razonSocialNormalizada !== undefined) {
+      updateData.razonSocial = razonSocialNormalizada;
+    }
+    if (encargadoNormalizado !== undefined) {
+      updateData.encargadoGeneral = encargadoNormalizado;
+    }
+    if (correoNormalizado !== undefined) {
+      updateData.correo = correoNormalizado;
+    }
+    if (telefonoFueEnviado) {
+      updateData.telefonoEncargado = telefonoEncargadoNum;
+    }
+
+    updateData.visitasMensuales = visitasMensualesParse.parsed;
+    updateData.visitasEmergenciaAnuales = visitasEmergenciaParse.parsed;
+
+    if (Object.prototype.hasOwnProperty.call(body, "servicios")) {
+      updateData.servicios = parseStringArray(servicios);
+    }
+
+    if (datosBancariosPresentes) {
+      Object.assign(updateData, mapearDatosBancariosADB(datosBancarios));
+    }
+
+    if (req.uploadedFile) {
+      updateData.imagen = req.uploadedFile;
+      console.log("Nueva imagen subida en modificación:", req.uploadedFile);
+    }
+
+    updateData.esLead = esLead;
+
+    console.log("Datos a actualizar:", updateData);
+    await cliente.update(updateData);
+
+    return res.json({ resp: "Cliente modificado correctamente" });
+  } catch (error) {
+    console.error("Error al modificar cliente:", error);
+    return res.status(500).json({
+      resp: "Error al modificar cliente",
+      error: error.message,
     });
   }
 };
@@ -2233,7 +2345,7 @@ const getClientesResumen = async (req, res) => {
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial", "servicios"],
+      attributes: ["id", "razonSocial", "servicios", "esLead", "rut"],
       order: [["razonSocial", "ASC"]],
     });
 
@@ -2273,7 +2385,7 @@ const getClientesBitacora = async (req, res) => {
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial", "rut", "servicios"],
+      attributes: ["id", "razonSocial", "rut", "servicios", "esLead"],
       order: [["razonSocial", "ASC"]],
     });
 
