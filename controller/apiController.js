@@ -407,6 +407,33 @@ const parseBooleanFlag = (value, defaultValue = false) => {
   return defaultValue;
 };
 
+const parseBooleanQueryParam = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const texto = `${value}`.trim();
+  if (!texto.length) {
+    return null;
+  }
+
+  return parseBooleanFlag(texto, false);
+};
+
+const parseNumericQueryParam = (value) => {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  const texto = `${value}`.trim();
+  if (!texto.length) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(texto, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
 const DOCUMENTO_TIPOS_SET = new Set(
   CLIENTE_DOCUMENTO_TIPOS.map((tipo) => tipo.toLowerCase())
 );
@@ -2272,7 +2299,7 @@ const getResults = async (req, res) => {
   }
 
   const usuario = req.usuario;
-  let where = {};
+  const whereConditions = [];
 
   if (usuario && usuario.tipoCuentaId === 4) {
     const autorizados =
@@ -2281,8 +2308,81 @@ const getResults = async (req, res) => {
     if (!autorizados.length) {
       return res.json({ clientes: [], paginas: 1 });
     }
-    where = { id: { [Op.in]: autorizados } };
+    whereConditions.push({ id: { [Op.in]: autorizados } });
   }
+
+  const serviciosFiltro = parseStringArray(
+    req.query.servicios ?? req.query.servicio ?? null
+  );
+  const visitasMensualesMin = parseNumericQueryParam(
+    req.query.visitasMensualesMin
+  );
+  const visitasMensualesMax = parseNumericQueryParam(
+    req.query.visitasMensualesMax
+  );
+  const visitasEmergenciaMin = parseNumericQueryParam(
+    req.query.visitasEmergenciaMin
+  );
+  const visitasEmergenciaMax = parseNumericQueryParam(
+    req.query.visitasEmergenciaMax
+  );
+  const esLeadFiltro = parseBooleanQueryParam(req.query.esLead);
+  const datosBancariosFiltro = parseBooleanQueryParam(
+    req.query.tieneDatosBancarios ?? req.query.datosBancarios
+  );
+
+  if (serviciosFiltro.length) {
+    serviciosFiltro.forEach((servicio) => {
+      const termino = servicio.replace(/"/g, '\\"');
+      whereConditions.push({
+        servicios: { [Op.like]: `%\"${termino}\"%` },
+      });
+    });
+  }
+
+  const visitasMensualesRango = {};
+  if (visitasMensualesMin !== null) {
+    visitasMensualesRango[Op.gte] = visitasMensualesMin;
+  }
+  if (visitasMensualesMax !== null) {
+    visitasMensualesRango[Op.lte] = visitasMensualesMax;
+  }
+  if (Object.keys(visitasMensualesRango).length) {
+    whereConditions.push({ visitasMensuales: visitasMensualesRango });
+  }
+
+  const visitasEmergenciaRango = {};
+  if (visitasEmergenciaMin !== null) {
+    visitasEmergenciaRango[Op.gte] = visitasEmergenciaMin;
+  }
+  if (visitasEmergenciaMax !== null) {
+    visitasEmergenciaRango[Op.lte] = visitasEmergenciaMax;
+  }
+  if (Object.keys(visitasEmergenciaRango).length) {
+    whereConditions.push({
+      visitasEmergenciaAnuales: visitasEmergenciaRango,
+    });
+  }
+
+  if (esLeadFiltro !== null) {
+    whereConditions.push({ esLead: esLeadFiltro });
+  }
+
+  if (datosBancariosFiltro === true) {
+    whereConditions.push({
+      [Op.or]: DATOS_BANCARIOS_COLUMNAS_DB.map((columna) => ({
+        [columna]: { [Op.ne]: null },
+      })),
+    });
+  } else if (datosBancariosFiltro === false) {
+    whereConditions.push({
+      [Op.and]: DATOS_BANCARIOS_COLUMNAS_DB.map((columna) => ({
+        [columna]: { [Op.is]: null },
+      })),
+    });
+  }
+
+  const where = whereConditions.length ? { [Op.and]: whereConditions } : {};
 
   // Limites y Offset para el paginador
   const limit = 8;
