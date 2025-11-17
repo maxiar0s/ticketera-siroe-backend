@@ -1,0 +1,1566 @@
+openapi: 3.0.3
+info:
+  title: Soporte Siroe API
+  version: "1.0.0"
+  description: |
+    API pública del backend de Soporte Siroe. Todas las rutas (salvo las marcadas como públicas) requieren un token Bearer.
+    Los payloads mostrados son esquemas generales; revisa los controladores para conocer cada campo obligatorio.
+tags:
+  - name: Utilidades
+    description: Rutas auxiliares utilizadas para pruebas o monitoreo.
+  - name: Auth
+    description: Inicio de sesión y recuperación de acceso.
+  - name: Usuarios
+    description: Administración de cuentas y perfiles.
+  - name: Clientes
+    description: Gestión de clientes, sucursales y su documentación.
+  - name: Equipos
+    description: ABM de equipos y sus campos configurables.
+  - name: Estados
+    description: Catálogos y actualizaciones de estados de equipos y sucursales.
+  - name: Observaciones
+    description: Observaciones y bitácoras ligadas a tickets o clientes.
+  - name: Notificaciones
+    description: Manejo de notificaciones internas.
+  - name: Proyectos
+    description: CRUD de proyectos y sus adjuntos.
+  - name: Vehiculos
+    description: Gestión de vehículos, salidas y adjuntos.
+  - name: Bitacoras
+    description: Operaciones sobre bitácoras.
+  - name: Visitas
+    description: Programación y eliminación de visitas.
+  - name: Archivos
+    description: Utilidades relacionadas a archivos en Google Cloud Storage.
+paths:
+  /api-test:
+    get:
+      tags: [Utilidades]
+      summary: Verificar que las rutas principales estén registradas.
+      responses:
+        "200":
+          description: Respuesta simple para verificar disponibilidad.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /auth-test:
+    get:
+      tags: [Utilidades]
+      summary: Comprueba que las rutas de autenticación están registradas.
+      responses:
+        "200":
+          description: Respuesta con un mensaje de prueba.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /routes:
+    get:
+      tags: [Utilidades]
+      summary: Lista todas las rutas registradas en el servidor.
+      responses:
+        "200":
+          description: Arreglo con metadatos de rutas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                    methods:
+                      type: array
+                      items:
+                        type: string
+  /auth/login-test:
+    get:
+      tags: [Utilidades]
+      summary: Mensaje informativo sobre el endpoint real de login.
+      responses:
+        "200":
+          description: Mensaje con instrucciones.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /test:
+    get:
+      tags: [Utilidades]
+      summary: Healthcheck general del servidor.
+      responses:
+        "200":
+          description: Respuesta indicando que el servidor está activo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión mediante correo y contraseña.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Token JWT emitido correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/recuperar-acceso:
+    post:
+      tags: [Auth]
+      summary: Enviar instrucciones para recuperar acceso.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Se envió el correo de recuperación si corresponde.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /crear-modificar-cuenta:
+    post:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Crear o modificar una cuenta administrada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Cuenta creada o actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /verificar-correo:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Validar si un correo ya existe.
+      parameters:
+        - in: query
+          name: email
+          schema:
+            type: string
+            format: email
+          required: true
+          description: Correo a verificar.
+      responses:
+        "200":
+          description: Información sobre la disponibilidad del correo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /eliminar-cuenta/{id}:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Eliminar una cuenta por ID (método legado).
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Resultado de la eliminación.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /usuarios:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Listar usuarios administrados.
+      responses:
+        "200":
+          description: Lista de usuarios.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /usuario/{id}:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Obtener el detalle de un usuario por ID.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Usuario encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /perfil:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Obtener el perfil del usuario autenticado.
+      responses:
+        "200":
+          description: Perfil actual.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Actualizar el perfil del usuario autenticado.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /tecnicos:
+    get:
+      tags: [Usuarios]
+      security:
+        - bearerAuth: []
+      summary: Obtener técnicos disponibles.
+      responses:
+        "200":
+          description: Listado de técnicos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /ingresar-cliente:
+    post:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Crear un cliente con soporte de archivos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                payload:
+                  description: JSON serializado con los datos del cliente.
+                  type: string
+                archivos:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        "200":
+          description: Cliente almacenado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /modificar-cliente/{id}:
+    post:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Modificar información de un cliente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Cliente actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /eliminar-cliente/{id}:
+    post:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un cliente usando método POST (legado).
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminación realizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /clientes/{id}:
+    delete:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un cliente mediante DELETE canónico.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Cliente eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /clientes/listado:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Resumen compacto de clientes.
+      responses:
+        "200":
+          description: Listado resumido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /documentacion:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Listar documentación cargada para clientes.
+      responses:
+        "200":
+          description: Documentación disponible.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Crear documentación asociada a un cliente.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Documento creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /documentacion/{id}:
+    delete:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Eliminar documentación de cliente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Documento eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /ingresar-sucursal:
+    post:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Crear una nueva sucursal.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Sucursal creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /eliminar-sucursal/{id}:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Eliminar una sucursal por ID.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Resultado de la eliminación.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /tipos-equipos:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Listar tipos de equipo y formularios asociados.
+      responses:
+        "200":
+          description: Tipos disponibles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Crear un tipo de equipo.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Tipo creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /tipos-equipos/{id}:
+    put:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar un tipo de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Tipo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un tipo de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /tipos-equipos/{id}/campos:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Obtener campos configurados para un tipo de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Campos encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    put:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Sincronizar campos de un tipo de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                campos:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Campos sincronizados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /campos:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Listar campos disponibles.
+      responses:
+        "200":
+          description: Lista de campos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Crear un campo personalizado.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Campo creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /campos/{id}:
+    put:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar un campo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Campo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un campo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /departamentos-equipos:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Listar departamentos de equipo.
+      responses:
+        "200":
+          description: Departamentos disponibles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Crear un departamento de equipo.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Departamento creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /departamentos-equipos/{id}:
+    put:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar un departamento de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Departamento actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un departamento de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /ingresar-equipo:
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Crear un equipo nuevo (soporta archivos).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Equipo creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /modificar-equipo/{id}:
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar información de un equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Equipo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /eliminar-equipo/{id}:
+    post:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un equipo (método POST legado).
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Equipo eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /equipos/{id}:
+    delete:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un equipo vía DELETE.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /obtener-formulario/{id}:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Obtener el formulario configurado para un tipo de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Datos del formulario.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /estados-equipos:
+    get:
+      tags: [Estados]
+      security:
+        - bearerAuth: []
+      summary: Catálogo de estados de equipos.
+      responses:
+        "200":
+          description: Listado de estados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /estados-equipos/{id}:
+    patch:
+      tags: [Estados]
+      security:
+        - bearerAuth: []
+      summary: Actualizar campos de un estado de equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /actualizar-estado-equipo/{id}:
+    post:
+      tags: [Estados]
+      security:
+        - bearerAuth: []
+      summary: Actualización rápida del estado de un equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                estadoId:
+                  type: string
+      responses:
+        "200":
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /estados-sucursales:
+    get:
+      tags: [Estados]
+      security:
+        - bearerAuth: []
+      summary: Catálogo de estados de sucursales.
+      responses:
+        "200":
+          description: Listado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /actualizar-estado-sucursal/{id}:
+    post:
+      tags: [Estados]
+      security:
+        - bearerAuth: []
+      summary: Actualizar el estado de una sucursal.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                estadoId:
+                  type: string
+      responses:
+        "200":
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /ingresar-observacion/{id}:
+    post:
+      tags: [Observaciones]
+      security:
+        - bearerAuth: []
+      summary: Registrar una observación vinculada a un equipo o cliente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                observacion:
+                  type: string
+      responses:
+        "200":
+          description: Observación creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /clientes:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Obtener clientes paginados o filtrados.
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Texto de búsqueda opcional.
+      responses:
+        "200":
+          description: Resultados de búsqueda.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /cliente/{id}:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Obtener detalle completo de un cliente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Cliente encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /cliente/{id}/sucursales:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Listar las sucursales de un cliente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Sucursales del cliente.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /cliente/{id}/equipos:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Obtener los equipos de una casa matriz.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Equipos encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /sucursal/{id}:
+    get:
+      tags: [Clientes]
+      security:
+        - bearerAuth: []
+      summary: Obtener información de una sucursal por ID.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Sucursal encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /notificaciones:
+    get:
+      tags: [Notificaciones]
+      security:
+        - bearerAuth: []
+      summary: Listar notificaciones del usuario autenticado.
+      responses:
+        "200":
+          description: Notificaciones.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /notificaciones/leidas:
+    patch:
+      tags: [Notificaciones]
+      security:
+        - bearerAuth: []
+      summary: Marcar notificaciones como leídas.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Confirmación de lectura.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /equipo/{id}:
+    get:
+      tags: [Equipos]
+      security:
+        - bearerAuth: []
+      summary: Obtener la información detallada de un equipo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Equipo encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos:
+    get:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Listar proyectos visibles para el usuario.
+      responses:
+        "200":
+          description: Proyectos.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Crear un proyecto (soporta adjuntos).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Proyecto creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos/{id}:
+    get:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Obtener información de un proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Proyecto encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar un proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Proyecto actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Proyecto eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos/{id}/adjuntos:
+    post:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Agregar adjuntos a un proyecto existente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Adjuntos agregados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos/{id}/adjuntos/{adjuntoId}:
+    delete:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un adjunto de proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - $ref: "#/components/parameters/AdjuntoIdParam"
+      responses:
+        "200":
+          description: Adjunto eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos/{id}/bitacoras:
+    post:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Asociar bitácoras a un proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bitacoraIds:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Bitácoras agregadas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /proyectos/{id}/bitacoras/{bitacoraId}:
+    delete:
+      tags: [Proyectos]
+      security:
+        - bearerAuth: []
+      summary: Remover una bitácora de un proyecto.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+        - $ref: "#/components/parameters/BitacoraIdParam"
+      responses:
+        "200":
+          description: Bitácora removida.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /vehiculos:
+    get:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Listar vehículos.
+      responses:
+        "200":
+          description: Vehículos encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Crear un vehículo (con adjuntos).
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Vehículo creado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /vehiculos/{id}:
+    get:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Obtener un vehículo por ID.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Vehículo encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar un vehículo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Vehículo actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un vehículo.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Vehículo eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /vehiculos/{vehiculoId}/salidas:
+    post:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Registrar una salida de vehículo.
+      parameters:
+        - $ref: "#/components/parameters/VehiculoIdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Salida creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /vehiculos/{vehiculoId}/salidas/{salidaId}:
+    put:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Actualizar una salida de vehículo.
+      parameters:
+        - $ref: "#/components/parameters/VehiculoIdParam"
+        - $ref: "#/components/parameters/SalidaIdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Salida actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar una salida.
+      parameters:
+        - $ref: "#/components/parameters/VehiculoIdParam"
+        - $ref: "#/components/parameters/SalidaIdParam"
+      responses:
+        "200":
+          description: Salida eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /vehiculos/{vehiculoId}/salidas/{salidaId}/adjuntos/{adjuntoId}:
+    delete:
+      tags: [Vehiculos]
+      security:
+        - bearerAuth: []
+      summary: Eliminar un adjunto de una salida.
+      parameters:
+        - $ref: "#/components/parameters/VehiculoIdParam"
+        - $ref: "#/components/parameters/SalidaIdParam"
+        - $ref: "#/components/parameters/AdjuntoIdParam"
+      responses:
+        "200":
+          description: Adjunto eliminado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /bitacoras/clientes:
+    get:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Listar clientes con bitácoras.
+      responses:
+        "200":
+          description: Clientes encontrados.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+  /bitacoras:
+    get:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Listar bitácoras filtrables.
+      parameters:
+        - in: query
+          name: clienteId
+          schema:
+            type: string
+          description: Filtrar por cliente.
+      responses:
+        "200":
+          description: Bitácoras.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Crear una bitácora con adjuntos.
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Bitácora creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /bitacoras/{id}:
+    get:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Obtener el detalle de una bitácora.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Bitácora encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    put:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Actualizar una bitácora existente.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/FilePayload"
+      responses:
+        "200":
+          description: Bitácora actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+    delete:
+      tags: [Bitacoras]
+      security:
+        - bearerAuth: []
+      summary: Eliminar una bitácora.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /visitas-programadas:
+    get:
+      tags: [Visitas]
+      security:
+        - bearerAuth: []
+      summary: Listar visitas programadas.
+      responses:
+        "200":
+          description: Visitas encontradas.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListResponse"
+    post:
+      tags: [Visitas]
+      security:
+        - bearerAuth: []
+      summary: Crear una visita programada.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenericPayload"
+      responses:
+        "200":
+          description: Visita creada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /visitas-programadas/{id}:
+    delete:
+      tags: [Visitas]
+      security:
+        - bearerAuth: []
+      summary: Eliminar una visita.
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Visita eliminada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+  /api/generar-url/{fileName}:
+    get:
+      tags: [Archivos]
+      security:
+        - bearerAuth: []
+      summary: Generar una URL temporal para descargar un archivo.
+      parameters:
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Nombre del archivo almacenado en GCS.
+      responses:
+        "200":
+          description: URL generada.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+                    format: uri
+components:
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          description: Payload devuelto por el servicio.
+    ListResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 1
+        items:
+          type: array
+          items:
+            type: object
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        usuario:
+          type: object
+          additionalProperties: true
+    GenericPayload:
+      type: object
+      additionalProperties: true
+    FilePayload:
+      type: object
+      properties:
+        payload:
+          type: string
+          description: JSON serializado con los datos del recurso.
+        archivos:
+          type: array
+          items:
+            type: string
+            format: binary
+    ValidationError:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+  parameters:
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Identificador único del recurso.
+    AdjuntoIdParam:
+      name: adjuntoId
+      in: path
+      required: true
+      schema:
+        type: string
+    BitacoraIdParam:
+      name: bitacoraId
+      in: path
+      required: true
+      schema:
+        type: string
+    VehiculoIdParam:
+      name: vehiculoId
+      in: path
+      required: true
+      schema:
+        type: string
+    SalidaIdParam:
+      name: salidaId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Unauthorized:
+      description: Token inválido o inexistente.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"

@@ -3,6 +3,9 @@ import db from "../config/db.js";
 import cors from "cors";
 import apiRoutes from "../routes/apiRoutes.js";
 import usuarioRoutes from "../routes/usuarioRoutes.js";
+import swaggerUi from "swagger-ui-express";
+import swaggerSpec from "../config/swagger.js";
+import protegerRuta from "../middleware/protegerRuta.js";
 
 const app = express();
 
@@ -33,16 +36,16 @@ try {
 }
 
 // Add these test routes BEFORE your main route registration
-app.get("/api-test", (req, res) => {
+app.get("/api-test", protegerRuta, (req, res) => {
   res.json({ message: "API routes test endpoint" });
 });
 
-app.get("/auth-test", (req, res) => {
+app.get("/auth-test", protegerRuta, (req, res) => {
   res.json({ message: "Auth routes test endpoint" });
 });
 
 // Add a route to list all available routes
-app.get("/routes", (req, res) => {
+app.get("/routes", protegerRuta, (req, res) => {
   const routes = [];
   app._router.stack.forEach((middleware) => {
     if (middleware.route) {
@@ -64,7 +67,7 @@ app.get("/routes", (req, res) => {
   res.json(routes);
 });
 
-app.get("/auth/login-test", (req, res) => {
+app.get("/auth/login-test", protegerRuta, (req, res) => {
   res.json({
     message: "Login test endpoint",
     instructions:
@@ -72,10 +75,20 @@ app.get("/auth/login-test", (req, res) => {
   });
 });
 
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  explorer: true,
+  customSiteTitle: "Soporte Siroe API Docs",
+}));
+
+app.get("/docs.json", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.send(swaggerSpec);
+});
+
 app.use("/auth/", usuarioRoutes);
 app.use("/", apiRoutes);
 
-app.get("/test", (req, res) => {
+app.get("/test", protegerRuta, (req, res) => {
   res.json({ message: "Server is running correctly" });
 });
 
