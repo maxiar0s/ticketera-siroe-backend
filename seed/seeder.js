@@ -15,7 +15,8 @@ import {
     CampoModel,
     
     //?estado de equipos
-    EstadoEquipoModel
+    EstadoEquipoModel,
+    EstadoSucursalModel,
 } from '../models/index.js';
 
 import Cuentas from './Cuenta.js';
@@ -30,6 +31,8 @@ import Campos from './Campo.js';
 
 //?estado de equipos
 import EstadosEquipo from './EstadoEquipo.js';
+//?estado sucursal
+import EstadosSucursal from './EstadoSucursal.js';
 
 
 import db from '../config/db.js';
@@ -44,6 +47,8 @@ const importarDatos = async () => {
             EstadoCuentaModel.bulkCreate(estadoCuenta),
             TipoCuentaModel.bulkCreate(TipoCuentas),
             CasaMatrizModel.bulkCreate(CasasMatrices),
+            EstadoEquipoModel.bulkCreate(EstadosEquipo),
+            EstadoSucursalModel.bulkCreate(EstadosSucursal),
         ])
 
         const casaMatriz = await CasaMatrizModel.findAll();

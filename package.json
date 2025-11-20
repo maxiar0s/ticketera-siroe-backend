@@ -8,6 +8,7 @@
     "server": "nodemon api/index.js",
     "db:importar": "node ./seed/seeder.js -i",
     "db:eliminar": "node ./seed/seeder.js -e",
+    "db:importar-demo": "node ./seed/demoSeeder.js -d",
     "departamentos:sync": "node ./scripts/sincronizar-departamentos.js",
     "db:servicios-arriendo": "node ./scripts/add-client-services-equipo-arriendo.js",
     "db:proyectos": "node ./scripts/add-proyectos-module.js",
