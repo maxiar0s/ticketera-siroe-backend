@@ -6,23 +6,34 @@ import usuarioRoutes from "../routes/usuarioRoutes.js";
 import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "../config/swagger.js";
 import protegerRuta from "../middleware/protegerRuta.js";
+import logRequest from "../middleware/logRequest.js";
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    'https://app.soportesiroe.cl', 
-    'https://demo.soportesiroe.cl',
-    'http://localhost:4200' // Para tus pruebas locales
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept', 'Origin'],
-  credentials: true // Permite cookies/headers seguros
-}));
+app.use(
+  cors({
+    origin: [
+      "https://app.soportesiroe.cl",
+      "https://demo.soportesiroe.cl",
+      "http://localhost:4200", // Para tus pruebas locales
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "token",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
+    credentials: true, // Permite cookies/headers seguros
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.use(logRequest);
 
 // Conexión a DB
 try {
@@ -73,10 +84,14 @@ app.get("/auth/login-test", protegerRuta, (req, res) => {
   });
 });
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  explorer: true,
-  customSiteTitle: "Soporte Siroe API Docs",
-}));
+app.use(
+  "/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customSiteTitle: "Soporte Siroe API Docs",
+  })
+);
 
 app.get("/docs.json", (req, res) => {
   res.setHeader("Content-Type", "application/json");

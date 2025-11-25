@@ -63,9 +63,12 @@ import {
   crearVisitaProgramada,
   eliminarVisitaProgramada,
   //? Estados de equipos
-  getEstadosEquipo,actualizarEstadoEquipo, actualizarSoloEstadoEquipo,
+  getEstadosEquipo,
+  actualizarEstadoEquipo,
+  actualizarSoloEstadoEquipo,
   //? Estados de sucursales
-  getEstadosSucursal, actualizarEstadoSucursal,
+  getEstadosSucursal,
+  actualizarEstadoSucursal,
   crearTipoEquipo,
   actualizarTipoEquipo,
   eliminarTipoEquipo,
@@ -101,7 +104,8 @@ import {
   marcarNotificacionesLeidas,
   getDocumentacionClientes,
   crearDocumentoCliente,
-  eliminarDocumentoCliente
+  eliminarDocumentoCliente,
+  getLogs,
 } from "../controller/apiController.js";
 
 const router = express.Router();
@@ -128,7 +132,13 @@ router.post(
   postCliente
 );
 //gestion de clientes
-router.post("/modificar-cliente/:id", protegerRutaAdmin, handleUpload, processFile, postModificarCliente);
+router.post(
+  "/modificar-cliente/:id",
+  protegerRutaAdmin,
+  handleUpload,
+  processFile,
+  postModificarCliente
+);
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);
 router.delete("/clientes/:id", protegerRutaAdmin, postEliminarCliente);
 router.get("/clientes/listado", protegerRutaAdmin, getClientesResumen);
@@ -213,12 +223,24 @@ router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
 
 //? Estados de equipos
 router.get("/estados-equipos", protegerRuta, getEstadosEquipo);
-router.patch("/estados-equipos/:id", protegerRutaTecnico, actualizarEstadoEquipo);
-router.post("/actualizar-estado-equipo/:id", protegerRutaTecnico, actualizarSoloEstadoEquipo);
+router.patch(
+  "/estados-equipos/:id",
+  protegerRutaTecnico,
+  actualizarEstadoEquipo
+);
+router.post(
+  "/actualizar-estado-equipo/:id",
+  protegerRutaTecnico,
+  actualizarSoloEstadoEquipo
+);
 
 //? Estados de sucursales
 router.get("/estados-sucursales", protegerRuta, getEstadosSucursal);
-router.post("/actualizar-estado-sucursal/:id", protegerRutaTecnico, actualizarEstadoSucursal);
+router.post(
+  "/actualizar-estado-sucursal/:id",
+  protegerRutaTecnico,
+  actualizarEstadoSucursal
+);
 
 // Permisos genericos para cualquier cuenta
 router.post("/ingresar-observacion/:id", protegerRutaTecnico, postObservacion);
@@ -331,25 +353,56 @@ router.delete(
 router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);
 router.get("/bitacoras", protegerRuta, getBitacoras);
 router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
-router.post("/bitacoras", protegerRutaTecnico, handleFiles, processFiles, crearBitacora);
-router.put("/bitacoras/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarBitacora);
+router.post(
+  "/bitacoras",
+  protegerRutaTecnico,
+  handleFiles,
+  processFiles,
+  crearBitacora
+);
+router.put(
+  "/bitacoras/:id",
+  protegerRutaTecnico,
+  handleFiles,
+  processFiles,
+  actualizarBitacora
+);
 router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
 
 // Tickets
 router.get("/tickets", protegerRuta, getTickets);
 router.get("/tickets/:id", protegerRuta, getTicketById);
-router.post("/tickets", protegerRutaTecnico, handleFiles, processFiles, crearTicket);
-router.put("/tickets/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarTicket);
+router.post(
+  "/tickets",
+  protegerRutaTecnico,
+  handleFiles,
+  processFiles,
+  crearTicket
+);
+router.put(
+  "/tickets/:id",
+  protegerRutaTecnico,
+  handleFiles,
+  processFiles,
+  actualizarTicket
+);
 router.delete("/tickets/:id", protegerRutaAdmin, eliminarTicket);
 
 // Visitas programadas
 router.get("/visitas-programadas", protegerRuta, getVisitasProgramadas);
 router.post("/visitas-programadas", protegerRutaTecnico, crearVisitaProgramada);
-router.delete("/visitas-programadas/:id", protegerRutaAdmin, eliminarVisitaProgramada);
+router.delete(
+  "/visitas-programadas/:id",
+  protegerRutaAdmin,
+  eliminarVisitaProgramada
+);
 
 // Consumo de imagenes Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);
 
 router.delete("/equipos/:id", protegerRutaTecnico, deleteEquiptment);
+
+// Logs del sistema
+router.get("/logs", protegerRutaAdmin, getLogs);
 
 export default router;

@@ -1,10 +1,17 @@
 import express from "express";
-import { crearUsuario, login, recuperarAcceso } from '../controller/usuarioController.js';
+import {
+  crearUsuario,
+  login,
+  recuperarAcceso,
+  logout,
+} from "../controller/usuarioController.js";
+import protegerRuta from "../middleware/protegerRuta.js";
 
 const router = express.Router();
 
 // URL sin proteccion
-router.post('/login', login);
-router.post('/recuperar-acceso', recuperarAcceso);
+router.post("/login", login);
+router.post("/recuperar-acceso", recuperarAcceso);
+router.post("/logout", protegerRuta, logout);
 
-export default router
+export default router;

@@ -24,6 +24,7 @@ import {
   //?estado de sucursales
   EstadoSucursalModel,
   VisitaProgramadaModel,
+  LogSistemaModel,
   ProyectoModel,
   ProyectoAdjuntoModel,
   VehiculoModel,
@@ -31,7 +32,7 @@ import {
   VehiculoSalidaAdjuntoModel,
   VehiculoSalidaTecnicoModel,
   NotificacionModel,
-  ClienteDocumentoModel
+  ClienteDocumentoModel,
 } from "../models/index.js";
 import EstadoCuenta from "../models/EstadoCuenta.js";
 import { metodosPago as vehiculoMetodosPago } from "../models/VehiculoSalida.js";
@@ -259,9 +260,10 @@ const construirDatosBancariosDesdeRegistro = (registro) => {
     return null;
   }
 
-  const origen = registro?.datosBancarios && typeof registro.datosBancarios === "object"
-    ? registro.datosBancarios
-    : registro;
+  const origen =
+    registro?.datosBancarios && typeof registro.datosBancarios === "object"
+      ? registro.datosBancarios
+      : registro;
 
   const datos = {
     banco: sanitizarDatoBancario(
@@ -273,9 +275,7 @@ const construirDatosBancariosDesdeRegistro = (registro) => {
     numeroCuenta: sanitizarDatoBancario(
       origen.numeroCuenta ?? registro.numeroCuentaBancaria
     ),
-    titular: sanitizarDatoBancario(
-      origen.titular ?? registro.titularCuenta
-    ),
+    titular: sanitizarDatoBancario(origen.titular ?? registro.titularCuenta),
     rutTitular: sanitizarDatoBancario(
       origen.rutTitular ?? registro.rutTitularCuenta
     ),
@@ -284,7 +284,9 @@ const construirDatosBancariosDesdeRegistro = (registro) => {
     ),
   };
 
-  const tieneDatos = Object.values(datos).some((valor) => valor && valor.length);
+  const tieneDatos = Object.values(datos).some(
+    (valor) => valor && valor.length
+  );
   return tieneDatos ? datos : null;
 };
 
@@ -396,7 +398,11 @@ const parseBooleanFlag = (value, defaultValue = false) => {
       return defaultValue;
     }
 
-    if (["1", "true", "si", "sí", "yes", "arriendo", "rentado"].includes(normalized)) {
+    if (
+      ["1", "true", "si", "sí", "yes", "arriendo", "rentado"].includes(
+        normalized
+      )
+    ) {
       return true;
     }
 
@@ -548,19 +554,12 @@ const obtenerConteoVisitasPorCliente = async (clienteIds = []) => {
     };
   }
 
-  const {
-    inicioMes,
-    inicioMesSiguiente,
-    inicioAnio,
-    inicioAnioSiguiente,
-  } = obtenerFechasReferenciaVisitas();
+  const { inicioMes, inicioMesSiguiente, inicioAnio, inicioAnioSiguiente } =
+    obtenerFechasReferenciaVisitas();
 
   const [visitasMensuales, visitasEmergencia] = await Promise.all([
     BitacoraModel.findAll({
-      attributes: [
-        "casaMatrizId",
-        [fn("COUNT", col("id")), "total"],
-      ],
+      attributes: ["casaMatrizId", [fn("COUNT", col("id")), "total"]],
       where: {
         casaMatrizId: { [Op.in]: clienteIds },
         isEmergencia: false,
@@ -572,10 +571,7 @@ const obtenerConteoVisitasPorCliente = async (clienteIds = []) => {
       group: ["casaMatrizId"],
     }),
     BitacoraModel.findAll({
-      attributes: [
-        "casaMatrizId",
-        [fn("COUNT", col("id")), "total"],
-      ],
+      attributes: ["casaMatrizId", [fn("COUNT", col("id")), "total"]],
       where: {
         casaMatrizId: { [Op.in]: clienteIds },
         isEmergencia: true,
@@ -971,9 +967,7 @@ const cargarProyectoDetalle = async (proyectoId) => {
     ],
   });
 
-  respuesta.tickets = tickets.map((row) =>
-    row.toJSON ? row.toJSON() : row
-  );
+  respuesta.tickets = tickets.map((row) => (row.toJSON ? row.toJSON() : row));
   respuesta.totalTickets = respuesta.tickets.length;
 
   return respuesta;
@@ -1046,10 +1040,7 @@ const postCuenta = async (req, res) => {
       }
 
       if (tipoCuentaFinal === 4) {
-        updates.haveTickets = parseBooleanFlag(
-          haveTickets,
-          cuenta.haveTickets
-        );
+        updates.haveTickets = parseBooleanFlag(haveTickets, cuenta.haveTickets);
       } else if (tipoCuentaFinal === 1 || tipoCuentaFinal === 2) {
         updates.haveTickets = true;
       } else {
@@ -1089,18 +1080,11 @@ const postCuenta = async (req, res) => {
     }
 
     if (!password || password.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "La contraseÃ±a es obligatoria." });
+      return res.status(400).json({ error: "La contraseÃ±a es obligatoria." });
     }
 
-    if (
-      tipoCuentaNumero === undefined ||
-      Number.isNaN(tipoCuentaNumero)
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Tipo de cuenta invÃ¡lido." });
+    if (tipoCuentaNumero === undefined || Number.isNaN(tipoCuentaNumero)) {
+      return res.status(400).json({ error: "Tipo de cuenta invÃ¡lido." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1113,9 +1097,7 @@ const postCuenta = async (req, res) => {
       password: hashedPassword,
       estadoCuentaId: 1,
       esTecnico:
-          tipoCuentaNumero === 1
-            ? parseBooleanFlag(esTecnico, false)
-            : false,
+        tipoCuentaNumero === 1 ? parseBooleanFlag(esTecnico, false) : false,
       haveTickets:
         tipoCuentaNumero === 4
           ? parseBooleanFlag(haveTickets, false)
@@ -1137,9 +1119,7 @@ const postCuenta = async (req, res) => {
     return res.json(cuentaConAsociaciones);
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ error: "Error al procesar la cuenta." });
+    return res.status(500).json({ error: "Error al procesar la cuenta." });
   }
 };
 
@@ -1321,7 +1301,9 @@ const getPerfil = async (req, res) => {
     const perfilPlano = perfil?.toJSON ? perfil.toJSON() : perfil;
     if (perfilPlano) {
       const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
-      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map(
+      perfilPlano.clientesAutorizados = (
+        perfilPlano.clientesAutorizados ?? []
+      ).map(
         (cliente) =>
           transformarClienteRespuesta(cliente, {
             incluirDatosBancarios,
@@ -1350,13 +1332,8 @@ const actualizarPerfil = async (req, res) => {
       return res.status(404).json({ error: "Cuenta no encontrada." });
     }
 
-    const {
-      name,
-      telefono,
-      email,
-      passwordActual,
-      nuevoPassword,
-    } = req.body ?? {};
+    const { name, telefono, email, passwordActual, nuevoPassword } =
+      req.body ?? {};
 
     const esCliente = cuenta.tipoCuentaId === 4;
 
@@ -1395,10 +1372,7 @@ const actualizarPerfil = async (req, res) => {
     }
 
     if (!esCliente) {
-      if (
-        telefonoParsed !== undefined &&
-        Number.isFinite(telefonoParsed)
-      ) {
+      if (telefonoParsed !== undefined && Number.isFinite(telefonoParsed)) {
         cuenta.telefono = telefonoParsed;
       } else if (telefono === "" || telefono === null) {
         cuenta.telefono = null;
@@ -1408,7 +1382,8 @@ const actualizarPerfil = async (req, res) => {
     if (nuevoPassword) {
       if (!passwordActual) {
         return res.status(400).json({
-          error: "Debes proporcionar la contrasena actual para realizar el cambio.",
+          error:
+            "Debes proporcionar la contrasena actual para realizar el cambio.",
         });
       }
 
@@ -1428,10 +1403,14 @@ const actualizarPerfil = async (req, res) => {
       "eliminarCampos"
     ).findByPk(cuenta.id, { include: cuentaIncludes });
 
-    const perfilPlano = perfilActualizado?.toJSON ? perfilActualizado.toJSON() : perfilActualizado;
+    const perfilPlano = perfilActualizado?.toJSON
+      ? perfilActualizado.toJSON()
+      : perfilActualizado;
     if (perfilPlano) {
       const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
-      perfilPlano.clientesAutorizados = (perfilPlano.clientesAutorizados ?? []).map(
+      perfilPlano.clientesAutorizados = (
+        perfilPlano.clientesAutorizados ?? []
+      ).map(
         (cliente) =>
           transformarClienteRespuesta(cliente, {
             incluirDatosBancarios,
@@ -1464,10 +1443,8 @@ const postCliente = async (req, res) => {
       servicios,
       esLead: esLeadEntrada,
     } = req.body ?? {};
-    const {
-      presente: datosBancariosPresentes,
-      datos: datosBancarios,
-    } = obtenerDatosBancariosDesdeBody(req.body);
+    const { presente: datosBancariosPresentes, datos: datosBancarios } =
+      obtenerDatosBancariosDesdeBody(req.body);
     const imagenName = req.uploadedFile;
     const esLead = parseBooleanFlag(esLeadEntrada, false);
     console.log("Valor de req.uploadedFile en postCliente:", imagenName);
@@ -1545,8 +1522,9 @@ const postCliente = async (req, res) => {
       });
     }
 
-    const visitasEmergenciaParse =
-      parseNonNegativeInt(visitasEmergenciaAnuales);
+    const visitasEmergenciaParse = parseNonNegativeInt(
+      visitasEmergenciaAnuales
+    );
     if (!visitasEmergenciaParse.valid) {
       return res.status(400).json({
         resp: "Error: La cantidad de visitas de emergencia anuales debe ser un número válido mayor o igual a 0",
@@ -1581,7 +1559,9 @@ const postCliente = async (req, res) => {
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
       esLead,
-      ...mapearDatosBancariosADB(datosBancariosPresentes ? datosBancarios : null),
+      ...mapearDatosBancariosADB(
+        datosBancariosPresentes ? datosBancarios : null
+      ),
     });
 
     return res.json({ resp: "Cliente creado correctamente" });
@@ -1609,7 +1589,7 @@ const postEliminarCliente = async (req, res) => {
 
     // Buscar y eliminar equipos asociados al cliente
     const equiposAsociados = await EquipoModel.findAll({
-      where: { casaMatrizId: id }
+      where: { casaMatrizId: id },
     });
 
     if (equiposAsociados && equiposAsociados.length > 0) {
@@ -1621,18 +1601,18 @@ const postEliminarCliente = async (req, res) => {
     // Eliminar el cliente
     await cliente.destroy();
 
-    return res.json({ 
+    return res.json({
       resp: "Cliente eliminado correctamente",
       success: true,
       clienteId: id,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error al eliminar cliente:", error);
-    return res.status(500).json({ 
-      resp: "Error al eliminar cliente", 
+    return res.status(500).json({
+      resp: "Error al eliminar cliente",
       error: error.message,
-      success: false
+      success: false,
     });
   }
 };
@@ -1663,10 +1643,8 @@ const postModificarCliente = async (req, res) => {
       esLead: esLeadEntrada,
     } = body;
 
-    const {
-      presente: datosBancariosPresentes,
-      datos: datosBancarios,
-    } = obtenerDatosBancariosDesdeBody(body);
+    const { presente: datosBancariosPresentes, datos: datosBancarios } =
+      obtenerDatosBancariosDesdeBody(body);
 
     const esLead = parseBooleanFlag(esLeadEntrada, cliente.esLead);
     const campoFueEnviado = (campo) =>
@@ -1925,8 +1903,16 @@ const postEquipo = async (req, res) => {
   let imagenName = null;
   if (req.uploadedFile) {
     imagenName = req.uploadedFile;
-    if (!imagenName || typeof imagenName !== 'string' || imagenName.trim() === '') {
-      return res.status(400).json({ error: "Error al subir la imagen. Nombre de archivo invÃ¡lido." });
+    if (
+      !imagenName ||
+      typeof imagenName !== "string" ||
+      imagenName.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: "Error al subir la imagen. Nombre de archivo invÃ¡lido.",
+        });
     }
   }
 
@@ -2019,7 +2005,9 @@ const postEquipo = async (req, res) => {
       equipoData.imagen = imagenName;
     }
 
-    const nuevoEquipo = await EquipoModel.create(equipoData, { transaction: t });
+    const nuevoEquipo = await EquipoModel.create(equipoData, {
+      transaction: t,
+    });
 
     await t.commit();
     return res.json({
@@ -2071,14 +2059,18 @@ const postModificarEquipo = async (req, res) => {
   const { id } = req.params;
 
   if (!id) {
-    return res.status(400).json({ resp: "Error al intentar modificar el equipo" });
+    return res
+      .status(400)
+      .json({ resp: "Error al intentar modificar el equipo" });
   }
 
   try {
     const equipo = await EquipoModel.findByPk(id);
 
     if (!equipo) {
-      return res.status(404).json({ resp: "Equipo no encontrado, intente nuevamente" });
+      return res
+        .status(404)
+        .json({ resp: "Equipo no encontrado, intente nuevamente" });
     }
 
     const {
@@ -2106,11 +2098,11 @@ const postModificarEquipo = async (req, res) => {
       if (valor === null) {
         return null;
       }
-      if (typeof valor !== 'string') {
+      if (typeof valor !== "string") {
         return valor;
       }
       const trimmed = valor.trim();
-      if (trimmed === '' || trimmed.toLowerCase() === 'null') {
+      if (trimmed === "" || trimmed.toLowerCase() === "null") {
         return null;
       }
       return trimmed;
@@ -2148,25 +2140,22 @@ const postModificarEquipo = async (req, res) => {
       datosActualizados[clave] = parseBooleanFlag(valor, actual);
     };
 
-    asignarCadena('marca', marca);
-    asignarCadena('modelo', modelo);
-    asignarCadena('numeroSerie', numeroSerie);
-    asignarCadena('usuario', usuario);
-    asignarCadena('procesador', procesador);
-    asignarCadena('velocidadProcesador', velocidadProcesador);
-    asignarCadena('tipoAlmacenamiento', tipoAlmacenamiento);
-    asignarCadena('sistemaOperativo', sistemaOperativo);
-    asignarCadena('ofimatica', ofimatica);
-    asignarCadena('antivirus', antivirus);
-    asignarEntero('ram', ram);
-    asignarEntero('cantidadAlmacenamiento', cantidadAlmacenamiento);
+    asignarCadena("marca", marca);
+    asignarCadena("modelo", modelo);
+    asignarCadena("numeroSerie", numeroSerie);
+    asignarCadena("usuario", usuario);
+    asignarCadena("procesador", procesador);
+    asignarCadena("velocidadProcesador", velocidadProcesador);
+    asignarCadena("tipoAlmacenamiento", tipoAlmacenamiento);
+    asignarCadena("sistemaOperativo", sistemaOperativo);
+    asignarCadena("ofimatica", ofimatica);
+    asignarCadena("antivirus", antivirus);
+    asignarEntero("ram", ram);
+    asignarEntero("cantidadAlmacenamiento", cantidadAlmacenamiento);
 
-    asignarBooleano('esArriendo', esArriendo, Boolean(equipo.esArriendo));
+    asignarBooleano("esArriendo", esArriendo, Boolean(equipo.esArriendo));
 
-    if (
-      departamentoId !== undefined ||
-      departamentoTexto !== undefined
-    ) {
+    if (departamentoId !== undefined || departamentoTexto !== undefined) {
       let departamentoNombre;
 
       if (
@@ -2185,8 +2174,9 @@ const postModificarEquipo = async (req, res) => {
           });
         }
 
-        const registroDepartamento =
-          await DepartamentoEquipoModel.findByPk(parsedDepartamentoId);
+        const registroDepartamento = await DepartamentoEquipoModel.findByPk(
+          parsedDepartamentoId
+        );
 
         if (!registroDepartamento) {
           return res.status(400).json({
@@ -2224,8 +2214,10 @@ const postModificarEquipo = async (req, res) => {
 
     return res.json({ resp: "Equipo modificado correctamente." });
   } catch (error) {
-    console.error('Error al modificar el equipo:', error);
-    return res.status(500).json({ resp: "Hubo un error al modificar el equipo." });
+    console.error("Error al modificar el equipo:", error);
+    return res
+      .status(500)
+      .json({ resp: "Hubo un error al modificar el equipo." });
   }
 };
 
@@ -2423,7 +2415,9 @@ const getResults = async (req, res) => {
   let clientesRespuesta = [];
   if (clientes.length) {
     const ids = clientes.map((cliente) => cliente.id);
-    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente(ids);
+    const { mensuales, emergencias } = await obtenerConteoVisitasPorCliente(
+      ids
+    );
 
     clientesRespuesta = clientes.map((cliente) => {
       const respuestaBase =
@@ -2623,9 +2617,20 @@ const getSucursalesPorCliente = async (req, res) => {
     const sucursales = await SucursalModel.findAll({
       where: { casaMatrizId: id },
       order: [["sucursal", "ASC"]],
-      attributes: ["id", "sucursal", "estado", "encargadoSucursal", "correoSucursal", "telefonoSucursal"],
+      attributes: [
+        "id",
+        "sucursal",
+        "estado",
+        "encargadoSucursal",
+        "correoSucursal",
+        "telefonoSucursal",
+      ],
       include: [
-        { model: EstadoSucursalModel, as: "estadoSucursal", attributes: ["id", "name"] },
+        {
+          model: EstadoSucursalModel,
+          as: "estadoSucursal",
+          attributes: ["id", "name"],
+        },
       ],
     });
 
@@ -2717,7 +2722,9 @@ const getSucursalById = async (req, res) => {
   const fechaInicioFiltro = parseDateOnly(fechaInicio);
   const fechaFinFiltro = parseDateOnly(fechaFin);
   if (fechaInicioFiltro && fechaFinFiltro) {
-    whereEquipos.fechaIngreso = { [Op.between]: [fechaInicioFiltro, fechaFinFiltro] };
+    whereEquipos.fechaIngreso = {
+      [Op.between]: [fechaInicioFiltro, fechaFinFiltro],
+    };
   } else if (fechaInicioFiltro) {
     whereEquipos.fechaIngreso = { [Op.gte]: fechaInicioFiltro };
   } else if (fechaFinFiltro) {
@@ -2810,20 +2817,23 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
     if (!autorizados.includes(id)) {
       return res
         .status(403)
-        .json({ error: "No tiene permisos para ver los equipos de este cliente." });
+        .json({
+          error: "No tiene permisos para ver los equipos de este cliente.",
+        });
     }
   }
 
   try {
     const equipos = await EquipoModel.findAll({
       where: {
-        [Op.or]: [
-          { casaMatrizId: id },
-          { '$sucursal.casaMatrizId$': id },
-        ],
+        [Op.or]: [{ casaMatrizId: id }, { "$sucursal.casaMatrizId$": id }],
       },
       include: [
-        { model: CasaMatrizModel, as: "casaMatriz", attributes: ["id", "razonSocial"] },
+        {
+          model: CasaMatrizModel,
+          as: "casaMatriz",
+          attributes: ["id", "razonSocial"],
+        },
         {
           model: SucursalModel,
           as: "sucursal",
@@ -2831,7 +2841,11 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
           required: false,
           where: { casaMatrizId: id },
         },
-        { model: TipoEquipoModel, as: "tipoEquipo", attributes: ["id", "name"] },
+        {
+          model: TipoEquipoModel,
+          as: "tipoEquipo",
+          attributes: ["id", "name"],
+        },
       ],
       order: [["numeroSecuencial", "ASC"]],
     });
@@ -3001,9 +3015,7 @@ const obtenerCuentaIdsPorNombres = async (nombres) => {
 
   const normalizados = Array.from(
     new Set(
-      nombres
-        .map((item) => `${item}`.trim())
-        .filter((item) => item.length > 0)
+      nombres.map((item) => `${item}`.trim()).filter((item) => item.length > 0)
     )
   );
 
@@ -3042,8 +3054,7 @@ const extraerIdsTecnicosAsignacion = async (body, tecnicosNombres) => {
 };
 
 const construirNotificacionBitacora = (bitacora) => {
-  const cliente =
-    bitacora?.casaMatriz?.razonSocial ?? "Cliente sin nombre";
+  const cliente = bitacora?.casaMatriz?.razonSocial ?? "Cliente sin nombre";
   let fecha = null;
   if (bitacora?.fechaVisita) {
     const date = new Date(bitacora.fechaVisita);
@@ -3107,18 +3118,12 @@ const crearNotificacionesAsignacionBitacora = async (
   cuentaIds,
   asignadoPorId
 ) => {
-  if (
-    !bitacora ||
-    !Array.isArray(cuentaIds) ||
-    cuentaIds.length === 0
-  ) {
+  if (!bitacora || !Array.isArray(cuentaIds) || cuentaIds.length === 0) {
     return;
   }
 
   const idsUnicos = Array.from(
-    new Set(
-      cuentaIds.filter((id) => Number.isInteger(id) && id > 0)
-    )
+    new Set(cuentaIds.filter((id) => Number.isInteger(id) && id > 0))
   );
 
   if (!idsUnicos.length) {
@@ -3793,9 +3798,7 @@ const crearCampo = async (req, res) => {
     return res.status(201).json(campo);
   } catch (error) {
     console.error("Error al crear el campo:", error);
-    return res
-      .status(500)
-      .json({ error: "Hubo un error al crear el campo." });
+    return res.status(500).json({ error: "Hubo un error al crear el campo." });
   }
 };
 
@@ -3942,11 +3945,9 @@ const obtenerDepartamentosEquipo = async (_req, res) => {
     return res.json(departamentos);
   } catch (error) {
     console.error("Error al obtener los departamentos de equipo:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Hubo un error al obtener los departamentos de equipo.",
-      });
+    return res.status(500).json({
+      error: "Hubo un error al obtener los departamentos de equipo.",
+    });
   }
 };
 
@@ -3960,12 +3961,9 @@ const crearDepartamentoEquipo = async (req, res) => {
   }
 
   if (nombre.length < 2) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "El nombre del departamento debe tener al menos 2 caracteres.",
-      });
+    return res.status(400).json({
+      error: "El nombre del departamento debe tener al menos 2 caracteres.",
+    });
   }
 
   try {
@@ -3994,11 +3992,9 @@ const crearDepartamentoEquipo = async (req, res) => {
       });
     }
 
-    return res
-      .status(500)
-      .json({
-        error: "Hubo un error al crear el departamento de equipo.",
-      });
+    return res.status(500).json({
+      error: "Hubo un error al crear el departamento de equipo.",
+    });
   }
 };
 
@@ -4022,12 +4018,9 @@ const actualizarDepartamentoEquipo = async (req, res) => {
   }
 
   if (nombre.length < 2) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "El nombre del departamento debe tener al menos 2 caracteres.",
-      });
+    return res.status(400).json({
+      error: "El nombre del departamento debe tener al menos 2 caracteres.",
+    });
   }
 
   const t = await db.transaction();
@@ -4070,11 +4063,9 @@ const actualizarDepartamentoEquipo = async (req, res) => {
     }
 
     console.error("Error al actualizar el departamento de equipo:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Hubo un error al actualizar el departamento de equipo.",
-      });
+    return res.status(500).json({
+      error: "Hubo un error al actualizar el departamento de equipo.",
+    });
   }
 };
 
@@ -4107,11 +4098,9 @@ const eliminarDepartamentoEquipo = async (req, res) => {
     });
   } catch (error) {
     console.error("Error al eliminar el departamento de equipo:", error);
-    return res
-      .status(500)
-      .json({
-        error: "Hubo un error al eliminar el departamento de equipo.",
-      });
+    return res.status(500).json({
+      error: "Hubo un error al eliminar el departamento de equipo.",
+    });
   }
 };
 
@@ -4151,11 +4140,13 @@ const getEquipmentById = async (req, res) => {
 //?get estado de equipos
 const getEstadosEquipo = async (req, res) => {
   try {
-      const estados = await EstadoEquipoModel.findAll();
-      res.json(estados);
+    const estados = await EstadoEquipoModel.findAll();
+    res.json(estados);
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ msg: 'Hubo un error al obtener los estados de equipos' });
+    console.log(error);
+    res
+      .status(500)
+      .json({ msg: "Hubo un error al obtener los estados de equipos" });
   }
 };
 
@@ -4165,26 +4156,28 @@ const actualizarEstadoEquipo = async (req, res) => {
   const { estado } = req.body;
 
   try {
-      const equipo = await EquipoModel.findByPk(id);
-      
-      if (!equipo) {
-          return res.status(404).json({ msg: 'Equipo no encontrado' });
-      }
+    const equipo = await EquipoModel.findByPk(id);
 
-      // Verificar que el estado exista
-      const estadoExiste = await EstadoEquipoModel.findByPk(estado);
-      if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de equipo no vÃ¡lido' });
-      }
+    if (!equipo) {
+      return res.status(404).json({ msg: "Equipo no encontrado" });
+    }
 
-      // Actualizar el estado
-      equipo.estado = estado;
-      await equipo.save();
+    // Verificar que el estado exista
+    const estadoExiste = await EstadoEquipoModel.findByPk(estado);
+    if (!estadoExiste) {
+      return res.status(400).json({ msg: "Estado de equipo no vÃ¡lido" });
+    }
 
-      res.json({ msg: 'Estado de equipo actualizado correctamente' });
+    // Actualizar el estado
+    equipo.estado = estado;
+    await equipo.save();
+
+    res.json({ msg: "Estado de equipo actualizado correctamente" });
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ msg: 'Hubo un error al actualizar el estado del equipo' });
+    console.log(error);
+    res
+      .status(500)
+      .json({ msg: "Hubo un error al actualizar el estado del equipo" });
   }
 };
 
@@ -4194,28 +4187,27 @@ const actualizarSoloEstadoEquipo = async (req, res) => {
   const { estado } = req.body;
 
   try {
-      const equipo = await EquipoModel.findByPk(id);
-      
-      if (!equipo) {
-          return res.status(404).json({ msg: 'Equipo no encontrado' });
-      }
+    const equipo = await EquipoModel.findByPk(id);
 
-      // Verificar que el estado exista
-      const estadoExiste = await EstadoEquipoModel.findByPk(estado);
-      if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de equipo no vÃ¡lido' });
-      }
+    if (!equipo) {
+      return res.status(404).json({ msg: "Equipo no encontrado" });
+    }
 
-      // Actualizar SOLO el estado usando update en lugar de save
-      await EquipoModel.update(
-          { estado: estado },
-          { where: { id: id } }
-      );
+    // Verificar que el estado exista
+    const estadoExiste = await EstadoEquipoModel.findByPk(estado);
+    if (!estadoExiste) {
+      return res.status(400).json({ msg: "Estado de equipo no vÃ¡lido" });
+    }
 
-      res.json({ msg: 'Estado de equipo actualizado correctamente' });
+    // Actualizar SOLO el estado usando update en lugar de save
+    await EquipoModel.update({ estado: estado }, { where: { id: id } });
+
+    res.json({ msg: "Estado de equipo actualizado correctamente" });
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ msg: 'Hubo un error al actualizar el estado del equipo' });
+    console.log(error);
+    res
+      .status(500)
+      .json({ msg: "Hubo un error al actualizar el estado del equipo" });
   }
 };
 
@@ -4226,7 +4218,7 @@ const generarUrl = async (req, res) => {
     res.json({ signedUrl });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: 'Error al generar la URL firmada' });
+    res.status(500).json({ error: "Error al generar la URL firmada" });
   }
 };
 
@@ -4318,18 +4310,18 @@ const getBitacoras = async (req, res) => {
     });
 
     const data = rows.map((row) => row.toJSON());
-      // Log para verificar adjuntos
-      if (data.length > 0) {
-        console.log('Bitacoras listado, ejemplo adjuntos:', data[0].adjuntos);
-      } else {
-        console.log('Bitacoras listado vacÃ­o');
-      }
-      return res.json({
-        data,
-        total: count,
-        pagina: pageNumber,
-        paginasTotales: Math.ceil(count / limitNumber),
-      });
+    // Log para verificar adjuntos
+    if (data.length > 0) {
+      console.log("Bitacoras listado, ejemplo adjuntos:", data[0].adjuntos);
+    } else {
+      console.log("Bitacoras listado vacÃ­o");
+    }
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
   } catch (error) {
     console.error("Error al obtener bitacoras:", error);
     return res
@@ -4518,7 +4510,7 @@ const crearBitacora = async (req, res) => {
       }
       proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
       if (!proyectoSeleccionado) {
-      return res.status(404).json({ error: "Proyecto no encontrado." });
+        return res.status(404).json({ error: "Proyecto no encontrado." });
       }
     }
 
@@ -4693,15 +4685,12 @@ const crearVisitaProgramada = async (req, res) => {
       estado: "pendiente",
     });
 
-    const visitaCreada = await VisitaProgramadaModel.findByPk(
-      nuevaVisita.id,
-      {
-        include: [
-          { model: CasaMatrizModel, as: "casaMatriz" },
-          { model: SucursalModel, as: "sucursal" },
-        ],
-      }
-    );
+    const visitaCreada = await VisitaProgramadaModel.findByPk(nuevaVisita.id, {
+      include: [
+        { model: CasaMatrizModel, as: "casaMatriz" },
+        { model: SucursalModel, as: "sucursal" },
+      ],
+    });
 
     return res.status(201).json(visitaCreada);
   } catch (error) {
@@ -4827,7 +4816,9 @@ const actualizarBitacora = async (req, res) => {
         if (!casaMatrizId) {
           return res
             .status(400)
-            .json({ error: "El cliente de la bitacora no puede quedar vacio." });
+            .json({
+              error: "El cliente de la bitacora no puede quedar vacio.",
+            });
         }
         const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
         if (!cliente) {
@@ -4841,7 +4832,7 @@ const actualizarBitacora = async (req, res) => {
           return res
             .status(400)
             .json({ error: "La fecha de la visita no es valida." });
-      }
+        }
         cambios.fechaVisita = fechaVisita;
       }
 
@@ -4898,16 +4889,14 @@ const actualizarBitacora = async (req, res) => {
         } else {
           const sucursal = await SucursalModel.findByPk(sucursalId);
           if (!sucursal) {
-            return res
-              .status(404)
-              .json({ error: "Sucursal no encontrada." });
+            return res.status(404).json({ error: "Sucursal no encontrada." });
           }
 
-          const clienteDestino =
-            cambios.casaMatrizId ?? bitacora.casaMatrizId;
+          const clienteDestino = cambios.casaMatrizId ?? bitacora.casaMatrizId;
           if (sucursal.casaMatrizId !== clienteDestino) {
             return res.status(400).json({
-              error: "La sucursal seleccionada no pertenece al cliente indicado.",
+              error:
+                "La sucursal seleccionada no pertenece al cliente indicado.",
             });
           }
 
@@ -4930,13 +4919,14 @@ const actualizarBitacora = async (req, res) => {
       ? cambios.horaSalida
       : bitacora.horaSalida;
 
-    const llegadaDateFinal = horaLlegadaFinal ? new Date(horaLlegadaFinal) : null;
+    const llegadaDateFinal = horaLlegadaFinal
+      ? new Date(horaLlegadaFinal)
+      : null;
     const salidaDateFinal = horaSalidaFinal ? new Date(horaSalidaFinal) : null;
 
     if (!llegadaDateFinal || !salidaDateFinal) {
       return res.status(400).json({
-        error:
-          "Las horas de llegada y salida son obligatorias para bitacoras.",
+        error: "Las horas de llegada y salida son obligatorias para bitacoras.",
       });
     }
     if (salidaDateFinal <= llegadaDateFinal) {
@@ -4946,7 +4936,9 @@ const actualizarBitacora = async (req, res) => {
     }
 
     if (Object.keys(cambios).length === 0) {
-      const current = await BitacoraModel.findByPk(id, { include: bitacoraIncludes });
+      const current = await BitacoraModel.findByPk(id, {
+        include: bitacoraIncludes,
+      });
       return res.json(current);
     }
 
@@ -4973,12 +4965,13 @@ const actualizarBitacora = async (req, res) => {
           const actualesEvidencia = Array.isArray(bitacora.adjuntosTermino)
             ? bitacora.adjuntosTermino
             : [];
-          bitacora.adjuntosTermino =
-            actualesEvidencia.concat(nuevosAdjuntosEvidencia);
+          bitacora.adjuntosTermino = actualesEvidencia.concat(
+            nuevosAdjuntosEvidencia
+          );
         }
         await bitacora.save();
       } catch (err) {
-        console.error('Error al anexar adjuntos a bitacora:', err);
+        console.error("Error al anexar adjuntos a bitacora:", err);
       }
     }
     await bitacora.reload({ include: bitacoraIncludes });
@@ -5005,9 +4998,7 @@ const actualizarBitacora = async (req, res) => {
         (nombre) => !previosSet.has(nombre)
       );
       if (nuevosNombres.length) {
-        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(
-          nuevosNombres
-        );
+        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(nuevosNombres);
       }
     }
 
@@ -5312,11 +5303,7 @@ const crearTicket = async (req, res) => {
       salidaDate = new Date(horaSalida);
     }
 
-    if (
-      llegadaDate &&
-      salidaDate &&
-      salidaDate < llegadaDate
-    ) {
+    if (llegadaDate && salidaDate && salidaDate < llegadaDate) {
       return res.status(400).json({
         error: "La hora de salida debe ser posterior a la hora de llegada.",
       });
@@ -5406,9 +5393,7 @@ const crearTicket = async (req, res) => {
     return res.status(201).json(ticketCreado);
   } catch (error) {
     console.error("Error al crear ticket:", error);
-    return res
-      .status(500)
-      .json({ error: "Hubo un error al crear el ticket." });
+    return res.status(500).json({ error: "Hubo un error al crear el ticket." });
   }
 };
 
@@ -5655,16 +5640,14 @@ const actualizarTicket = async (req, res) => {
         } else {
           const sucursal = await SucursalModel.findByPk(sucursalId);
           if (!sucursal) {
-            return res
-              .status(404)
-              .json({ error: "Sucursal no encontrada." });
+            return res.status(404).json({ error: "Sucursal no encontrada." });
           }
 
-          const clienteDestino =
-            cambios.casaMatrizId ?? ticket.casaMatrizId;
+          const clienteDestino = cambios.casaMatrizId ?? ticket.casaMatrizId;
           if (sucursal.casaMatrizId !== clienteDestino) {
             return res.status(400).json({
-              error: "La sucursal seleccionada no pertenece al cliente indicado.",
+              error:
+                "La sucursal seleccionada no pertenece al cliente indicado.",
             });
           }
 
@@ -5736,7 +5719,9 @@ const actualizarTicket = async (req, res) => {
     }
 
     if (Object.keys(cambios).length === 0) {
-      const current = await TicketModel.findByPk(id, { include: ticketIncludes });
+      const current = await TicketModel.findByPk(id, {
+        include: ticketIncludes,
+      });
       return res.json(current);
     }
 
@@ -5763,12 +5748,13 @@ const actualizarTicket = async (req, res) => {
           const actualesEvidencia = Array.isArray(ticket.adjuntosTermino)
             ? ticket.adjuntosTermino
             : [];
-          ticket.adjuntosTermino =
-            actualesEvidencia.concat(nuevosAdjuntosEvidencia);
+          ticket.adjuntosTermino = actualesEvidencia.concat(
+            nuevosAdjuntosEvidencia
+          );
         }
         await ticket.save();
       } catch (err) {
-        console.error('Error al anexar adjuntos a ticket:', err);
+        console.error("Error al anexar adjuntos a ticket:", err);
       }
     }
     await ticket.reload({ include: ticketIncludes });
@@ -5787,17 +5773,15 @@ const actualizarTicket = async (req, res) => {
         tecnicosPrevios.map((nombre) => normalizarNombreTecnico(nombre))
       );
       const actualesSet = new Set(
-        (Array.isArray(ticket.tecnicos) ? ticket.tecnicos : []).map(
-          (nombre) => normalizarNombreTecnico(nombre)
+        (Array.isArray(ticket.tecnicos) ? ticket.tecnicos : []).map((nombre) =>
+          normalizarNombreTecnico(nombre)
         )
       );
       const nuevosNombres = Array.from(actualesSet).filter(
         (nombre) => !previosSet.has(nombre)
       );
       if (nuevosNombres.length) {
-        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(
-          nuevosNombres
-        );
+        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(nuevosNombres);
       }
     }
 
@@ -5902,9 +5886,7 @@ const getNotificaciones = async (req, res) => {
 const marcarNotificacionesLeidas = async (req, res) => {
   try {
     const usuarioId = req.usuario.id;
-    const idsEntrada = Array.isArray(req.body?.ids)
-      ? req.body.ids
-      : [];
+    const idsEntrada = Array.isArray(req.body?.ids) ? req.body.ids : [];
     const marcarTodas =
       `${req.body?.marcarTodas ?? ""}`.trim().toLowerCase() === "true";
 
@@ -5932,7 +5914,9 @@ const marcarNotificacionesLeidas = async (req, res) => {
     if (!ids.length) {
       return res
         .status(400)
-        .json({ error: "Debe indicar las notificaciones a marcar como leidas." });
+        .json({
+          error: "Debe indicar las notificaciones a marcar como leidas.",
+        });
     }
 
     const [actualizadas] = await NotificacionModel.update(
@@ -5960,7 +5944,9 @@ const eliminarVisitaProgramada = async (req, res) => {
 
     const visita = await VisitaProgramadaModel.findByPk(id);
     if (!visita) {
-      return res.status(404).json({ error: "Visita programada no encontrada." });
+      return res
+        .status(404)
+        .json({ error: "Visita programada no encontrada." });
     }
 
     await visita.destroy();
@@ -5976,11 +5962,33 @@ const eliminarVisitaProgramada = async (req, res) => {
 //?get estado de sucursales
 const getEstadosSucursal = async (req, res) => {
   try {
-      const estados = await EstadoSucursalModel.findAll();
-      res.json(estados);
+    const estados = await EstadoSucursalModel.findAll();
+    res.json(estados);
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ msg: 'Hubo un error al obtener los estados de sucursales' });
+    console.log(error);
+    res
+      .status(500)
+      .json({ msg: "Hubo un error al obtener los estados de sucursales" });
+  }
+};
+
+const getLogs = async (req, res) => {
+  try {
+    const logs = await LogSistemaModel.findAll({
+      include: [
+        {
+          model: CuentaModel,
+          as: "usuario",
+          attributes: ["id", "name", "email"],
+        },
+      ],
+      order: [["fecha", "DESC"]],
+      limit: 100, // Limit to last 100 logs for performance
+    });
+    res.json(logs);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ msg: "Hubo un error al obtener los logs" });
   }
 };
 
@@ -5990,37 +5998,29 @@ const actualizarEstadoSucursal = async (req, res) => {
   const { estado } = req.body;
 
   try {
-      const sucursal = await SucursalModel.findByPk(id);
-      
-      if (!sucursal) {
-          return res.status(404).json({ msg: 'Sucursal no encontrada' });
-      }
+    const sucursal = await SucursalModel.findByPk(id);
 
-      // Verificar que el estado exista
-      const estadoExiste = await EstadoSucursalModel.findByPk(estado);
-      if (!estadoExiste) {
-          return res.status(400).json({ msg: 'Estado de sucursal no vÃ¡lido' });
-      }
+    if (!sucursal) {
+      return res.status(404).json({ msg: "Sucursal no encontrada" });
+    }
 
-      // Actualizar SOLO el estado usando update en lugar de save
-      await SucursalModel.update(
-          { estado: estado },
-          { where: { id: id } }
-      );
+    // Verificar que el estado exista
+    const estadoExiste = await EstadoSucursalModel.findByPk(estado);
+    if (!estadoExiste) {
+      return res.status(400).json({ msg: "Estado de sucursal no vÃ¡lido" });
+    }
 
-      res.json({ msg: 'Estado de sucursal actualizado correctamente' });
+    // Actualizar SOLO el estado usando update en lugar de save
+    await SucursalModel.update({ estado: estado }, { where: { id: id } });
+
+    res.json({ msg: "Estado de sucursal actualizado correctamente" });
   } catch (error) {
-      console.log(error);
-      res.status(500).json({ msg: 'Hubo un error al actualizar el estado de la sucursal' });
+    console.log(error);
+    res
+      .status(500)
+      .json({ msg: "Hubo un error al actualizar el estado de la sucursal" });
   }
 };
-
-
-
-
-
-
-
 
 const getDocumentacionClientes = async (req, res) => {
   try {
@@ -6089,9 +6089,7 @@ const crearDocumentoCliente = async (req, res) => {
     }
 
     const clienteId =
-      typeof req.body?.clienteId === "string"
-        ? req.body.clienteId.trim()
-        : "";
+      typeof req.body?.clienteId === "string" ? req.body.clienteId.trim() : "";
 
     if (!clienteId.length) {
       return res.status(400).json({ error: "Debe seleccionar un cliente." });
@@ -6188,7 +6186,6 @@ const eliminarDocumentoCliente = async (req, res) => {
       .json({ error: "Hubo un error al eliminar el documento." });
   }
 };
-
 
 const getProyectos = async (req, res) => {
   try {
@@ -6313,7 +6310,9 @@ const crearProyecto = async (req, res) => {
         raw: true,
       });
       const existentesSet = new Set(existentes.map((row) => row.id));
-      const faltantes = encargadosIds.filter((idEncargado) => !existentesSet.has(idEncargado));
+      const faltantes = encargadosIds.filter(
+        (idEncargado) => !existentesSet.has(idEncargado)
+      );
       if (faltantes.length) {
         return res.status(400).json({
           error: "Uno o mas encargados seleccionados no existen.",
@@ -6357,7 +6356,8 @@ const crearProyecto = async (req, res) => {
       fechaTerminoNormalizada < fechaInicioNormalizada
     ) {
       return res.status(400).json({
-        error: "La fecha de termino no puede ser anterior a la fecha de inicio.",
+        error:
+          "La fecha de termino no puede ser anterior a la fecha de inicio.",
       });
     }
 
@@ -6453,7 +6453,9 @@ const actualizarProyecto = async (req, res) => {
           raw: true,
         });
         const existentesSet = new Set(existentes.map((row) => row.id));
-        const faltantes = encargadosIds.filter((idEncargado) => !existentesSet.has(idEncargado));
+        const faltantes = encargadosIds.filter(
+          (idEncargado) => !existentesSet.has(idEncargado)
+        );
         if (faltantes.length) {
           return res.status(400).json({
             error: "Uno o mas encargados seleccionados no existen.",
@@ -6512,7 +6514,8 @@ const actualizarProyecto = async (req, res) => {
       fechaTerminoFinal < fechaInicioFinal
     ) {
       return res.status(400).json({
-        error: "La fecha de termino no puede ser anterior a la fecha de inicio.",
+        error:
+          "La fecha de termino no puede ser anterior a la fecha de inicio.",
       });
     }
 
@@ -6597,7 +6600,10 @@ const agregarAdjuntosProyecto = async (req, res) => {
       return res.status(404).json({ error: "Proyecto no encontrado." });
     }
 
-    if (!Array.isArray(req.projectArchivos) || req.projectArchivos.length === 0) {
+    if (
+      !Array.isArray(req.projectArchivos) ||
+      req.projectArchivos.length === 0
+    ) {
       return res
         .status(400)
         .json({ error: "Debe adjuntar al menos un archivo." });
@@ -6663,7 +6669,9 @@ const agregarBitacorasAProyecto = async (req, res) => {
       raw: true,
     });
     const existentes = new Set(registros.map((row) => row.id));
-    const faltantes = bitacoraIds.filter((idBitacora) => !existentes.has(idBitacora));
+    const faltantes = bitacoraIds.filter(
+      (idBitacora) => !existentes.has(idBitacora)
+    );
     if (faltantes.length) {
       return res.status(404).json({
         error: "Una o mas bitacoras o tickets no existen.",
@@ -6767,7 +6775,9 @@ const getVehiculos = async (req, res) => {
     if (usuario?.tipoCuentaId === 5) {
       return res
         .status(403)
-        .json({ error: "No tiene permisos para acceder al módulo de vehículos." });
+        .json({
+          error: "No tiene permisos para acceder al módulo de vehículos.",
+        });
     }
 
     const { pagina = 1, limite = 10, buscar } = req.query;
@@ -6814,7 +6824,9 @@ const getVehiculo = async (req, res) => {
     if (usuario?.tipoCuentaId === 5) {
       return res
         .status(403)
-        .json({ error: "No tiene permisos para acceder al módulo de vehículos." });
+        .json({
+          error: "No tiene permisos para acceder al módulo de vehículos.",
+        });
     }
 
     const { id } = req.params;
@@ -6842,8 +6854,12 @@ const getVehiculo = async (req, res) => {
 
 const crearVehiculo = async (req, res) => {
   try {
-    const { patente, responsable, fechaUltimaMantencion, fechaSiguienteMantencion } =
-      req.body;
+    const {
+      patente,
+      responsable,
+      fechaUltimaMantencion,
+      fechaSiguienteMantencion,
+    } = req.body;
 
     const patenteLimpia = patente ? `${patente}`.trim().toUpperCase() : "";
     if (!patenteLimpia) {
@@ -6958,7 +6974,10 @@ const actualizarVehiculo = async (req, res) => {
     }
 
     if (fechaSiguienteMantencion !== undefined) {
-      if (fechaSiguienteMantencion === null || fechaSiguienteMantencion === "") {
+      if (
+        fechaSiguienteMantencion === null ||
+        fechaSiguienteMantencion === ""
+      ) {
         vehiculo.fechaSiguienteMantencion = null;
       } else {
         const siguienteMantencionISO = toISODateOnly(fechaSiguienteMantencion);
@@ -7084,7 +7103,9 @@ const crearVehiculoSalida = async (req, res) => {
 
     const llegadaDate = parseDateTimeValue(fechaHoraLlegada);
     const odometroLlegadaNumero =
-      odometroLlegada !== undefined && odometroLlegada !== null && odometroLlegada !== ""
+      odometroLlegada !== undefined &&
+      odometroLlegada !== null &&
+      odometroLlegada !== ""
         ? parseDecimalValue(odometroLlegada)
         : null;
 
@@ -7106,11 +7127,14 @@ const crearVehiculoSalida = async (req, res) => {
 
     if (combustibleFlag && !metodoPagoNormalizado) {
       return res.status(400).json({
-        error: "Debe indicar un método de pago válido para la carga de combustible.",
+        error:
+          "Debe indicar un método de pago válido para la carga de combustible.",
       });
     }
 
-    const valorCargaNumero = combustibleFlag ? parseDecimalValue(valorCarga) : null;
+    const valorCargaNumero = combustibleFlag
+      ? parseDecimalValue(valorCarga)
+      : null;
 
     const nuevaSalida = await VehiculoSalidaModel.create({
       vehiculoId: vehiculo.id,
@@ -7267,10 +7291,12 @@ const actualizarVehiculoSalida = async (req, res) => {
 
     if (combustibleFlag) {
       if (metodoPago !== undefined) {
-        const metodoPagoNormalizado = normalizarMetodoPagoCombustible(metodoPago);
+        const metodoPagoNormalizado =
+          normalizarMetodoPagoCombustible(metodoPago);
         if (!metodoPagoNormalizado) {
           return res.status(400).json({
-            error: "Debe indicar un método de pago válido para la carga de combustible.",
+            error:
+              "Debe indicar un método de pago válido para la carga de combustible.",
           });
         }
         salida.metodoPago = metodoPagoNormalizado;
@@ -7278,7 +7304,11 @@ const actualizarVehiculoSalida = async (req, res) => {
 
       if (valorCarga !== undefined) {
         const valorCargaNumero = parseDecimalValue(valorCarga);
-        if (valorCarga !== null && valorCarga !== "" && valorCargaNumero === null) {
+        if (
+          valorCarga !== null &&
+          valorCarga !== "" &&
+          valorCargaNumero === null
+        ) {
           return res.status(400).json({
             error: "El valor de la carga indicado no es válido.",
           });
@@ -7400,7 +7430,10 @@ const eliminarVehiculoSalidaAdjunto = async (req, res) => {
       ],
     });
 
-    if (!adjunto || adjunto.salida?.vehiculoId !== Number.parseInt(vehiculoId, 10)) {
+    if (
+      !adjunto ||
+      adjunto.salida?.vehiculoId !== Number.parseInt(vehiculoId, 10)
+    ) {
       return res.status(404).json({
         error: "No se encontró el adjunto indicado para esta salida.",
       });
@@ -7481,6 +7514,7 @@ export {
   actualizarSoloEstadoEquipo,
   //? Estados de sucursales
   getEstadosSucursal,
+  getLogs,
   actualizarEstadoSucursal,
   getDocumentacionClientes,
   crearDocumentoCliente,
@@ -7504,5 +7538,5 @@ export {
   crearVehiculoSalida,
   actualizarVehiculoSalida,
   eliminarVehiculoSalida,
-  eliminarVehiculoSalidaAdjunto
+  eliminarVehiculoSalidaAdjunto,
 };
