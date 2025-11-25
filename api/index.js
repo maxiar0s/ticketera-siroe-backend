@@ -9,22 +9,20 @@ import protegerRuta from "../middleware/protegerRuta.js";
 
 const app = express();
 
+app.use(cors({
+  origin: [
+    'https://app.soportesiroe.cl', 
+    'https://demo.soportesiroe.cl',
+    'http://localhost:4200' // Para tus pruebas locales
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'token', 'X-Requested-With', 'Accept', 'Origin'],
+  credentials: true // Permite cookies/headers seguros
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Configuración CORS más permisiva
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, token');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  
-  // Manejar solicitudes preflight OPTIONS
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-  
-  next();
-});
 
 // Conexión a DB
 try {
