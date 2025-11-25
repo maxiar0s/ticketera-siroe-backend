@@ -51,9 +51,14 @@ import {
   generarUrl,
   getBitacoras,
   getBitacoraById,
+  getTickets,
+  getTicketById,
   crearBitacora,
   actualizarBitacora,
   eliminarBitacora,
+  crearTicket,
+  actualizarTicket,
+  eliminarTicket,
   getVisitasProgramadas,
   crearVisitaProgramada,
   eliminarVisitaProgramada,
@@ -329,6 +334,13 @@ router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
 router.post("/bitacoras", protegerRutaTecnico, handleFiles, processFiles, crearBitacora);
 router.put("/bitacoras/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarBitacora);
 router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
+
+// Tickets
+router.get("/tickets", protegerRuta, getTickets);
+router.get("/tickets/:id", protegerRuta, getTicketById);
+router.post("/tickets", protegerRutaTecnico, handleFiles, processFiles, crearTicket);
+router.put("/tickets/:id", protegerRutaTecnico, handleFiles, processFiles, actualizarTicket);
+router.delete("/tickets/:id", protegerRutaAdmin, eliminarTicket);
 
 // Visitas programadas
 router.get("/visitas-programadas", protegerRuta, getVisitasProgramadas);

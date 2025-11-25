@@ -9,7 +9,7 @@ import bucket from "../../config/gcs.js";
 import db from "../../config/db.js";
 import { emailTicketConfig } from "../../config/emailTicketConfig.js";
 import {
-  BitacoraModel,
+  TicketModel,
   CasaMatrizModel,
   CuentaModel,
 } from "../../models/index.js";
@@ -577,7 +577,7 @@ export class EmailTicketProcessor {
 
     const fechaVisita = toDateOnly(correoDate, this.config.timezone);
 
-    const nuevaBitacora = await BitacoraModel.create({
+    const nuevoTicket = await TicketModel.create({
       casaMatrizId: casaMatriz.id,
       sucursalId: null,
       fechaVisita,
@@ -589,7 +589,6 @@ export class EmailTicketProcessor {
       creadoPorId: creadorId,
       actualizadoPorId: creadorId,
       isEmergencia: false,
-      esTicket: true,
       estadoTicket: ESTADO_TICKET_INGRESADO,
       fechaTermino: null,
       detalleTermino: null,
@@ -601,12 +600,12 @@ export class EmailTicketProcessor {
 
     await this.enviarAcuseRecibo({
       destinatario: remitente,
-      ticket: nuevaBitacora,
+      ticket: nuevoTicket,
       asuntoOriginal: tituloBase,
       clienteNombre: casaMatriz?.razonSocial ?? "",
     });
 
-    return nuevaBitacora;
+    return nuevoTicket;
   }
 
   async procesarBuzon() {

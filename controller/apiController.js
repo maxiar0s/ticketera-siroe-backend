@@ -16,6 +16,7 @@ import {
   TipoEquipoCampoModel,
   TipoEquipoModel,
   BitacoraModel,
+  TicketModel,
   DepartamentoEquipoModel,
 
   //?estado de equipos
@@ -680,6 +681,8 @@ const bitacoraIncludes = [
   },
 ];
 
+const ticketIncludes = [...bitacoraIncludes];
+
 const proyectoIncludes = [
   {
     model: ProyectoAdjuntoModel,
@@ -870,9 +873,9 @@ const obtenerConteosBitacorasPorProyecto = async (proyectoIds) => {
     raw: true,
   });
 
-  const tickets = await BitacoraModel.findAll({
+  const tickets = await TicketModel.findAll({
     attributes: ["proyectoId", [fn("COUNT", col("id")), "total"]],
-    where: { proyectoId: { [Op.in]: proyectoIds }, esTicket: true },
+    where: { proyectoId: { [Op.in]: proyectoIds } },
     group: ["proyectoId"],
     raw: true,
   });
@@ -958,9 +961,20 @@ const cargarProyectoDetalle = async (proyectoId) => {
     row.toJSON ? row.toJSON() : row
   );
   respuesta.totalBitacoras = respuesta.bitacoras.length;
-  respuesta.totalTickets = respuesta.bitacoras.filter(
-    (bitacora) => !!bitacora.esTicket
-  ).length;
+
+  const tickets = await TicketModel.findAll({
+    where: { proyectoId: proyecto.id },
+    include: ticketIncludes,
+    order: [
+      ["fechaVisita", "DESC"],
+      ["createdAt", "DESC"],
+    ],
+  });
+
+  respuesta.tickets = tickets.map((row) =>
+    row.toJSON ? row.toJSON() : row
+  );
+  respuesta.totalTickets = respuesta.tickets.length;
 
   return respuesta;
 };
@@ -3045,9 +3059,7 @@ const construirNotificacionBitacora = (bitacora) => {
       : "";
   const resumen = resumenBase.length ? resumenBase : "Sin descripcion";
 
-  const titulo = bitacora?.esTicket
-    ? "Nuevo ticket asignado"
-    : "Nueva bitacora asignada";
+  const titulo = "Nueva bitacora asignada";
 
   return {
     titulo,
@@ -3055,9 +3067,37 @@ const construirNotificacionBitacora = (bitacora) => {
     metadata: {
       cliente,
       fecha,
-      esTicket: !!bitacora?.esTicket,
       bitacoraId: bitacora?.id ?? null,
       titulo: bitacora?.titulo ?? null,
+    },
+  };
+};
+
+const construirNotificacionTicket = (ticket) => {
+  const cliente = ticket?.casaMatriz?.razonSocial ?? "Cliente sin nombre";
+  let fecha = null;
+  if (ticket?.fechaVisita) {
+    const date = new Date(ticket.fechaVisita);
+    if (!Number.isNaN(date.getTime())) {
+      fecha = date.toISOString().slice(0, 10);
+    }
+  }
+  const resumenBase =
+    typeof ticket?.titulo === "string" && ticket.titulo.trim().length
+      ? ticket.titulo.trim()
+      : typeof ticket?.descripcion === "string"
+      ? ticket.descripcion.trim().slice(0, 120)
+      : "";
+  const resumen = resumenBase.length ? resumenBase : "Sin descripcion";
+
+  return {
+    titulo: "Nuevo ticket asignado",
+    mensaje: `${cliente} · ${resumen}`,
+    metadata: {
+      cliente,
+      fecha,
+      ticketId: ticket?.id ?? null,
+      titulo: ticket?.titulo ?? null,
     },
   };
 };
@@ -3086,7 +3126,7 @@ const crearNotificacionesAsignacionBitacora = async (
   }
 
   const datos = construirNotificacionBitacora(bitacora);
-  const referenciaTipo = bitacora?.esTicket ? "ticket" : "bitacora";
+  const referenciaTipo = "bitacora";
   const ahora = new Date();
 
   await Promise.all(
@@ -3125,6 +3165,67 @@ const crearNotificacionesAsignacionBitacora = async (
           leida: false,
           updatedAt: ahora,
         });
+      }
+    })
+  );
+};
+
+const crearNotificacionesAsignacionTicket = async (
+  ticket,
+  cuentaIds,
+  asignadoPorId
+) => {
+  if (!ticket || !Array.isArray(cuentaIds) || cuentaIds.length === 0) {
+    return;
+  }
+
+  const idsUnicos = Array.from(
+    new Set(cuentaIds.filter((id) => Number.isInteger(id) && id > 0))
+  );
+
+  if (!idsUnicos.length) {
+    return;
+  }
+
+  const datos = construirNotificacionTicket(ticket);
+  const referenciaTipo = "ticket";
+  const ahora = new Date();
+
+  await Promise.all(
+    idsUnicos.map(async (cuentaId) => {
+      const [registro, creado] = await NotificacionModel.findOrCreate({
+        where: {
+          cuentaId,
+          referenciaId: ticket.id,
+          referenciaTipo,
+        },
+        defaults: {
+          cuentaId,
+          tipo: referenciaTipo,
+          titulo: datos.titulo,
+          mensaje: datos.mensaje,
+          referenciaId: ticket.id,
+          referenciaTipo,
+          metadata: {
+            ...datos.metadata,
+            referenciaTipo,
+          },
+          leida: false,
+          createdAt: ahora,
+          updatedAt: ahora,
+        },
+      });
+
+      if (!creado) {
+        await registro.update(
+          {
+            titulo: datos.titulo,
+            mensaje: datos.mensaje,
+            metadata: { ...datos.metadata, referenciaTipo },
+            updatedAt: ahora,
+          },
+          { hooks: false }
+        );
       }
     })
   );
@@ -4138,7 +4239,6 @@ const getBitacoras = async (req, res) => {
       clienteId,
       sucursalId,
       buscar,
-      tipo,
       proyectoId,
       sinProyecto,
     } = req.query;
@@ -4149,7 +4249,6 @@ const getBitacoras = async (req, res) => {
 
     const where = {};
     const esCliente = usuario && usuario.tipoCuentaId === 4;
-    const restringidoABitacoras = esCliente && !usuario.haveTickets;
 
     if (clienteId) {
       where.casaMatrizId = clienteId;
@@ -4165,13 +4264,6 @@ const getBitacoras = async (req, res) => {
         { titulo: { [Op.like]: `%${terminoBusqueda}%` } },
         { descripcion: { [Op.like]: `%${terminoBusqueda}%` } },
       ];
-    }
-
-    const tipoFiltro = typeof tipo === "string" ? tipo.trim().toLowerCase() : "";
-    if (tipoFiltro === "ticket" || tipoFiltro === "tickets") {
-      where.esTicket = true;
-    } else if (tipoFiltro === "bitacora" || tipoFiltro === "bit\u00e1cora") {
-      where.esTicket = false;
     }
 
     const proyectoIdValor =
@@ -4190,15 +4282,6 @@ const getBitacoras = async (req, res) => {
       where.proyectoId = proyectoIdNumero;
     } else if (parseBooleanFlag(sinProyecto, false)) {
       where.proyectoId = null;
-    }
-
-    if (restringidoABitacoras) {
-      if (where.esTicket === true) {
-        return res.status(403).json({
-          error: "Esta cuenta no tiene acceso al modulo de tickets.",
-        });
-      }
-      where.esTicket = false;
     }
 
     if (esCliente) {
@@ -4273,11 +4356,6 @@ const getBitacoraById = async (req, res) => {
       if (!autorizados.includes(bitacora.casaMatrizId)) {
         return res.status(403).json({
           error: "No tiene permisos para ver la bitacora solicitada.",
-        });
-      }
-      if (!usuario.haveTickets && bitacora.esTicket) {
-        return res.status(403).json({
-          error: "Esta cuenta no tiene acceso al modulo de tickets.",
         });
       }
     }
@@ -4365,23 +4443,8 @@ const crearBitacora = async (req, res) => {
       descripcion,
       titulo,
       isEmergencia,
-      esTicket,
-      estadoTicket: estadoTicketEntrada,
-      ticketEstado,
-      fechaTermino,
-      detalleTermino,
-      ticketFechaTermino,
-      ticketDetalleTermino,
       proyectoId,
     } = bodyData;
-
-    const tipoRegistroEntrada =
-      typeof esTicket !== "undefined"
-        ? esTicket
-        : typeof bodyData?.tipo !== "undefined"
-        ? bodyData.tipo
-        : bodyData?.tipoRegistro;
-    const esTicketFlag = parseTicketFlag(tipoRegistroEntrada, false);
 
     if (!casaMatrizId || !fechaVisita) {
       return res.status(400).json({
@@ -4400,44 +4463,6 @@ const crearBitacora = async (req, res) => {
       return res
         .status(400)
         .json({ error: "La nota de la bitacora no puede estar vacia." });
-    }
-
-    const estadoEntrada =
-      typeof estadoTicketEntrada !== "undefined"
-        ? estadoTicketEntrada
-        : typeof ticketEstado !== "undefined"
-        ? ticketEstado
-        : null;
-    const estadoTicketNormalizado = esTicketFlag
-      ? parseEstadoTicket(estadoEntrada, ESTADO_TICKET_INGRESADO)
-      : null;
-
-    const fechaTerminoEntrada =
-      typeof fechaTermino !== "undefined" ? fechaTermino : ticketFechaTermino;
-    const detalleTerminoEntrada =
-      typeof detalleTermino !== "undefined"
-        ? detalleTermino
-        : ticketDetalleTermino;
-
-    let fechaTerminoNormalizada = null;
-    let detalleTerminoNormalizado = null;
-
-    if (esTicketFlag && estadoTicketNormalizado === ESTADO_TICKET_TERMINADO) {
-      const fechaNormalizada = toISODateOnly(fechaTerminoEntrada);
-      if (!fechaNormalizada) {
-        return res.status(400).json({
-          error: "La fecha de termino del ticket es obligatoria.",
-        });
-      }
-      const detalleLimpio = limpiarDetalleTermino(detalleTerminoEntrada);
-      if (!detalleLimpio) {
-        return res.status(400).json({
-          error:
-            "Debes indicar el detalle de lo realizado para cerrar el ticket.",
-        });
-      }
-      fechaTerminoNormalizada = fechaNormalizada;
-      detalleTerminoNormalizado = detalleLimpio;
     }
 
     let llegadaDate = null;
@@ -4493,7 +4518,7 @@ const crearBitacora = async (req, res) => {
       }
       proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
       if (!proyectoSeleccionado) {
-        return res.status(404).json({ error: "Proyecto no encontrado." });
+      return res.status(404).json({ error: "Proyecto no encontrado." });
       }
     }
 
@@ -4528,12 +4553,6 @@ const crearBitacora = async (req, res) => {
       actualizadoPorId: usuario.id,
       proyectoId: proyectoSeleccionado ? proyectoSeleccionado.id : null,
       isEmergencia: parseBooleanFlag(isEmergencia, false),
-      esTicket: esTicketFlag,
-      estadoTicket: esTicketFlag
-        ? estadoTicketNormalizado ?? ESTADO_TICKET_INGRESADO
-        : null,
-      fechaTermino: fechaTerminoNormalizada,
-      detalleTermino: detalleTerminoNormalizado,
       adjuntos: Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [],
       adjuntosTermino: Array.isArray(req.uploadedEvidenceFiles)
         ? req.uploadedEvidenceFiles
@@ -4737,7 +4756,6 @@ const actualizarBitacora = async (req, res) => {
       descripcion,
       titulo,
       isEmergencia,
-      esTicket,
     } = bodyData;
 
     let proyectoCambioSolicitado = false;
@@ -4874,77 +4892,6 @@ const actualizarBitacora = async (req, res) => {
         );
       }
 
-      if (
-        typeof esTicket !== "undefined" ||
-        typeof bodyData?.tipo !== "undefined" ||
-        typeof bodyData?.tipoRegistro !== "undefined"
-      ) {
-        const entradaTipo =
-          typeof esTicket !== "undefined"
-            ? esTicket
-            : typeof bodyData?.tipo !== "undefined"
-            ? bodyData.tipo
-            : bodyData?.tipoRegistro;
-        cambios.esTicket = parseTicketFlag(
-          entradaTipo,
-          bitacora.esTicket
-        );
-      }
-
-      const tieneEstadoTicketEntrada =
-        Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
-        Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
-      if (tieneEstadoTicketEntrada) {
-        const entradaEstado = Object.prototype.hasOwnProperty.call(
-          bodyData,
-          "estadoTicket"
-        )
-          ? bodyData.estadoTicket
-          : bodyData.ticketEstado;
-        cambios.estadoTicket = parseEstadoTicket(
-          entradaEstado,
-          ESTADO_TICKET_INGRESADO
-        );
-      }
-
-      const tieneFechaTerminoEntrada =
-        Object.prototype.hasOwnProperty.call(bodyData, "fechaTermino") ||
-        Object.prototype.hasOwnProperty.call(bodyData, "ticketFechaTermino");
-      if (tieneFechaTerminoEntrada) {
-        const entradaFecha = Object.prototype.hasOwnProperty.call(
-          bodyData,
-          "fechaTermino"
-        )
-          ? bodyData.fechaTermino
-          : bodyData.ticketFechaTermino;
-        if (entradaFecha) {
-          const fechaNormalizada = toISODateOnly(entradaFecha);
-          if (!fechaNormalizada) {
-            return res.status(400).json({
-              error: "La fecha de termino del ticket no es valida.",
-            });
-          }
-          cambios.fechaTermino = fechaNormalizada;
-        } else {
-          cambios.fechaTermino = null;
-        }
-      }
-
-      const tieneDetalleTerminoEntrada =
-        Object.prototype.hasOwnProperty.call(bodyData, "detalleTermino") ||
-        Object.prototype.hasOwnProperty.call(bodyData, "ticketDetalleTermino");
-      if (tieneDetalleTerminoEntrada) {
-        const entradaDetalle = Object.prototype.hasOwnProperty.call(
-          bodyData,
-          "detalleTermino"
-        )
-          ? bodyData.detalleTermino
-          : bodyData.ticketDetalleTermino;
-        const detalleLimpio = limpiarDetalleTermino(entradaDetalle);
-        cambios.detalleTermino =
-          detalleLimpio.length > 0 ? detalleLimpio : null;
-      }
-
       if (typeof sucursalId !== "undefined") {
         if (!sucursalId) {
           cambios.sucursalId = null;
@@ -4976,10 +4923,6 @@ const actualizarBitacora = async (req, res) => {
     const tieneCambio = (campo) =>
       Object.prototype.hasOwnProperty.call(cambios, campo);
 
-    const esTicketFinal = tieneCambio("esTicket")
-      ? cambios.esTicket
-      : bitacora.esTicket;
-
     const horaLlegadaFinal = tieneCambio("horaLlegada")
       ? cambios.horaLlegada
       : bitacora.horaLlegada;
@@ -4990,79 +4933,16 @@ const actualizarBitacora = async (req, res) => {
     const llegadaDateFinal = horaLlegadaFinal ? new Date(horaLlegadaFinal) : null;
     const salidaDateFinal = horaSalidaFinal ? new Date(horaSalidaFinal) : null;
 
-    if (!esTicketFinal) {
-      if (!llegadaDateFinal || !salidaDateFinal) {
-        return res.status(400).json({
-          error:
-            "Las horas de llegada y salida son obligatorias para bitacoras.",
-        });
-      }
-      if (salidaDateFinal <= llegadaDateFinal) {
-        return res.status(400).json({
-          error: "La hora de salida debe ser posterior a la hora de llegada.",
-        });
-      }
-    } else if (
-      llegadaDateFinal &&
-      salidaDateFinal &&
-      salidaDateFinal < llegadaDateFinal
-    ) {
+    if (!llegadaDateFinal || !salidaDateFinal) {
+      return res.status(400).json({
+        error:
+          "Las horas de llegada y salida son obligatorias para bitacoras.",
+      });
+    }
+    if (salidaDateFinal <= llegadaDateFinal) {
       return res.status(400).json({
         error: "La hora de salida debe ser posterior a la hora de llegada.",
       });
-    }
-
-    if (!esTicketFinal) {
-      cambios.estadoTicket = null;
-      if (tieneCambio("fechaTermino")) {
-        cambios.fechaTermino = null;
-      }
-      if (tieneCambio("detalleTermino")) {
-        cambios.detalleTermino = null;
-      }
-    } else {
-      let estadoTicketFinal = tieneCambio("estadoTicket")
-        ? cambios.estadoTicket
-        : parseEstadoTicket(bitacora.estadoTicket, ESTADO_TICKET_INGRESADO);
-      if (!estadoTicketFinal) {
-        estadoTicketFinal = ESTADO_TICKET_INGRESADO;
-      }
-
-      const fechaTerminoFinal = tieneCambio("fechaTermino")
-        ? cambios.fechaTermino
-        : bitacora.fechaTermino;
-      const detalleTerminoFinal = tieneCambio("detalleTermino")
-        ? cambios.detalleTermino
-        : bitacora.detalleTermino;
-
-      if (estadoTicketFinal === ESTADO_TICKET_TERMINADO) {
-        if (!fechaTerminoFinal) {
-          return res.status(400).json({
-            error: "La fecha de termino del ticket es obligatoria.",
-          });
-        }
-        if (!isValidDateValue(fechaTerminoFinal)) {
-          return res.status(400).json({
-            error: "La fecha de termino del ticket no es valida.",
-          });
-        }
-        if (!limpiarDetalleTermino(detalleTerminoFinal)) {
-          return res.status(400).json({
-            error:
-              "Debes indicar el detalle de lo realizado para cerrar el ticket.",
-          });
-        }
-      } else {
-        if (tieneCambio("fechaTermino")) {
-          cambios.fechaTermino = null;
-        }
-        if (tieneCambio("detalleTermino")) {
-          cambios.detalleTermino = null;
-        }
-        estadoTicketFinal = ESTADO_TICKET_INGRESADO;
-      }
-
-      cambios.estadoTicket = estadoTicketFinal;
     }
 
     if (Object.keys(cambios).length === 0) {
@@ -5164,6 +5044,802 @@ const eliminarBitacora = async (req, res) => {
     return res
       .status(500)
       .json({ error: "Hubo un error al eliminar la bitacora." });
+  }
+};
+
+const getTickets = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const {
+      pagina = 1,
+      limite = 10,
+      clienteId,
+      sucursalId,
+      buscar,
+      estado,
+      proyectoId,
+      sinProyecto,
+    } = req.query;
+
+    if (usuario.tipoCuentaId === 4 && !usuario.haveTickets) {
+      return res
+        .status(403)
+        .json({ error: "Esta cuenta no tiene acceso al modulo de tickets." });
+    }
+
+    const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
+    const limitNumber = Math.max(parseInt(limite, 10) || 10, 1);
+    const offset = (pageNumber - 1) * limitNumber;
+
+    const where = {};
+
+    if (clienteId) {
+      where.casaMatrizId = clienteId;
+    }
+    if (sucursalId) {
+      where.sucursalId = sucursalId;
+    }
+
+    const terminoBusqueda = buscar ? `${buscar}`.trim() : "";
+    if (terminoBusqueda) {
+      where[Op.or] = [
+        { titulo: { [Op.like]: `%${terminoBusqueda}%` } },
+        { descripcion: { [Op.like]: `%${terminoBusqueda}%` } },
+      ];
+    }
+
+    const estadoFiltro = parseEstadoTicket(estado, null);
+    if (estadoFiltro) {
+      where.estadoTicket = estadoFiltro;
+    }
+
+    const proyectoIdValor =
+      typeof proyectoId === "string" ? proyectoId.trim() : proyectoId;
+    if (
+      proyectoIdValor !== undefined &&
+      proyectoIdValor !== null &&
+      `${proyectoIdValor}`.trim() !== ""
+    ) {
+      const proyectoIdNumero = Number.parseInt(`${proyectoIdValor}`, 10);
+      if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+        return res.status(400).json({
+          error: "El identificador del proyecto indicado no es valido.",
+        });
+      }
+      where.proyectoId = proyectoIdNumero;
+    } else if (parseBooleanFlag(sinProyecto, false)) {
+      where.proyectoId = null;
+    }
+
+    if (usuario.tipoCuentaId === 4) {
+      const autorizados = await getAuthorizedClientIds(usuario.id);
+      if (autorizados.length === 0) {
+        return res.json({
+          data: [],
+          total: 0,
+          pagina: pageNumber,
+          paginasTotales: 0,
+        });
+      }
+
+      if (clienteId && !autorizados.includes(clienteId)) {
+        return res.status(403).json({
+          error: "No tiene permisos para ver los tickets de este cliente.",
+        });
+      }
+
+      if (!clienteId) {
+        where.casaMatrizId = { [Op.in]: autorizados };
+      }
+    }
+
+    const { rows, count } = await TicketModel.findAndCountAll({
+      where,
+      include: ticketIncludes,
+      order: [
+        ["fechaVisita", "DESC"],
+        ["createdAt", "DESC"],
+      ],
+      limit: limitNumber,
+      offset,
+    });
+
+    const data = rows.map((row) => row.toJSON());
+    return res.json({
+      data,
+      total: count,
+      pagina: pageNumber,
+      paginasTotales: Math.ceil(count / limitNumber),
+    });
+  } catch (error) {
+    console.error("Error al obtener tickets:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener los tickets." });
+  }
+};
+
+const getTicketById = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const { id } = req.params;
+
+    if (usuario.tipoCuentaId === 4 && !usuario.haveTickets) {
+      return res
+        .status(403)
+        .json({ error: "Esta cuenta no tiene acceso al modulo de tickets." });
+    }
+
+    const ticket = await TicketModel.findByPk(id, {
+      include: ticketIncludes,
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket no encontrado." });
+    }
+
+    if (usuario.tipoCuentaId === 4) {
+      const autorizados = await getAuthorizedClientIds(usuario.id);
+      if (!autorizados.includes(ticket.casaMatrizId)) {
+        return res.status(403).json({
+          error: "No tiene permisos para ver el ticket solicitado.",
+        });
+      }
+    }
+
+    return res.json(ticket);
+  } catch (error) {
+    console.error("Error al obtener el ticket:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al obtener el ticket." });
+  }
+};
+
+const crearTicket = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para crear tickets." });
+    }
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const {
+      casaMatrizId,
+      sucursalId,
+      fechaVisita,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+      isEmergencia,
+      estadoTicket: estadoTicketEntrada,
+      ticketEstado,
+      fechaTermino,
+      detalleTermino,
+      ticketFechaTermino,
+      ticketDetalleTermino,
+      proyectoId,
+    } = bodyData;
+
+    if (!casaMatrizId || !fechaVisita) {
+      return res.status(400).json({
+        error: "Los campos casaMatrizId y fechaVisita son obligatorios.",
+      });
+    }
+
+    if (!isValidDateValue(fechaVisita)) {
+      return res
+        .status(400)
+        .json({ error: "La fecha de ingreso no es valida." });
+    }
+
+    const descripcionLimpia = descripcion ? `${descripcion}`.trim() : "";
+    if (!descripcionLimpia) {
+      return res
+        .status(400)
+        .json({ error: "La nota del ticket no puede estar vacia." });
+    }
+
+    const estadoEntrada =
+      typeof estadoTicketEntrada !== "undefined"
+        ? estadoTicketEntrada
+        : typeof ticketEstado !== "undefined"
+        ? ticketEstado
+        : null;
+    const estadoTicketNormalizado = parseEstadoTicket(
+      estadoEntrada,
+      ESTADO_TICKET_INGRESADO
+    );
+
+    const fechaTerminoEntrada =
+      typeof fechaTermino !== "undefined" ? fechaTermino : ticketFechaTermino;
+    const detalleTerminoEntrada =
+      typeof detalleTermino !== "undefined"
+        ? detalleTermino
+        : ticketDetalleTermino;
+
+    let fechaTerminoNormalizada = null;
+    let detalleTerminoNormalizado = null;
+
+    if (estadoTicketNormalizado === ESTADO_TICKET_TERMINADO) {
+      const fechaNormalizada = toISODateOnly(fechaTerminoEntrada);
+      if (!fechaNormalizada) {
+        return res.status(400).json({
+          error: "La fecha de termino del ticket es obligatoria.",
+        });
+      }
+      const detalleLimpio = limpiarDetalleTermino(detalleTerminoEntrada);
+      if (!detalleLimpio) {
+        return res.status(400).json({
+          error:
+            "Debes indicar el detalle de lo realizado para cerrar el ticket.",
+        });
+      }
+      fechaTerminoNormalizada = fechaNormalizada;
+      detalleTerminoNormalizado = detalleLimpio;
+    }
+
+    let llegadaDate = null;
+    if (horaLlegada) {
+      if (!isValidDateValue(horaLlegada)) {
+        return res.status(400).json({
+          error: "La hora de llegada debe tener un formato valido.",
+        });
+      }
+      llegadaDate = new Date(horaLlegada);
+    }
+
+    let salidaDate = null;
+    if (horaSalida) {
+      if (!isValidDateValue(horaSalida)) {
+        return res.status(400).json({
+          error: "La hora de salida debe tener un formato valido.",
+        });
+      }
+      salidaDate = new Date(horaSalida);
+    }
+
+    if (
+      llegadaDate &&
+      salidaDate &&
+      salidaDate < llegadaDate
+    ) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
+    const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
+    if (!cliente) {
+      return res.status(404).json({ error: "Cliente no encontrado." });
+    }
+
+    let sucursal = null;
+    if (sucursalId) {
+      sucursal = await SucursalModel.findByPk(sucursalId);
+      if (!sucursal) {
+        return res.status(404).json({ error: "Sucursal no encontrada." });
+      }
+      if (sucursal.casaMatrizId !== casaMatrizId) {
+        return res.status(400).json({
+          error: "La sucursal seleccionada no pertenece al cliente indicado.",
+        });
+      }
+    }
+
+    let proyectoSeleccionado = null;
+    if (
+      typeof proyectoId !== "undefined" &&
+      proyectoId !== null &&
+      `${proyectoId}`.trim() !== "" &&
+      `${proyectoId}`.trim().toLowerCase() !== "null"
+    ) {
+      const proyectoIdNumero = Number.parseInt(`${proyectoId}`, 10);
+      if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+        return res
+          .status(400)
+          .json({ error: "El proyecto indicado no es valido." });
+      }
+      proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
+      if (!proyectoSeleccionado) {
+        return res.status(404).json({ error: "Proyecto no encontrado." });
+      }
+    }
+
+    const tecnicosArray = parseStringArray(tecnicos);
+    if (tecnicosArray.length === 0) {
+      return res.status(400).json({
+        error: "Debe indicar al menos un tecnico responsable del ticket.",
+      });
+    }
+
+    const tecnicosIdsAsignados = await extraerIdsTecnicosAsignacion(
+      bodyData,
+      tecnicosArray
+    );
+
+    const nuevoTicket = await TicketModel.create({
+      casaMatrizId,
+      sucursalId: sucursal ? sucursal.id : null,
+      fechaVisita,
+      horaLlegada: llegadaDate,
+      horaSalida: salidaDate,
+      tecnicos: tecnicosArray,
+      descripcion: descripcionLimpia,
+      titulo: titulo ? `${titulo}`.trim() || null : null,
+      creadoPorId: usuario.id,
+      actualizadoPorId: usuario.id,
+      proyectoId: proyectoSeleccionado ? proyectoSeleccionado.id : null,
+      isEmergencia: parseBooleanFlag(isEmergencia, false),
+      estadoTicket: estadoTicketNormalizado ?? ESTADO_TICKET_INGRESADO,
+      fechaTermino: fechaTerminoNormalizada,
+      detalleTermino: detalleTerminoNormalizado,
+      adjuntos: Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [],
+      adjuntosTermino: Array.isArray(req.uploadedEvidenceFiles)
+        ? req.uploadedEvidenceFiles
+        : [],
+    });
+
+    const ticketCreado = await TicketModel.findByPk(nuevoTicket.id, {
+      include: ticketIncludes,
+    });
+
+    await crearNotificacionesAsignacionTicket(
+      ticketCreado,
+      tecnicosIdsAsignados,
+      usuario.id
+    );
+
+    return res.status(201).json(ticketCreado);
+  } catch (error) {
+    console.error("Error al crear ticket:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al crear el ticket." });
+  }
+};
+
+const actualizarTicket = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+    const { id } = req.params;
+
+    if (![1, 2].includes(usuario.tipoCuentaId)) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para modificar tickets." });
+    }
+
+    const ticket = await TicketModel.findByPk(id);
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket no encontrado." });
+    }
+
+    const tecnicosPrevios = Array.isArray(ticket.tecnicos)
+      ? ticket.tecnicos
+          .map((item) => `${item}`.trim())
+          .filter((item) => item.length > 0)
+      : [];
+    let idsAsignacionEntrada = null;
+
+    let bodyData = req.body;
+    if (req.body && req.body.payload) {
+      try {
+        bodyData = JSON.parse(req.body.payload);
+      } catch (_err) {
+        bodyData = req.body;
+      }
+    }
+
+    const {
+      casaMatrizId,
+      sucursalId,
+      fechaVisita,
+      horaLlegada,
+      horaSalida,
+      tecnicos,
+      descripcion,
+      titulo,
+      isEmergencia,
+      estadoTicket,
+      fechaTermino,
+      ticketFechaTermino,
+      detalleTermino,
+      ticketDetalleTermino,
+    } = bodyData;
+
+    let proyectoCambioSolicitado = false;
+    let proyectoIdFinal = ticket.proyectoId;
+    let proyectoSeleccionado = null;
+
+    if (Object.prototype.hasOwnProperty.call(bodyData, "proyectoId")) {
+      proyectoCambioSolicitado = true;
+      const rawProyectoId = bodyData.proyectoId;
+      if (
+        rawProyectoId === null ||
+        rawProyectoId === undefined ||
+        `${rawProyectoId}`.trim() === "" ||
+        `${rawProyectoId}`.trim().toLowerCase() === "null"
+      ) {
+        proyectoIdFinal = null;
+      } else {
+        const proyectoIdNumero = Number.parseInt(`${rawProyectoId}`, 10);
+        if (!Number.isInteger(proyectoIdNumero) || proyectoIdNumero <= 0) {
+          return res.status(400).json({
+            error: "El proyecto indicado no es valido.",
+          });
+        }
+        proyectoSeleccionado = await ProyectoModel.findByPk(proyectoIdNumero);
+        if (!proyectoSeleccionado) {
+          return res.status(404).json({ error: "Proyecto no encontrado." });
+        }
+        proyectoIdFinal = proyectoSeleccionado.id;
+      }
+    }
+
+    const cambios = {};
+
+    if (usuario.tipoCuentaId === 2) {
+      const descripcionDefinida = typeof descripcion !== "undefined";
+      if (!descripcionDefinida && !proyectoCambioSolicitado) {
+        return res.status(400).json({
+          error: "El tecnico solo puede modificar la nota del ticket.",
+        });
+      }
+
+      if (descripcionDefinida) {
+        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        if (!descripcionLimpia) {
+          return res
+            .status(400)
+            .json({ error: "La nota del ticket no puede estar vacia." });
+        }
+
+        cambios.descripcion = descripcionLimpia;
+      }
+    } else if (usuario.tipoCuentaId === 1) {
+      if (typeof descripcion !== "undefined") {
+        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        if (!descripcionLimpia) {
+          return res
+            .status(400)
+            .json({ error: "La nota del ticket no puede estar vacia." });
+        }
+        cambios.descripcion = descripcionLimpia;
+      }
+
+      if (typeof titulo !== "undefined") {
+        const tituloLimpio = `${titulo ?? ""}`.trim();
+        cambios.titulo = tituloLimpio.length > 0 ? tituloLimpio : null;
+      }
+
+      if (typeof casaMatrizId !== "undefined") {
+        if (!casaMatrizId) {
+          return res
+            .status(400)
+            .json({ error: "El cliente del ticket no puede quedar vacio." });
+        }
+        const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
+        if (!cliente) {
+          return res.status(404).json({ error: "Cliente no encontrado." });
+        }
+        cambios.casaMatrizId = casaMatrizId;
+      }
+
+      if (typeof fechaVisita !== "undefined") {
+        if (!isValidDateValue(fechaVisita)) {
+          return res
+            .status(400)
+            .json({ error: "La fecha del ticket no es valida." });
+        }
+        cambios.fechaVisita = fechaVisita;
+      }
+
+      if (typeof horaLlegada !== "undefined") {
+        if (!horaLlegada) {
+          cambios.horaLlegada = null;
+        } else {
+          if (!isValidDateValue(horaLlegada)) {
+            return res.status(400).json({
+              error: "La hora de llegada debe tener un formato valido.",
+            });
+          }
+          cambios.horaLlegada = new Date(horaLlegada);
+        }
+      }
+
+      if (typeof horaSalida !== "undefined") {
+        if (!horaSalida) {
+          cambios.horaSalida = null;
+        } else {
+          if (!isValidDateValue(horaSalida)) {
+            return res.status(400).json({
+              error: "La hora de salida debe tener un formato valido.",
+            });
+          }
+          cambios.horaSalida = new Date(horaSalida);
+        }
+      }
+
+      if (typeof tecnicos !== "undefined") {
+        const tecnicosArray = parseStringArray(tecnicos);
+        if (tecnicosArray.length === 0) {
+          return res.status(400).json({
+            error: "Debe indicar al menos un tecnico responsable del ticket.",
+          });
+        }
+        cambios.tecnicos = tecnicosArray;
+        idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
+          bodyData,
+          tecnicosArray
+        );
+      }
+
+      if (typeof isEmergencia !== "undefined") {
+        cambios.isEmergencia = parseBooleanFlag(
+          isEmergencia,
+          ticket.isEmergencia
+        );
+      }
+
+      const tieneEstadoTicketEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
+      if (tieneEstadoTicketEntrada) {
+        const entradaEstado = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "estadoTicket"
+        )
+          ? bodyData.estadoTicket
+          : bodyData.ticketEstado;
+        cambios.estadoTicket = parseEstadoTicket(
+          entradaEstado,
+          ESTADO_TICKET_INGRESADO
+        );
+      }
+
+      const tieneFechaTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "fechaTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketFechaTermino");
+      if (tieneFechaTerminoEntrada) {
+        const entradaFecha = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "fechaTermino"
+        )
+          ? bodyData.fechaTermino
+          : bodyData.ticketFechaTermino;
+        if (entradaFecha) {
+          const fechaNormalizada = toISODateOnly(entradaFecha);
+          if (!fechaNormalizada) {
+            return res.status(400).json({
+              error: "La fecha de termino del ticket no es valida.",
+            });
+          }
+          cambios.fechaTermino = fechaNormalizada;
+        } else {
+          cambios.fechaTermino = null;
+        }
+      }
+
+      const tieneDetalleTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "detalleTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketDetalleTermino");
+      if (tieneDetalleTerminoEntrada) {
+        const entradaDetalle = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "detalleTermino"
+        )
+          ? bodyData.detalleTermino
+          : bodyData.ticketDetalleTermino;
+        const detalleLimpio = limpiarDetalleTermino(entradaDetalle);
+        cambios.detalleTermino =
+          detalleLimpio.length > 0 ? detalleLimpio : null;
+      }
+
+      if (typeof sucursalId !== "undefined") {
+        if (!sucursalId) {
+          cambios.sucursalId = null;
+        } else {
+          const sucursal = await SucursalModel.findByPk(sucursalId);
+          if (!sucursal) {
+            return res
+              .status(404)
+              .json({ error: "Sucursal no encontrada." });
+          }
+
+          const clienteDestino =
+            cambios.casaMatrizId ?? ticket.casaMatrizId;
+          if (sucursal.casaMatrizId !== clienteDestino) {
+            return res.status(400).json({
+              error: "La sucursal seleccionada no pertenece al cliente indicado.",
+            });
+          }
+
+          cambios.sucursalId = sucursalId;
+        }
+      }
+    }
+
+    if (proyectoCambioSolicitado) {
+      cambios.proyectoId = proyectoIdFinal;
+    }
+
+    const tieneCambio = (campo) =>
+      Object.prototype.hasOwnProperty.call(cambios, campo);
+
+    const horaLlegadaFinal = tieneCambio("horaLlegada")
+      ? cambios.horaLlegada
+      : ticket.horaLlegada;
+    const horaSalidaFinal = tieneCambio("horaSalida")
+      ? cambios.horaSalida
+      : ticket.horaSalida;
+
+    if (
+      horaLlegadaFinal &&
+      horaSalidaFinal &&
+      new Date(horaSalidaFinal) < new Date(horaLlegadaFinal)
+    ) {
+      return res.status(400).json({
+        error: "La hora de salida debe ser posterior a la hora de llegada.",
+      });
+    }
+
+    const estadoTicketFinal = tieneCambio("estadoTicket")
+      ? cambios.estadoTicket
+      : parseEstadoTicket(ticket.estadoTicket, ESTADO_TICKET_INGRESADO);
+
+    const fechaTerminoFinal = tieneCambio("fechaTermino")
+      ? cambios.fechaTermino
+      : ticket.fechaTermino;
+    const detalleTerminoFinal = tieneCambio("detalleTermino")
+      ? cambios.detalleTermino
+      : ticket.detalleTermino;
+
+    if (estadoTicketFinal === ESTADO_TICKET_TERMINADO) {
+      if (!fechaTerminoFinal) {
+        return res.status(400).json({
+          error: "La fecha de termino del ticket es obligatoria.",
+        });
+      }
+      if (!isValidDateValue(fechaTerminoFinal)) {
+        return res.status(400).json({
+          error: "La fecha de termino del ticket no es valida.",
+        });
+      }
+      if (!limpiarDetalleTermino(detalleTerminoFinal)) {
+        return res.status(400).json({
+          error:
+            "Debes indicar el detalle de lo realizado para cerrar el ticket.",
+        });
+      }
+    } else {
+      if (tieneCambio("fechaTermino")) {
+        cambios.fechaTermino = null;
+      }
+      if (tieneCambio("detalleTermino")) {
+        cambios.detalleTermino = null;
+      }
+      cambios.estadoTicket = ESTADO_TICKET_INGRESADO;
+    }
+
+    if (Object.keys(cambios).length === 0) {
+      const current = await TicketModel.findByPk(id, { include: ticketIncludes });
+      return res.json(current);
+    }
+
+    cambios.actualizadoPorId = usuario.id;
+
+    await ticket.update(cambios);
+
+    const nuevosAdjuntosIngreso = Array.isArray(req.uploadedFiles)
+      ? req.uploadedFiles
+      : [];
+    const nuevosAdjuntosEvidencia = Array.isArray(req.uploadedEvidenceFiles)
+      ? req.uploadedEvidenceFiles
+      : [];
+
+    if (nuevosAdjuntosIngreso.length || nuevosAdjuntosEvidencia.length) {
+      try {
+        if (nuevosAdjuntosIngreso.length) {
+          const actualesIngreso = Array.isArray(ticket.adjuntos)
+            ? ticket.adjuntos
+            : [];
+          ticket.adjuntos = actualesIngreso.concat(nuevosAdjuntosIngreso);
+        }
+        if (nuevosAdjuntosEvidencia.length) {
+          const actualesEvidencia = Array.isArray(ticket.adjuntosTermino)
+            ? ticket.adjuntosTermino
+            : [];
+          ticket.adjuntosTermino =
+            actualesEvidencia.concat(nuevosAdjuntosEvidencia);
+        }
+        await ticket.save();
+      } catch (err) {
+        console.error('Error al anexar adjuntos a ticket:', err);
+      }
+    }
+    await ticket.reload({ include: ticketIncludes });
+
+    let nuevosIdsNotificacion = [];
+    if (Array.isArray(idsAsignacionEntrada) && idsAsignacionEntrada?.length) {
+      const idsPrevios =
+        tecnicosPrevios.length > 0
+          ? await obtenerCuentaIdsPorNombres(tecnicosPrevios)
+          : [];
+      nuevosIdsNotificacion = idsAsignacionEntrada.filter(
+        (id) => !idsPrevios.includes(id)
+      );
+    } else if (Object.prototype.hasOwnProperty.call(cambios, "tecnicos")) {
+      const previosSet = new Set(
+        tecnicosPrevios.map((nombre) => normalizarNombreTecnico(nombre))
+      );
+      const actualesSet = new Set(
+        (Array.isArray(ticket.tecnicos) ? ticket.tecnicos : []).map(
+          (nombre) => normalizarNombreTecnico(nombre)
+        )
+      );
+      const nuevosNombres = Array.from(actualesSet).filter(
+        (nombre) => !previosSet.has(nombre)
+      );
+      if (nuevosNombres.length) {
+        nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(
+          nuevosNombres
+        );
+      }
+    }
+
+    if (Array.isArray(nuevosIdsNotificacion) && nuevosIdsNotificacion.length) {
+      await crearNotificacionesAsignacionTicket(
+        ticket,
+        nuevosIdsNotificacion,
+        usuario.id
+      );
+    }
+
+    return res.json(ticket);
+  } catch (error) {
+    console.error("Error al actualizar ticket:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al actualizar el ticket." });
+  }
+};
+
+const eliminarTicket = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (req.usuario.tipoCuentaId !== 1) {
+      return res
+        .status(403)
+        .json({ error: "No tiene permisos para eliminar tickets." });
+    }
+
+    const ticket = await TicketModel.findByPk(id);
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket no encontrado." });
+    }
+
+    await ticket.destroy();
+    return res.json({ mensaje: "Ticket eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar ticket:", error);
+    return res
+      .status(500)
+      .json({ error: "Hubo un error al eliminar el ticket." });
   }
 };
 
@@ -6789,6 +7465,11 @@ export {
   crearBitacora,
   actualizarBitacora,
   eliminarBitacora,
+  getTickets,
+  getTicketById,
+  crearTicket,
+  actualizarTicket,
+  eliminarTicket,
   getNotificaciones,
   marcarNotificacionesLeidas,
   getVisitasProgramadas,

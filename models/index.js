@@ -21,6 +21,7 @@ import VehiculoSalidaAdjunto from './VehiculoSalidaAdjunto.js';
 import VehiculoSalidaTecnico from './VehiculoSalidaTecnico.js';
 import Notificacion from './Notificacion.js';
 import ClienteDocumento from './ClienteDocumento.js';
+import Ticket from './Ticket.js';
 
 //?estado de equipos
 import EstadoEquipo from './EstadoEquipo.js';
@@ -76,6 +77,8 @@ const EstadoSucursalModel = EstadoSucursal;
 
 // Modelo de Bitacoras
 const BitacoraModel = Bitacora;
+// Modelo de Tickets
+const TicketModel = Ticket;
 
 // Modelo de Visitas Programadas
 const VisitaProgramadaModel = VisitaProgramada;
@@ -145,6 +148,20 @@ BitacoraModel.belongsTo(ProyectoModel, { foreignKey: 'proyectoId', as: 'proyecto
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'creadoPorId', as: 'bitacorasCreadas' });
 CuentaModel.hasMany(BitacoraModel, { foreignKey: 'actualizadoPorId', as: 'bitacorasActualizadas' });
 ProyectoModel.hasMany(BitacoraModel, { foreignKey: 'proyectoId', as: 'bitacoras', onDelete: 'SET NULL' });
+
+// Relaciones Tickets
+TicketModel.belongsTo(CasaMatrizModel, { foreignKey: 'casaMatrizId', as: 'casaMatriz', onDelete: 'CASCADE' });
+CasaMatrizModel.hasMany(TicketModel, { foreignKey: 'casaMatrizId', as: 'tickets', onDelete: 'CASCADE' });
+
+TicketModel.belongsTo(SucursalModel, { foreignKey: 'sucursalId', as: 'sucursal', onDelete: 'SET NULL' });
+SucursalModel.hasMany(TicketModel, { foreignKey: 'sucursalId', as: 'tickets', onDelete: 'SET NULL' });
+
+TicketModel.belongsTo(CuentaModel, { foreignKey: 'creadoPorId', as: 'creadoPor' });
+TicketModel.belongsTo(CuentaModel, { foreignKey: 'actualizadoPorId', as: 'actualizadoPor' });
+TicketModel.belongsTo(ProyectoModel, { foreignKey: 'proyectoId', as: 'proyecto', onDelete: 'SET NULL' });
+CuentaModel.hasMany(TicketModel, { foreignKey: 'creadoPorId', as: 'ticketsCreados' });
+CuentaModel.hasMany(TicketModel, { foreignKey: 'actualizadoPorId', as: 'ticketsActualizados' });
+ProyectoModel.hasMany(TicketModel, { foreignKey: 'proyectoId', as: 'tickets', onDelete: 'SET NULL' });
 
 // Relacion Documentos - Casa Matriz/Cuenta
 ClienteDocumentoModel.belongsTo(CasaMatrizModel, {
@@ -263,6 +280,7 @@ export {
     //?estado de sucursales
     EstadoSucursalModel,
     BitacoraModel,
+    TicketModel,
     VisitaProgramadaModel,
     ProyectoModel,
     ProyectoAdjuntoModel,

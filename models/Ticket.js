@@ -1,7 +1,7 @@
 import { DataTypes } from "sequelize";
 import db from "../config/db.js";
 
-const normalizarLista = (value) => {
+const normalizeList = (value) => {
   if (!value) {
     return [];
   }
@@ -16,10 +16,10 @@ const normalizarLista = (value) => {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) {
-        return normalizarLista(parsed);
+        return normalizeList(parsed);
       }
     } catch (_error) {
-      // Ignorar, continuamos con el flujo estandar
+      // Ignorar parsing fallido, usamos el fallback
     }
 
     return value
@@ -31,8 +31,8 @@ const normalizarLista = (value) => {
   return [];
 };
 
-const bitacora = db.define(
-  "Bitacoras",
+const ticket = db.define(
+  "Tickets",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -62,13 +62,13 @@ const bitacora = db.define(
             return parsed;
           }
         } catch (_error) {
-          // Continuamos al fallback
+          // fallback
         }
-        return normalizarLista(raw);
+        return normalizeList(raw);
       },
       set(value) {
-        const normalizado = normalizarLista(value);
-        this.setDataValue("tecnicos", JSON.stringify(normalizado));
+        const normalized = normalizeList(value);
+        this.setDataValue("tecnicos", JSON.stringify(normalized));
       },
     },
     fechaVisita: {
@@ -102,55 +102,54 @@ const bitacora = db.define(
     adjuntos: {
       type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: '[]',
+      defaultValue: "[]",
       get() {
-        const raw = this.getDataValue('adjuntos');
-        return normalizarLista(raw);
+        const raw = this.getDataValue("adjuntos");
+        return normalizeList(raw);
       },
       set(value) {
         if (!value) {
-          this.setDataValue('adjuntos', JSON.stringify([]));
+          this.setDataValue("adjuntos", JSON.stringify([]));
         } else if (Array.isArray(value)) {
-          this.setDataValue('adjuntos', JSON.stringify(value));
-        } else if (typeof value === 'string') {
+          this.setDataValue("adjuntos", JSON.stringify(value));
+        } else if (typeof value === "string") {
           try {
             const parsed = JSON.parse(value);
             if (Array.isArray(parsed)) {
-              this.setDataValue('adjuntos', JSON.stringify(parsed));
+              this.setDataValue("adjuntos", JSON.stringify(parsed));
               return;
             }
           } catch (_err) {}
-          // fallback: store as single-element array with the string
-          this.setDataValue('adjuntos', JSON.stringify([value]));
+          this.setDataValue("adjuntos", JSON.stringify([value]));
         } else {
-          this.setDataValue('adjuntos', JSON.stringify([]));
+          this.setDataValue("adjuntos", JSON.stringify([]));
         }
       },
     },
     adjuntosTermino: {
       type: DataTypes.TEXT,
       allowNull: true,
-      defaultValue: '[]',
+      defaultValue: "[]",
       get() {
-        const raw = this.getDataValue('adjuntosTermino');
-        return normalizarLista(raw);
+        const raw = this.getDataValue("adjuntosTermino");
+        return normalizeList(raw);
       },
       set(value) {
         if (!value) {
-          this.setDataValue('adjuntosTermino', JSON.stringify([]));
+          this.setDataValue("adjuntosTermino", JSON.stringify([]));
         } else if (Array.isArray(value)) {
-          this.setDataValue('adjuntosTermino', JSON.stringify(value));
-        } else if (typeof value === 'string') {
+          this.setDataValue("adjuntosTermino", JSON.stringify(value));
+        } else if (typeof value === "string") {
           try {
             const parsed = JSON.parse(value);
             if (Array.isArray(parsed)) {
-              this.setDataValue('adjuntosTermino', JSON.stringify(parsed));
+              this.setDataValue("adjuntosTermino", JSON.stringify(parsed));
               return;
             }
           } catch (_err) {}
-          this.setDataValue('adjuntosTermino', JSON.stringify([value]));
+          this.setDataValue("adjuntosTermino", JSON.stringify([value]));
         } else {
-          this.setDataValue('adjuntosTermino', JSON.stringify([]));
+          this.setDataValue("adjuntosTermino", JSON.stringify([]));
         }
       },
     },
@@ -159,15 +158,28 @@ const bitacora = db.define(
       allowNull: false,
       defaultValue: false,
     },
+    estadoTicket: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "ingresado",
+    },
+    fechaTermino: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    },
+    detalleTermino: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     proyectoId: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
   },
   {
-    tableName: "Bitacoras",
+    tableName: "Tickets",
     timestamps: true,
   }
 );
 
-export default bitacora;
+export default ticket;
