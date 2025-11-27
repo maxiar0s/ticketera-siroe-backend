@@ -29,15 +29,32 @@ const crearUsuario = async (req, res) => {
 };
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  const Usuario = await CuentaModel.findOne({ where: { email } });
+    if (!email || !password) {
+      return res.status(400).json({ resp: "Debe ingresar correo y contraseña" });
+    }
 
-  if (!Usuario) return res.json({ resp: "Usuario incorrecto" });
+    const Usuario = await CuentaModel.findOne({ where: { email } });
 
-  const password_compare = await bcrypt.compare(password, Usuario.password);
+    if (!Usuario) {
+      return res.status(401).json({ resp: "Usuario o contraseña incorrecta" });
+    }
 
-  if (password_compare) {
+    const password_compare = await bcrypt.compare(password, Usuario.password);
+
+    if (!password_compare) {
+      return res.status(401).json({ resp: "Usuario o contraseña incorrecta" });
+    }
+
+    if (!process.env.JWT_SECRETPASSWORD) {
+      console.error("JWT_SECRETPASSWORD no está definido");
+      return res
+        .status(500)
+        .json({ resp: "Error de configuración, contacte al administrador" });
+    }
+
     const token = jwt.sign(
       { id: Usuario.id, tipoCuenta: Usuario.tipoCuentaId },
       process.env.JWT_SECRETPASSWORD,
@@ -54,8 +71,13 @@ const login = async (req, res) => {
       { email: Usuario.email }
     );
 
-    return res.json({ token: token });
-  } else return res.json({ resp: "Usuario incorrecto" });
+    return res.json({ token });
+  } catch (error) {
+    console.error("Error en login:", error);
+    return res
+      .status(500)
+      .json({ resp: "No se pudo iniciar sesión, intente nuevamente" });
+  }
 };
 
 const recuperarAcceso = async (req, res) => {
