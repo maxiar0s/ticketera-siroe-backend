@@ -28,8 +28,9 @@ const logRequest = (req, res, next) => {
     };
 
     // Sanitize sensitive data from body if needed (e.g. passwords)
+    // Create a shallow copy to avoid mutating the original request body
     if (detalles.body && detalles.body.password) {
-      detalles.body.password = "***";
+      detalles.body = { ...detalles.body, password: "***" };
     }
 
     registrarLog(

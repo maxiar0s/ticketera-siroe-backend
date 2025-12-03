@@ -1083,6 +1083,9 @@ const postCuenta = async (req, res) => {
       return res.status(400).json({ error: "La contraseÃ±a es obligatoria." });
     }
 
+    console.log("Password received for creation:", password);
+    console.log("Password length:", password.length);
+
     if (tipoCuentaNumero === undefined || Number.isNaN(tipoCuentaNumero)) {
       return res.status(400).json({ error: "Tipo de cuenta invÃ¡lido." });
     }
@@ -1908,11 +1911,9 @@ const postEquipo = async (req, res) => {
       typeof imagenName !== "string" ||
       imagenName.trim() === ""
     ) {
-      return res
-        .status(400)
-        .json({
-          error: "Error al subir la imagen. Nombre de archivo invÃ¡lido.",
-        });
+      return res.status(400).json({
+        error: "Error al subir la imagen. Nombre de archivo invÃ¡lido.",
+      });
     }
   }
 
@@ -2815,11 +2816,9 @@ const getEquipmentsByCasaMatriz = async (req, res) => {
       req.autorizados ?? (await getAuthorizedClientIds(usuario.id));
     req.autorizados = autorizados;
     if (!autorizados.includes(id)) {
-      return res
-        .status(403)
-        .json({
-          error: "No tiene permisos para ver los equipos de este cliente.",
-        });
+      return res.status(403).json({
+        error: "No tiene permisos para ver los equipos de este cliente.",
+      });
     }
   }
 
@@ -4814,11 +4813,9 @@ const actualizarBitacora = async (req, res) => {
 
       if (typeof casaMatrizId !== "undefined") {
         if (!casaMatrizId) {
-          return res
-            .status(400)
-            .json({
-              error: "El cliente de la bitacora no puede quedar vacio.",
-            });
+          return res.status(400).json({
+            error: "El cliente de la bitacora no puede quedar vacio.",
+          });
         }
         const cliente = await CasaMatrizModel.findByPk(casaMatrizId);
         if (!cliente) {
@@ -5912,11 +5909,9 @@ const marcarNotificacionesLeidas = async (req, res) => {
     );
 
     if (!ids.length) {
-      return res
-        .status(400)
-        .json({
-          error: "Debe indicar las notificaciones a marcar como leidas.",
-        });
+      return res.status(400).json({
+        error: "Debe indicar las notificaciones a marcar como leidas.",
+      });
     }
 
     const [actualizadas] = await NotificacionModel.update(
@@ -6773,11 +6768,9 @@ const getVehiculos = async (req, res) => {
   try {
     const usuario = req.usuario;
     if (usuario?.tipoCuentaId === 5) {
-      return res
-        .status(403)
-        .json({
-          error: "No tiene permisos para acceder al módulo de vehículos.",
-        });
+      return res.status(403).json({
+        error: "No tiene permisos para acceder al módulo de vehículos.",
+      });
     }
 
     const { pagina = 1, limite = 10, buscar } = req.query;
@@ -6822,11 +6815,9 @@ const getVehiculo = async (req, res) => {
   try {
     const usuario = req.usuario;
     if (usuario?.tipoCuentaId === 5) {
-      return res
-        .status(403)
-        .json({
-          error: "No tiene permisos para acceder al módulo de vehículos.",
-        });
+      return res.status(403).json({
+        error: "No tiene permisos para acceder al módulo de vehículos.",
+      });
     }
 
     const { id } = req.params;
