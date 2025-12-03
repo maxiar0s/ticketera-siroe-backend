@@ -15,7 +15,7 @@ app.use(
     origin: [
       "https://app.soportesiroe.cl",
       "https://demo.soportesiroe.cl",
-      "https://api-ticketera.siroe.cl",
+      "https://ticket.siroe.cl",
       "http://localhost:4200", // Para tus pruebas locales
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
