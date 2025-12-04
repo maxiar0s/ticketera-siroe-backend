@@ -161,7 +161,7 @@ const ticket = db.define(
     estadoTicket: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: "ingresado",
+      defaultValue: "Nuevo",
     },
     fechaTermino: {
       type: DataTypes.DATEONLY,

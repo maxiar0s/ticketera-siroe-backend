@@ -612,17 +612,32 @@ const parseTicketFlag = (value, defaultValue = false) => {
   return parseBooleanFlag(value, defaultValue);
 };
 
-const ESTADO_TICKET_INGRESADO = "ingresado";
-const ESTADO_TICKET_TERMINADO = "terminado";
+const ESTADO_TICKET_INGRESADO = "Nuevo";
+const ESTADO_TICKET_TERMINADO = "Cerrado";
+
+const VALID_TICKET_STATES = new Set([
+  "Nuevo",
+  "Abierto",
+  "Pendiente",
+  "En espera",
+  "Resuelto",
+  "Cerrado",
+]);
 
 const parseEstadoTicket = (value, defaultValue = null) => {
   if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (normalized === ESTADO_TICKET_TERMINADO) {
-      return ESTADO_TICKET_TERMINADO;
-    }
-    if (normalized === ESTADO_TICKET_INGRESADO) {
-      return ESTADO_TICKET_INGRESADO;
+    // Mapeo de compatibilidad hacia atrás
+    const normalized = value.trim();
+    const lower = normalized.toLowerCase();
+
+    if (lower === "ingresado") return "Nuevo";
+    if (lower === "terminado") return "Cerrado";
+
+    // Busqueda case-insensitive en los nuevos estados
+    for (const state of VALID_TICKET_STATES) {
+      if (state.toLowerCase() === lower) {
+        return state;
+      }
     }
   }
   return defaultValue;
@@ -5262,7 +5277,10 @@ const crearTicket = async (req, res) => {
     let fechaTerminoNormalizada = null;
     let detalleTerminoNormalizado = null;
 
-    if (estadoTicketNormalizado === ESTADO_TICKET_TERMINADO) {
+    if (
+      estadoTicketNormalizado === "Resuelto" ||
+      estadoTicketNormalizado === "Cerrado"
+    ) {
       const fechaNormalizada = toISODateOnly(fechaTerminoEntrada);
       if (!fechaNormalizada) {
         return res.status(400).json({
@@ -5688,7 +5706,7 @@ const actualizarTicket = async (req, res) => {
       ? cambios.detalleTermino
       : ticket.detalleTermino;
 
-    if (estadoTicketFinal === ESTADO_TICKET_TERMINADO) {
+    if (estadoTicketFinal === "Resuelto" || estadoTicketFinal === "Cerrado") {
       if (!fechaTerminoFinal) {
         return res.status(400).json({
           error: "La fecha de termino del ticket es obligatoria.",
@@ -5712,7 +5730,7 @@ const actualizarTicket = async (req, res) => {
       if (tieneCambio("detalleTermino")) {
         cambios.detalleTermino = null;
       }
-      cambios.estadoTicket = ESTADO_TICKET_INGRESADO;
+      // No forzar el estado a ingresado/nuevo, mantener el que viene
     }
 
     if (Object.keys(cambios).length === 0) {

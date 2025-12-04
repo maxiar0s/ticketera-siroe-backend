@@ -14,7 +14,7 @@ import {
   CuentaModel,
 } from "../../models/index.js";
 
-const ESTADO_TICKET_INGRESADO = "ingresado";
+const ESTADO_TICKET_INGRESADO = "Nuevo";
 const FREE_EMAIL_DOMAINS = new Set([
   "gmail.com",
   "hotmail.com",
@@ -87,11 +87,16 @@ const enhanceBodyText = (text) => {
 
   let sanitized = `${text}`;
 
-  sanitized = sanitized.replace(/\[cid:[^\]]+\]/gi, "").replace(/cid:[^\s]+/gi, "");
+  sanitized = sanitized
+    .replace(/\[cid:[^\]]+\]/gi, "")
+    .replace(/cid:[^\s]+/gi, "");
 
-  sanitized = sanitized.replace(/\[(https?:\/\/[^\]\s]+)\]/gi, (_match, url) => {
-    return `\n${LINK_LABEL} ${url}\n`;
-  });
+  sanitized = sanitized.replace(
+    /\[(https?:\/\/[^\]\s]+)\]/gi,
+    (_match, url) => {
+      return `\n${LINK_LABEL} ${url}\n`;
+    }
+  );
 
   sanitized = sanitized.replace(/https?:\/\/\S+/gi, (url, offset, full) => {
     const prefixStart = Math.max(0, offset - (LINK_LABEL.length + 2));
@@ -295,9 +300,10 @@ export class EmailTicketProcessor {
         imapUser,
       } = this.config;
 
-      const fromAddress = outboundFromAddress && outboundFromAddress.trim().length
-        ? outboundFromAddress.trim()
-        : smtpUser || imapUser;
+      const fromAddress =
+        outboundFromAddress && outboundFromAddress.trim().length
+          ? outboundFromAddress.trim()
+          : smtpUser || imapUser;
 
       if (!fromAddress) {
         console.warn(
@@ -314,7 +320,9 @@ export class EmailTicketProcessor {
         asuntoOriginal && asuntoOriginal.trim().length
           ? asuntoOriginal.trim()
           : ticket?.titulo || "Ticket sin asunto";
-      const subject = `${outboundSubjectPrefix ?? "[Ticket creado]"} ${subjectBase}`.trim();
+      const subject = `${
+        outboundSubjectPrefix ?? "[Ticket creado]"
+      } ${subjectBase}`.trim();
 
       const cuerpoBase =
         outboundAckBodyTemplate ??
@@ -357,7 +365,11 @@ export class EmailTicketProcessor {
       return true;
     }
 
-    if (hasDomainAllow && domain && this.allowedDomains.has(domain.toLowerCase())) {
+    if (
+      hasDomainAllow &&
+      domain &&
+      this.allowedDomains.has(domain.toLowerCase())
+    ) {
       return true;
     }
 
@@ -370,7 +382,10 @@ export class EmailTicketProcessor {
 
   async refreshDynamicAllowLists(force = false) {
     const now = Date.now();
-    if (!force && now - this.lastAllowListRefresh < ALLOWLIST_REFRESH_INTERVAL_MS) {
+    if (
+      !force &&
+      now - this.lastAllowListRefresh < ALLOWLIST_REFRESH_INTERVAL_MS
+    ) {
       return;
     }
 
@@ -420,10 +435,7 @@ export class EmailTicketProcessor {
     }
 
     let casaMatriz = await CasaMatrizModel.findOne({
-      where: db.where(
-        db.fn("LOWER", db.col("correo")),
-        normalized
-      ),
+      where: db.where(db.fn("LOWER", db.col("correo")), normalized),
     });
 
     const cuenta = await CuentaModel.findOne({
@@ -512,7 +524,8 @@ export class EmailTicketProcessor {
     );
 
     const tituloBase =
-      typeof parsedEmail.subject === "string" && parsedEmail.subject.trim().length
+      typeof parsedEmail.subject === "string" &&
+      parsedEmail.subject.trim().length
         ? parsedEmail.subject.trim()
         : "Ticket sin asunto";
 
@@ -526,7 +539,9 @@ export class EmailTicketProcessor {
       "",
       "---",
       `Correo original: ${remitente}`,
-      `Nombre remitente: ${getSenderName(parsedEmail.from) ?? "No especificado"}`,
+      `Nombre remitente: ${
+        getSenderName(parsedEmail.from) ?? "No especificado"
+      }`,
       `Asunto original: ${tituloBase}`,
       `Fecha correo: ${correoDate.toISOString()}`,
     ]
@@ -535,7 +550,9 @@ export class EmailTicketProcessor {
 
     const attachments = Array.isArray(parsedEmail.attachments)
       ? parsedEmail.attachments.filter((attachment) => {
-          const disposition = (attachment.contentDisposition || "").toLowerCase();
+          const disposition = (
+            attachment.contentDisposition || ""
+          ).toLowerCase();
           if (disposition === "inline") {
             return false;
           }
