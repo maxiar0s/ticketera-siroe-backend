@@ -175,6 +175,43 @@ const ticket = db.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    prioridad: {
+      type: DataTypes.ENUM("Baja", "Media", "Alta"),
+      allowNull: false,
+      defaultValue: "Media",
+    },
+    tipo: {
+      type: DataTypes.ENUM("Incidente", "Problema", "Pregunta", "Peticion"),
+      allowNull: false,
+      defaultValue: "Incidente",
+    },
+    fuente: {
+      type: DataTypes.ENUM("Web", "Email"),
+      allowNull: false,
+      defaultValue: "Web",
+    },
+    fechaRespuesta: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    historialEstados: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: "[]",
+      get() {
+        const raw = this.getDataValue("historialEstados");
+        return normalizeList(raw);
+      },
+      set(value) {
+        if (!value) {
+          this.setDataValue("historialEstados", JSON.stringify([]));
+        } else if (Array.isArray(value)) {
+          this.setDataValue("historialEstados", JSON.stringify(value));
+        } else {
+          this.setDataValue("historialEstados", JSON.stringify([value]));
+        }
+      },
+    },
   },
   {
     tableName: "Tickets",

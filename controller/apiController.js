@@ -5235,6 +5235,8 @@ const crearTicket = async (req, res) => {
       ticketFechaTermino,
       ticketDetalleTermino,
       proyectoId,
+      prioridad,
+      tipo,
     } = bodyData;
 
     if (!casaMatrizId || !fechaVisita) {
@@ -5393,6 +5395,8 @@ const crearTicket = async (req, res) => {
       adjuntosTermino: Array.isArray(req.uploadedEvidenceFiles)
         ? req.uploadedEvidenceFiles
         : [],
+      prioridad: prioridad ?? "Media",
+      tipo: tipo ?? "Incidente",
     });
 
     const ticketCreado = await TicketModel.findByPk(nuevoTicket.id, {
@@ -5459,6 +5463,8 @@ const actualizarTicket = async (req, res) => {
       ticketFechaTermino,
       detalleTermino,
       ticketDetalleTermino,
+      prioridad,
+      tipo,
     } = bodyData;
 
     let proyectoCambioSolicitado = false;
@@ -5598,6 +5604,30 @@ const actualizarTicket = async (req, res) => {
       const tieneEstadoTicketEntrada =
         Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
         Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
+
+      if (tieneEstadoTicketEntrada) {
+        const estadoEntrada =
+          typeof estadoTicket !== "undefined" ? estadoTicket : ticketEstado;
+        const estadoNormalizado = parseEstadoTicket(estadoEntrada, null);
+        if (estadoNormalizado) {
+          cambios.estadoTicket = estadoNormalizado;
+        }
+      }
+
+      if (typeof prioridad !== "undefined") {
+        const prioridadLimpia = `${prioridad ?? ""}`.trim();
+        if (prioridadLimpia) {
+          cambios.prioridad = prioridadLimpia;
+        }
+      }
+
+      if (typeof tipo !== "undefined") {
+        const tipoLimpio = `${tipo ?? ""}`.trim();
+        if (tipoLimpio) {
+          cambios.tipo = tipoLimpio;
+        }
+      }
+      Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
       if (tieneEstadoTicketEntrada) {
         const entradaEstado = Object.prototype.hasOwnProperty.call(
           bodyData,
