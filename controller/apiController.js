@@ -37,6 +37,7 @@ import {
 import EstadoCuenta from "../models/EstadoCuenta.js";
 import { metodosPago as vehiculoMetodosPago } from "../models/VehiculoSalida.js";
 import { CLIENTE_DOCUMENTO_TIPOS } from "../models/ClienteDocumento.js";
+import registrarLog from "../utils/logger.js";
 
 const cuentaIncludes = [
   { model: TipoCuentaModel, as: "tipoCuenta" },
@@ -1102,7 +1103,7 @@ const postCuenta = async (req, res) => {
     console.log("Password length:", password.length);
 
     if (tipoCuentaNumero === undefined || Number.isNaN(tipoCuentaNumero)) {
-      return res.status(400).json({ error: "Tipo de cuenta invÃ¡lido." });
+      return res.status(400).json({ error: "Tipo de cuenta inválido." });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -1127,6 +1128,16 @@ const postCuenta = async (req, res) => {
     if (tipoCuentaNumero === 4) {
       await nuevaCuenta.setClientesAutorizados(clienteIds);
     }
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_USUARIO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { nuevoUsuarioId: nuevaCuenta.id, email: nuevaCuenta.email }
+    );
 
     const cuentaConAsociaciones = await CuentaModel.scope(
       "eliminarCampos"
@@ -1167,10 +1178,10 @@ const getTecnicosDisponibles = async (_req, res) => {
 
     return res.json(tecnicos);
   } catch (error) {
-    console.error("Error al obtener tÃ©cnicos disponibles:", error);
+    console.error("Error al obtener técnicos disponibles:", error);
     return res
       .status(500)
-      .json({ error: "Hubo un error al obtener el listado de tÃ©cnicos." });
+      .json({ error: "Hubo un error al obtener el listado de técnicos." });
   }
 };
 
@@ -1232,6 +1243,16 @@ const getEliminarCuenta = async (req, res) => {
 
   await cuenta.destroy();
 
+  // LOG
+  await registrarLog(
+    req.usuario?.id,
+    "ELIMINAR_USUARIO",
+    req.method,
+    req.path,
+    req.ip || req.connection.remoteAddress,
+    { usuarioEliminadoId: id }
+  );
+
   return res.json({ resp: "Cliente eliminado correctamente" });
 };
 
@@ -1251,7 +1272,7 @@ const getUsuarios = async (req, res) => {
   let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4, 5] };
   if (option === "Mesa de ayuda") {
     tipoCuentaFiltro = 3;
-  } else if (option === "TÃ©cnico de soporte") {
+  } else if (option === "Técnico de soporte") {
     tipoCuentaFiltro = 2;
   } else if (option === "Administrador") {
     tipoCuentaFiltro = 1;
@@ -1566,7 +1587,7 @@ const postCliente = async (req, res) => {
       esLead,
     });
 
-    await CasaMatrizModel.create({
+    const nuevaCasaMatriz = await CasaMatrizModel.create({
       rut: rutNormalizado ?? null,
       razonSocial: razonSocial ?? null,
       imagen: imagenName,
@@ -1582,6 +1603,19 @@ const postCliente = async (req, res) => {
       ),
     });
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_CLIENTE",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      {
+        clienteId: nuevaCasaMatriz.id,
+        razonSocial: nuevaCasaMatriz.razonSocial,
+      }
+    );
+
     return res.json({ resp: "Cliente creado correctamente" });
   } catch (error) {
     console.error("Error al crear cliente:", error);
@@ -1591,6 +1625,7 @@ const postCliente = async (req, res) => {
     });
   }
 };
+
 const postEliminarCliente = async (req, res) => {
   const { id } = req.params;
   if (!id) {
@@ -1618,6 +1653,16 @@ const postEliminarCliente = async (req, res) => {
 
     // Eliminar el cliente
     await cliente.destroy();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "ELIMINAR_CLIENTE",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { clienteId: id }
+    );
 
     return res.json({
       resp: "Cliente eliminado correctamente",
@@ -1823,6 +1868,16 @@ const postModificarCliente = async (req, res) => {
     console.log("Datos a actualizar:", updateData);
     await cliente.update(updateData);
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "MODIFICAR_CLIENTE",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { clienteId: cliente.id, razonSocial: cliente.razonSocial }
+    );
+
     return res.json({ resp: "Cliente modificado correctamente" });
   } catch (error) {
     console.error("Error al modificar cliente:", error);
@@ -1917,7 +1972,7 @@ const postEquipo = async (req, res) => {
       .json({ error: "Debe proporcionar un clienteId o sucursalId" });
   }
 
-  // Validar que el campo imagen estÃ© presente si se subiÃ³ archivo
+  // Validar que el campo imagen esté presente si se subió archivo
   let imagenName = null;
   if (req.uploadedFile) {
     imagenName = req.uploadedFile;
@@ -1927,7 +1982,7 @@ const postEquipo = async (req, res) => {
       imagenName.trim() === ""
     ) {
       return res.status(400).json({
-        error: "Error al subir la imagen. Nombre de archivo invÃ¡lido.",
+        error: "Error al subir la imagen. Nombre de archivo inválido.",
       });
     }
   }
@@ -1948,7 +2003,7 @@ const postEquipo = async (req, res) => {
       );
 
       if (Number.isNaN(parsedDepartamentoId)) {
-        throw new Error("Identificador de departamento inv\u00E1lido.");
+        throw new Error("Identificador de departamento inválido.");
       }
 
       const registroDepartamento = await DepartamentoEquipoModel.findByPk(
@@ -1964,7 +2019,7 @@ const postEquipo = async (req, res) => {
     }
 
     if (!departamentoNombre) {
-      throw new Error("Debe seleccionar un departamento v\u00E1lido.");
+      throw new Error("Debe seleccionar un departamento válido.");
     }
 
     const lockCondition = sucursalId ? { sucursalId } : { clienteId };
@@ -1989,7 +2044,7 @@ const postEquipo = async (req, res) => {
       throw new Error("El tipo de equipo no existe");
     }
 
-    // Crear el cÃ³digo del equipo
+    // Crear el código del equipo
     const deptCode = departamentoNombre.substring(0, 4).toUpperCase();
     const numeroPadded = nextNumero.toString().padStart(3, "0");
     const codigoId = `SI${deptCode}${tipoEquipo.dict}${numeroPadded}`;
@@ -2026,6 +2081,17 @@ const postEquipo = async (req, res) => {
     });
 
     await t.commit();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_EQUIPO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { equipoId: nuevoEquipo.id, codigoId: nuevoEquipo.codigoId }
+    );
+
     return res.json({
       message: "Equipo creado satisfactoriamente",
       nuevoEquipo,
@@ -2228,6 +2294,16 @@ const postModificarEquipo = async (req, res) => {
 
     await equipo.update(datosActualizados);
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "MODIFICAR_EQUIPO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { equipoId: equipo.id }
+    );
+
     return res.json({ resp: "Equipo modificado correctamente." });
   } catch (error) {
     console.error("Error al modificar el equipo:", error);
@@ -2250,7 +2326,7 @@ const deleteEquiptment = async (req, res) => {
   if (!id) {
     return res.status(400).json({
       success: false,
-      message: "Error: No se proporcionÃ³ un ID de equipo vÃ¡lido",
+      message: "Error: No se proporcionó un ID de equipo válido",
     });
   }
 
@@ -2287,6 +2363,16 @@ const deleteEquiptment = async (req, res) => {
 
       // Commit the transaction
       await t.commit();
+
+      // LOG
+      await registrarLog(
+        req.usuario?.id,
+        "ELIMINAR_EQUIPO",
+        req.method,
+        req.path,
+        req.ip || req.connection.remoteAddress,
+        { equipoId: id }
+      );
 
       return res.json({
         success: true,
@@ -3449,6 +3535,17 @@ const crearTipoEquipo = async (req, res) => {
       }
 
       await t.commit();
+
+      // LOG
+      await registrarLog(
+        req.usuario?.id,
+        "CREAR_TIPO_EQUIPO",
+        req.method,
+        req.path,
+        req.ip || req.connection.remoteAddress,
+        { tipoEquipoId: nuevoTipo.id, name: nuevoTipo.name }
+      );
+
       return res.status(201).json(nuevoTipo);
     } catch (error) {
       if (t && !t.finished) {
@@ -3562,6 +3659,17 @@ const actualizarTipoEquipo = async (req, res) => {
       }
 
       await t.commit();
+
+      // LOG
+      await registrarLog(
+        req.usuario?.id,
+        "MODIFICAR_TIPO_EQUIPO",
+        req.method,
+        req.path,
+        req.ip || req.connection.remoteAddress,
+        { tipoEquipoId: tipo.id }
+      );
+
       return res.json(await TipoEquipoModel.findByPk(tipo.id));
     } catch (error) {
       if (t && !t.finished) {
@@ -3610,6 +3718,16 @@ const eliminarTipoEquipo = async (req, res) => {
 
       await tipo.destroy({ transaction: t });
       await t.commit();
+
+      // LOG
+      await registrarLog(
+        req.usuario?.id,
+        "ELIMINAR_TIPO_EQUIPO",
+        req.method,
+        req.path,
+        req.ip || req.connection.remoteAddress,
+        { tipoEquipoId: id }
+      );
 
       return res.json({ mensaje: "Tipo de equipo eliminado correctamente." });
     } catch (error) {
@@ -3809,6 +3927,16 @@ const crearCampo = async (req, res) => {
       standards,
     });
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_CAMPO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { campoId: campo.id, name: campo.name }
+    );
+
     return res.status(201).json(campo);
   } catch (error) {
     console.error("Error al crear el campo:", error);
@@ -3912,6 +4040,17 @@ const actualizarCampo = async (req, res) => {
     }
 
     await campo.update(cambios);
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "MODIFICAR_CAMPO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { campoId: campo.id }
+    );
+
     return res.json(campo);
   } catch (error) {
     console.error("Error al actualizar el campo:", error);
@@ -4706,6 +4845,16 @@ const crearVisitaProgramada = async (req, res) => {
       ],
     });
 
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "CREAR_BITACORA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { bitacoraId: nuevaVisita.id, clienteId: casaMatrizId }
+    );
+
     return res.status(201).json(visitaCreada);
   } catch (error) {
     console.error("Error al agendar visita:", error);
@@ -5022,6 +5171,16 @@ const actualizarBitacora = async (req, res) => {
       );
     }
 
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "MODIFICAR_BITACORA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { bitacoraId: bitacora.id }
+    );
+
     return res.json(bitacora);
   } catch (error) {
     console.error("Error al actualizar bitacora:", error);
@@ -5041,6 +5200,17 @@ const eliminarBitacora = async (req, res) => {
     }
 
     await bitacora.destroy();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "ELIMINAR_BITACORA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { bitacoraId: id }
+    );
+
     return res.json({ mensaje: "Bitacora eliminada correctamente." });
   } catch (error) {
     console.error("Error al eliminar bitacora:", error);
@@ -5491,6 +5661,16 @@ const crearTicket = async (req, res) => {
         usuario.id
       );
     }
+
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "CREAR_TICKET",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { ticketId: ticketCreado.id, clienteId: clienteId }
+    );
 
     return res.status(201).json(ticketCreado);
   } catch (error) {
@@ -6031,6 +6211,16 @@ const actualizarTicket = async (req, res) => {
       );
     }
 
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "MODIFICAR_TICKET",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { ticketId: ticket.id }
+    );
+
     return res.json(ticket);
   } catch (error) {
     console.error("Error al actualizar ticket:", error);
@@ -6056,6 +6246,17 @@ const eliminarTicket = async (req, res) => {
     }
 
     await ticket.destroy();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "ELIMINAR_TICKET",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { ticketId: id }
+    );
+
     return res.json({ mensaje: "Ticket eliminado correctamente." });
   } catch (error) {
     console.error("Error al eliminar ticket:", error);
@@ -6374,6 +6575,16 @@ const crearDocumentoCliente = async (req, res) => {
       { include: documentoClienteIncludes }
     );
 
+    // LOG
+    await registrarLog(
+      usuario?.id,
+      "CREAR_DOCUMENTO_CLIENTE",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { documentoId: documento.id, clienteId: cliente.id }
+    );
+
     return res
       .status(201)
       .json(buildDocumentoClienteResponse(documentoCompleto || documento));
@@ -6413,6 +6624,16 @@ const eliminarDocumentoCliente = async (req, res) => {
         );
       }
     }
+
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "ELIMINAR_DOCUMENTO_CLIENTE",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { documentoId: id }
+    );
 
     return res.json({ mensaje: "Documento eliminado correctamente." });
   } catch (error) {
@@ -6621,6 +6842,16 @@ const crearProyecto = async (req, res) => {
     }
 
     const detalle = await cargarProyectoDetalle(proyecto.id);
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "CREAR_PROYECTO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { proyectoId: proyecto.id }
+    );
+
     return res.status(201).json(detalle);
   } catch (error) {
     console.error("Error al crear proyecto:", error);
@@ -6780,6 +7011,16 @@ const actualizarProyecto = async (req, res) => {
     }
 
     const detalle = await cargarProyectoDetalle(proyecto.id);
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "MODIFICAR_PROYECTO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { proyectoId: proyecto.id }
+    );
+
     return res.json(detalle);
   } catch (error) {
     console.error("Error al actualizar proyecto:", error);
@@ -6811,6 +7052,16 @@ const eliminarProyecto = async (req, res) => {
 
     await ProyectoAdjuntoModel.destroy({ where: { proyectoId: proyecto.id } });
     await proyecto.destroy();
+
+    // LOG
+    await registrarLog(
+      usuario.id,
+      "ELIMINAR_PROYECTO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { proyectoId: id }
+    );
 
     return res.json({ mensaje: "Proyecto eliminado correctamente." });
   } catch (error) {
@@ -7133,6 +7384,16 @@ const crearVehiculo = async (req, res) => {
       fechaSiguienteMantencion: siguienteMantencionISO,
     });
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_VEHICULO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: nuevoVehiculo.id, patente: patenteLimpia }
+    );
+
     return res.status(201).json(buildVehiculoResponse(nuevoVehiculo));
   } catch (error) {
     console.error("Error al crear vehículo:", error);
@@ -7233,6 +7494,16 @@ const actualizarVehiculo = async (req, res) => {
     await vehiculo.save();
 
     const actualizado = await VehiculoModel.findByPk(vehiculo.id);
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "MODIFICAR_VEHICULO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: vehiculo.id }
+    );
+
     return res.json(buildVehiculoResponse(actualizado));
   } catch (error) {
     console.error("Error al actualizar vehículo:", error);
@@ -7264,6 +7535,16 @@ const eliminarVehiculo = async (req, res) => {
     }
 
     await vehiculo.destroy();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "ELIMINAR_VEHICULO",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: id }
+    );
 
     return res.json({ mensaje: "Vehículo eliminado correctamente." });
   } catch (error) {
@@ -7416,6 +7697,16 @@ const crearVehiculoSalida = async (req, res) => {
     const detalleSalida = await VehiculoSalidaModel.findByPk(nuevaSalida.id, {
       include: vehiculoSalidaIncludes,
     });
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "CREAR_VEHICULO_SALIDA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: vehiculo.id, salidaId: nuevaSalida.id }
+    );
 
     return res.status(201).json(buildVehiculoSalidaResponse(detalleSalida));
   } catch (error) {
@@ -7600,6 +7891,16 @@ const actualizarVehiculoSalida = async (req, res) => {
 
     await salida.reload({ include: vehiculoSalidaIncludes });
 
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "MODIFICAR_VEHICULO_SALIDA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: vehiculoId, salidaId: salida.id }
+    );
+
     return res.json(buildVehiculoSalidaResponse(salida));
   } catch (error) {
     console.error("Error al actualizar salida de vehículo:", error);
@@ -7629,6 +7930,16 @@ const eliminarVehiculoSalida = async (req, res) => {
     }
 
     await salida.destroy();
+
+    // LOG
+    await registrarLog(
+      req.usuario?.id,
+      "ELIMINAR_VEHICULO_SALIDA",
+      req.method,
+      req.path,
+      req.ip || req.connection.remoteAddress,
+      { vehiculoId: vehiculoId, salidaId: salidaId }
+    );
 
     return res.json({
       mensaje: "Salida eliminada correctamente.",

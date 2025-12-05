@@ -6,7 +6,8 @@ import EmailTicketProcessor from "../services/email/emailTicketProcessor.js";
 
 const processor = new EmailTicketProcessor(emailTicketConfig);
 const schedule =
-  emailTicketConfig.cronExpression && cron.validate(emailTicketConfig.cronExpression)
+  emailTicketConfig.cronExpression &&
+  cron.validate(emailTicketConfig.cronExpression)
     ? emailTicketConfig.cronExpression
     : "*/5 * * * *";
 
@@ -23,7 +24,10 @@ const ejecutarProcesamiento = async () => {
       `[EmailTicketCron] Finalizado - procesados: ${resultado.processed}, exitosos: ${resultado.success}, errores: ${resultado.errors}`
     );
   } catch (error) {
-    console.error("[EmailTicketCron] Error durante la ejecución programada:", error);
+    console.error(
+      "[EmailTicketCron] Error durante la ejecución programada:",
+      error
+    );
   }
 };
 
