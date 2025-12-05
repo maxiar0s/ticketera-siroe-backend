@@ -290,6 +290,10 @@ TicketModel.belongsTo(CuentaModel, {
   foreignKey: "actualizadoPorId",
   as: "actualizadoPor",
 });
+TicketModel.belongsTo(CuentaModel, {
+  foreignKey: "tecnicoAsignadoId",
+  as: "tecnicoAsignado",
+});
 TicketModel.belongsTo(ProyectoModel, {
   foreignKey: "proyectoId",
   as: "proyecto",
@@ -302,6 +306,10 @@ CuentaModel.hasMany(TicketModel, {
 CuentaModel.hasMany(TicketModel, {
   foreignKey: "actualizadoPorId",
   as: "ticketsActualizados",
+});
+CuentaModel.hasMany(TicketModel, {
+  foreignKey: "tecnicoAsignadoId",
+  as: "ticketsAsignados",
 });
 ProyectoModel.hasMany(TicketModel, {
   foreignKey: "proyectoId",

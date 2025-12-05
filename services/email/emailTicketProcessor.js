@@ -538,12 +538,12 @@ export class EmailTicketProcessor {
         : "Ticket generado automaticamente desde correo sin contenido de texto.",
       "",
       "---",
+      "",
       `Correo original: ${remitente}`,
+      "",
       `Nombre remitente: ${
         getSenderName(parsedEmail.from) ?? "No especificado"
       }`,
-      `Asunto original: ${tituloBase}`,
-      `Fecha correo: ${correoDate.toISOString()}`,
     ]
       .join("\n")
       .trim();
@@ -585,12 +585,8 @@ export class EmailTicketProcessor {
       }
     }
 
-    const tecnicos = ensureArray(this.config.defaultTechnicians, [
-      "Mesa de ayuda",
-    ]);
-    if (tecnicos.length === 0) {
-      tecnicos.push("Mesa de ayuda");
-    }
+    // No asignar técnicos para tickets creados por email - estado "Nuevo"
+    const tecnicos = [];
 
     const fechaVisita = toDateOnly(correoDate, this.config.timezone);
 
@@ -601,6 +597,7 @@ export class EmailTicketProcessor {
       horaLlegada: correoDate,
       horaSalida: null,
       tecnicos,
+      tecnicoAsignadoId: null,
       descripcion: descripcionFinal,
       titulo: tituloBase,
       creadoPorId: creadorId,

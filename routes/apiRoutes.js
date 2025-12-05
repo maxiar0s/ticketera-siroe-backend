@@ -15,8 +15,13 @@ import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
 import protegerRutaAdminComercial from "../middleware/protegerRutaAdminComercial.js";
+
+// =====================================================
+// Importaciones desde controladores refactorizados
+// =====================================================
+
+// Auth & Users
 import {
-  // Admin
   postCuenta,
   getVerificarCorreo,
   getTecnicosDisponibles,
@@ -25,50 +30,38 @@ import {
   getUsuario,
   getPerfil,
   actualizarPerfil,
+} from "../controllers/authController.js";
+
+// Clients & Branches
+import {
   postCliente,
   postModificarCliente,
   postEliminarCliente,
   postSucursal,
   getEliminarSucursal,
-
-  // Admin y Técnico
-  postEquipo,
-  postModificarEquipo,
-  deleteEquiptment,
-  getTypeEquipments,
-  getEquipmentForm,
-
-  // Genericos
-  postObservacion,
   getResults,
   getClientesResumen,
   getClientesBitacora,
   getClientById,
   getSucursalesPorCliente,
   getSucursalById,
+  getEstadosSucursal,
+  actualizarEstadoSucursal,
+} from "../controllers/clientController.js";
+
+// Equipment
+import {
+  postEquipo,
+  postObservacion,
+  postModificarEquipo,
+  deleteEquiptment,
   getEquipmentsByCasaMatriz,
+  getTypeEquipments,
+  getEquipmentForm,
   getEquipmentById,
-  generarUrl,
-  getBitacoras,
-  getBitacoraById,
-  getTickets,
-  getTicketById,
-  crearBitacora,
-  actualizarBitacora,
-  eliminarBitacora,
-  crearTicket,
-  actualizarTicket,
-  eliminarTicket,
-  getVisitasProgramadas,
-  crearVisitaProgramada,
-  eliminarVisitaProgramada,
-  //? Estados de equipos
   getEstadosEquipo,
   actualizarEstadoEquipo,
   actualizarSoloEstadoEquipo,
-  //? Estados de sucursales
-  getEstadosSucursal,
-  actualizarEstadoSucursal,
   crearTipoEquipo,
   actualizarTipoEquipo,
   eliminarTipoEquipo,
@@ -82,6 +75,37 @@ import {
   crearDepartamentoEquipo,
   actualizarDepartamentoEquipo,
   eliminarDepartamentoEquipo,
+} from "../controllers/equipmentController.js";
+
+// Bitacoras
+import {
+  getBitacoras,
+  getBitacoraById,
+  crearBitacora,
+  actualizarBitacora,
+  eliminarBitacora,
+  getVisitasProgramadas,
+  crearVisitaProgramada,
+  eliminarVisitaProgramada,
+} from "../controllers/bitacoraController.js";
+
+// Tickets
+import {
+  getTickets,
+  getTicketById,
+  crearTicket,
+  actualizarTicket,
+  eliminarTicket,
+} from "../controllers/ticketController.js";
+
+// Notifications
+import {
+  getNotificaciones,
+  marcarNotificacionesLeidas,
+} from "../controllers/notificationController.js";
+
+// Projects
+import {
   getProyectos,
   getProyecto,
   crearProyecto,
@@ -91,6 +115,10 @@ import {
   agregarBitacorasAProyecto,
   removerBitacoraDeProyecto,
   eliminarProyectoAdjunto,
+} from "../controllers/projectController.js";
+
+// Vehicles
+import {
   getVehiculos,
   getVehiculo,
   crearVehiculo,
@@ -100,30 +128,34 @@ import {
   actualizarVehiculoSalida,
   eliminarVehiculoSalida,
   eliminarVehiculoSalidaAdjunto,
-  getNotificaciones,
-  marcarNotificacionesLeidas,
+} from "../controllers/vehicleController.js";
+
+// Documents & Logs
+import {
   getDocumentacionClientes,
   crearDocumentoCliente,
   eliminarDocumentoCliente,
   getLogs,
-} from "../controller/apiController.js";
+  generarUrl,
+} from "../controllers/documentController.js";
 
 const router = express.Router();
 
-// Permisos de Administrador
+// =====================================================
+// Rutas de Administrador
+// =====================================================
+
 // Usuarios
 router.post("/crear-modificar-cuenta", protegerRutaAdmin, postCuenta);
 router.get("/verificar-correo", protegerRutaAdmin, getVerificarCorreo);
 router.get("/eliminar-cuenta/:id", protegerRutaAdmin, getEliminarCuenta);
-
-// Para obtener todos los usuarios
 router.get("/usuarios", protegerRutaAdmin, getUsuarios);
-// Para obtener 1 usuario por ID
 router.get("/usuario/:id", protegerRutaAdmin, getUsuario);
 router.get("/perfil", protegerRuta, getPerfil);
 router.put("/perfil", protegerRuta, actualizarPerfil);
 router.get("/tecnicos", protegerRuta, getTecnicosDisponibles);
-// Casas matricez
+
+// Clientes (Casas Matriz)
 router.post(
   "/ingresar-cliente",
   protegerRutaAdmin,
@@ -131,7 +163,6 @@ router.post(
   processFile,
   postCliente
 );
-//gestion de clientes
 router.post(
   "/modificar-cliente/:id",
   protegerRutaAdmin,
@@ -205,7 +236,10 @@ router.delete(
   eliminarDepartamentoEquipo
 );
 
-// Permisos de Administrador y Tecnico
+// =====================================================
+// Rutas de Administrador y Técnico
+// =====================================================
+
 router.post("/ingresar-equipo", protegerRutaTecnico, postEquipo);
 router.post(
   "/modificar-equipo/:id",
@@ -214,14 +248,13 @@ router.post(
   processFile,
   postModificarEquipo
 );
-
 router.post("/eliminar-equipo/:id", protegerRutaTecnico, deleteEquiptment);
 
-// Para obtener todos los tipos de equipos y su formulario
+// Tipos de equipos y formularios
 router.get("/tipos-equipos", protegerRuta, getTypeEquipments);
 router.get("/obtener-formulario/:id", protegerRutaTecnico, getEquipmentForm);
 
-//? Estados de equipos
+// Estados de equipos
 router.get("/estados-equipos", protegerRuta, getEstadosEquipo);
 router.patch(
   "/estados-equipos/:id",
@@ -234,7 +267,7 @@ router.post(
   actualizarSoloEstadoEquipo
 );
 
-//? Estados de sucursales
+// Estados de sucursales
 router.get("/estados-sucursales", protegerRuta, getEstadosSucursal);
 router.post(
   "/actualizar-estado-sucursal/:id",
@@ -242,16 +275,19 @@ router.post(
   actualizarEstadoSucursal
 );
 
-// Permisos genericos para cualquier cuenta
+// =====================================================
+// Rutas Generales (cualquier cuenta autenticada)
+// =====================================================
+
 router.post("/ingresar-observacion/:id", protegerRutaTecnico, postObservacion);
 
-// Routes de obtención de datos
+// Clientes
 router.get("/clientes", protegerRuta, getResults);
 router.get("/cliente/:id", protegerRuta, getClientById);
 router.get("/cliente/:id/sucursales", protegerRuta, getSucursalesPorCliente);
 router.get("/cliente/:id/equipos", protegerRuta, getEquipmentsByCasaMatriz);
 
-// Para obtener la sucursal por la ID
+// Sucursales
 router.get("/sucursal/:id", protegerRuta, getSucursalById);
 
 // Notificaciones
@@ -262,7 +298,7 @@ router.patch(
   marcarNotificacionesLeidas
 );
 
-// Para obtener un equipo basado en su ID
+// Equipos
 router.get("/equipo/:id", protegerRuta, getEquipmentById);
 
 // Proyectos
@@ -306,7 +342,7 @@ router.delete(
   eliminarProyectoAdjunto
 );
 
-// Vehiculos
+// Vehículos
 router.get("/vehiculos", protegerRuta, getVehiculos);
 router.get("/vehiculos/:id", protegerRuta, getVehiculo);
 router.post(
@@ -349,7 +385,7 @@ router.delete(
   eliminarVehiculoSalidaAdjunto
 );
 
-// Bitacoras
+// Bitácoras
 router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);
 router.get("/bitacoras", protegerRuta, getBitacoras);
 router.get("/bitacoras/:id", protegerRuta, getBitacoraById);
@@ -397,9 +433,10 @@ router.delete(
   eliminarVisitaProgramada
 );
 
-// Consumo de imagenes Google Cloud Storage
+// Google Cloud Storage
 router.get("/api/generar-url/:fileName", protegerRuta, generarUrl);
 
+// Equipos (ruta alternativa)
 router.delete("/equipos/:id", protegerRutaTecnico, deleteEquiptment);
 
 // Logs del sistema
