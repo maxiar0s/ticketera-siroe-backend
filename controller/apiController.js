@@ -5062,6 +5062,10 @@ const getTickets = async (req, res) => {
       estado,
       proyectoId,
       sinProyecto,
+      tipo,
+      prioridad,
+      tecnicoId,
+      fecha,
     } = req.query;
 
     if (usuario.tipoCuentaId === 4 && !usuario.haveTickets) {
@@ -5082,6 +5086,21 @@ const getTickets = async (req, res) => {
     if (sucursalId) {
       where.sucursalId = sucursalId;
     }
+    if (tipo) {
+      where.tipo = tipo;
+    }
+    if (prioridad) {
+      where.prioridad = prioridad;
+    }
+    if (tecnicoId) {
+      const tId = Number.parseInt(tecnicoId, 10);
+      if (!Number.isNaN(tId)) {
+        where.tecnicoAsignadoId = tId;
+      }
+    }
+    if (fecha) {
+      where.fechaVisita = fecha;
+    }
 
     const terminoBusqueda = buscar ? `${buscar}`.trim() : "";
     if (terminoBusqueda) {
@@ -5089,6 +5108,30 @@ const getTickets = async (req, res) => {
         { titulo: { [Op.like]: `%${terminoBusqueda}%` } },
         { descripcion: { [Op.like]: `%${terminoBusqueda}%` } },
       ];
+    }
+
+    if (usuario.tipoCuentaId === 2) {
+      // Reglas de visibilidad para Tecnicos:
+      // 1. Tickets "Nuevo" (Sin asignar)
+      // 2. Asignados a mi actualmente
+      // 3. Estuve involucrado en transferencia (historical)
+      const visibilityOr = [
+        { estadoTicket: "Nuevo" },
+        { tecnicoAsignadoId: usuario.id },
+        { historialTransferencias: { [Op.like]: `%"toId":${usuario.id}%` } },
+        { historialTransferencias: { [Op.like]: `%"fromId":${usuario.id}%` } },
+      ];
+
+      if (where[Op.or]) {
+        where[Op.and] = [
+          ...(where[Op.and] ? where[Op.and] : []),
+          { [Op.or]: where[Op.or] },
+          { [Op.or]: visibilityOr },
+        ];
+        delete where[Op.or];
+      } else {
+        where[Op.or] = visibilityOr;
+      }
     }
 
     const estadoFiltro = parseEstadoTicket(estado, null);
@@ -5364,11 +5407,40 @@ const crearTicket = async (req, res) => {
     }
 
     const tecnicosArray = parseStringArray(tecnicos);
-    if (tecnicosArray.length === 0) {
-      return res.status(400).json({
-        error: "Debe indicar al menos un tecnico responsable del ticket.",
-      });
+    let tecnicoAsignadoId = null;
+
+    if (tecnicosArray.length > 0) {
+      const nombreAsignado = tecnicosArray[0];
+      const ids = await obtenerCuentaIdsPorNombres([nombreAsignado]);
+      if (ids.length > 0) {
+        tecnicoAsignadoId = ids[0];
+      }
     }
+
+    /* 
+       REGLA: Si el ticket es "Nuevo", no puede tener tecnico asignado.
+       Si es distinto de "Nuevo", DEBE tener tecnico asignado.
+    */
+    if (estadoTicketNormalizado === "Nuevo") {
+      tecnicoAsignadoId = null;
+      // Limpiamos tecnicos array tambien para consistencia?
+      // El requerimiento dice "no se le puede asignar ningun tecnico".
+      // Si el usuario envia tecnicos, los ignoramos o damos error? Ignorémoslos/limpiémoslos.
+      tecnicosArray.length = 0;
+    } else {
+      // Si NO es nuevo, debe tener tecnico.
+      if (tecnicosArray.length === 0) {
+        return res.status(400).json({
+          error:
+            "Debe indicar al menos un tecnico responsable para tickets que no sean Nuevos.",
+        });
+      }
+    }
+
+    /* 
+       Si llegan multiples tecnicos, el array se guarda completo para historial/compatibilidad,
+       pero tecnicoAsignadoId define el propetario actual.
+    */
 
     const tecnicosIdsAsignados = await extraerIdsTecnicosAsignacion(
       bodyData,
@@ -5382,6 +5454,7 @@ const crearTicket = async (req, res) => {
       horaLlegada: llegadaDate,
       horaSalida: salidaDate,
       tecnicos: tecnicosArray,
+      tecnicoAsignadoId,
       descripcion: descripcionLimpia,
       titulo: titulo ? `${titulo}`.trim() || null : null,
       creadoPorId: usuario.id,
@@ -5403,11 +5476,21 @@ const crearTicket = async (req, res) => {
       include: ticketIncludes,
     });
 
-    await crearNotificacionesAsignacionTicket(
-      ticketCreado,
-      tecnicosIdsAsignados,
-      usuario.id
-    );
+    // Notificaciones: si hay asignacion directa
+    let idsParaNotificar = [];
+    if (tecnicosIdsAsignados && tecnicosIdsAsignados.length > 0) {
+      idsParaNotificar = tecnicosIdsAsignados;
+    } else if (tecnicoAsignadoId) {
+      idsParaNotificar = [tecnicoAsignadoId];
+    }
+
+    if (idsParaNotificar.length > 0) {
+      await crearNotificacionesAsignacionTicket(
+        ticketCreado,
+        idsParaNotificar,
+        usuario.id
+      );
+    }
 
     return res.status(201).json(ticketCreado);
   } catch (error) {
@@ -5465,6 +5548,8 @@ const actualizarTicket = async (req, res) => {
       ticketDetalleTermino,
       prioridad,
       tipo,
+      comentarioInterno,
+      tiempoResolucion,
     } = bodyData;
 
     let proyectoCambioSolicitado = false;
@@ -5499,10 +5584,23 @@ const actualizarTicket = async (req, res) => {
     const cambios = {};
 
     if (usuario.tipoCuentaId === 2) {
+      // Permitimos que el tecnico actualice: descripcion, estado (ya manejado aparte quizas?), y ahora internal fields
+      // La validacion original era muy estricta. Vamos a permitir campos especificos.
       const descripcionDefinida = typeof descripcion !== "undefined";
-      if (!descripcionDefinida && !proyectoCambioSolicitado) {
+      const comentarioDefinido = typeof comentarioInterno !== "undefined";
+      const tiempoDefinido = typeof tiempoResolucion !== "undefined";
+      const estadoDefinido = typeof estadoTicket !== "undefined";
+
+      // Si no envia NADA valido, error.
+      if (
+        !descripcionDefinida &&
+        !proyectoCambioSolicitado &&
+        !comentarioDefinido &&
+        !tiempoDefinido &&
+        !estadoDefinido
+      ) {
         return res.status(400).json({
-          error: "El tecnico solo puede modificar la nota del ticket.",
+          error: "El tecnico no proporciono campos validos para actualizar.",
         });
       }
 
@@ -5582,12 +5680,90 @@ const actualizarTicket = async (req, res) => {
 
       if (typeof tecnicos !== "undefined") {
         const tecnicosArray = parseStringArray(tecnicos);
-        if (tecnicosArray.length === 0) {
+
+        let nuevoTecnicoAsignadoId = null;
+        if (tecnicosArray.length > 0) {
+          const nombreAsignado = tecnicosArray[0];
+          const ids = await obtenerCuentaIdsPorNombres([nombreAsignado]);
+          if (ids.length > 0) {
+            nuevoTecnicoAsignadoId = ids[0];
+          }
+        }
+
+        /*
+           REGLAS DE ASIGNACION EN ACTUALIZACION:
+           1. Si el ticket era "Nuevo" y cambia de estado (a no "Nuevo"), DEBE tener tecnico asignado.
+           2. Si el ticket se mantiene o cambia a "Nuevo" (caso raro, pero posible), NO debe tener tecnico.
+        */
+        const estadoFinal = cambios.estadoTicket || ticket.estadoTicket;
+
+        if (estadoFinal === "Nuevo") {
+          // Si el estado final es Nuevo, forzamos sin tecnico
+          cambios.tecnicoAsignadoId = null;
+          cambios.tecnicos = [];
+          // Limpiamos la entrada para que no procese asignacion abajo
+          tecnicosArray.length = 0;
+          nuevoTecnicoAsignadoId = null;
+        } else {
+          // Si estado final NO es Nuevo
+          if (!nuevoTecnicoAsignadoId && !ticket.tecnicoAsignadoId) {
+            // No hay tecnico nuevo NI tecnico previo -> Error
+            return res.status(400).json({
+              error:
+                "Debe asignar un tecnico al cambiar el estado de un ticket Nuevo.",
+            });
+          }
+        }
+
+        // Si no es Nuevo, y se esta quitando el tecnico (enviando array vacio)
+        if (tecnicosArray.length === 0 && estadoFinal !== "Nuevo") {
+          // Si tenia uno antes, ¿se permite quitarlo? Segun requerimiento "si o si se debe asignar".
+          // Si el cliente manda [], y ya habia uno, ¿mantenemos el anterior?
+          // El codigo original abajo intentaba actualizar 'tecnicos' a empty.
+          // Bloqueamos dejar sin tecnicos si no es Nuevo.
           return res.status(400).json({
-            error: "Debe indicar al menos un tecnico responsable del ticket.",
+            error: "No se puede dejar sin tecnico un ticket en curso.",
           });
         }
+
+        // Detectar Transferencia
+        if (
+          nuevoTecnicoAsignadoId &&
+          ticket.tecnicoAsignadoId &&
+          ticket.tecnicoAsignadoId !== nuevoTecnicoAsignadoId
+        ) {
+          // Es una transferencia
+          let historial = [];
+
+          if (Array.isArray(ticket.historialTransferencias)) {
+            historial = [...ticket.historialTransferencias];
+          } else if (
+            typeof ticket.historialTransferencias === "string" &&
+            ticket.historialTransferencias.trim() !== ""
+          ) {
+            try {
+              historial = JSON.parse(ticket.historialTransferencias);
+            } catch (e) {
+              console.warn("Error parsing historialTransferencias:", e);
+              historial = [];
+            }
+          }
+
+          historial.push({
+            fromId: ticket.tecnicoAsignadoId,
+            toId: nuevoTecnicoAsignadoId,
+            date: new Date().toISOString(),
+            by: usuario.id,
+          });
+          cambios.historialTransferencias = historial;
+        }
+
         cambios.tecnicos = tecnicosArray;
+        if (nuevoTecnicoAsignadoId) {
+          cambios.tecnicoAsignadoId = nuevoTecnicoAsignadoId;
+        }
+
+        // Mantener logica de notificaciones existente
         idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
           bodyData,
           tecnicosArray
@@ -5697,6 +5873,23 @@ const actualizarTicket = async (req, res) => {
           }
 
           cambios.sucursalId = sucursalId;
+        }
+      }
+    }
+
+    // Campos comunes para Admin y Tecnico (Comentario Interno/Tiempo Resolucion)
+    if (typeof comentarioInterno !== "undefined") {
+      const val = `${comentarioInterno ?? ""}`.trim();
+      cambios.comentarioInterno = val.length > 0 ? val : null;
+    }
+
+    if (typeof tiempoResolucion !== "undefined") {
+      if (tiempoResolucion === null || tiempoResolucion === "") {
+        cambios.tiempoResolucion = null;
+      } else {
+        const num = parseFloat(tiempoResolucion);
+        if (!isNaN(num) && num >= 0) {
+          cambios.tiempoResolucion = num;
         }
       }
     }

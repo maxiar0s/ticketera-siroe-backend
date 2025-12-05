@@ -71,6 +71,44 @@ const ticket = db.define(
         this.setDataValue("tecnicos", JSON.stringify(normalized));
       },
     },
+    tecnicoAsignadoId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    historialTransferencias: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: "[]",
+      get() {
+        const raw = this.getDataValue("historialTransferencias");
+        if (!raw) return [];
+        try {
+          const parsed = JSON.parse(raw);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+          return [];
+        }
+      },
+      set(value) {
+        if (typeof value === "string") {
+          try {
+            // Validate if it parses, otherwise fallback or store as is if it's already stringified array
+            const parsed = JSON.parse(value);
+            if (Array.isArray(parsed)) {
+              this.setDataValue("historialTransferencias", value);
+              return;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        if (Array.isArray(value)) {
+          this.setDataValue("historialTransferencias", JSON.stringify(value));
+        } else {
+          this.setDataValue("historialTransferencias", "[]");
+        }
+      },
+    },
     fechaVisita: {
       type: DataTypes.DATEONLY,
       allowNull: false,
@@ -211,6 +249,14 @@ const ticket = db.define(
           this.setDataValue("historialEstados", JSON.stringify([value]));
         }
       },
+    },
+    comentarioInterno: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    tiempoResolucion: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
     },
   },
   {
