@@ -610,6 +610,7 @@ export class EmailTicketProcessor {
       adjuntosTermino: [],
       createdAt: correoDate,
       updatedAt: correoDate,
+      fuente: "Email",
     });
 
     await this.enviarAcuseRecibo({
