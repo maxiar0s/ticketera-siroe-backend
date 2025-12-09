@@ -1,4 +1,5 @@
 import express from "express";
+import { createServer } from "http";
 import db from "../config/db.js";
 import cors from "cors";
 import apiRoutes from "../routes/apiRoutes.js";
@@ -7,8 +8,13 @@ import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "../config/swagger.js";
 import protegerRuta from "../middleware/protegerRuta.js";
 import logRequest from "../middleware/logRequest.js";
+import { initSocketServer } from "../config/socketServer.js";
 
 const app = express();
+const httpServer = createServer(app);
+
+// Inicializar Socket.io
+initSocketServer(httpServer);
 
 app.use(
   cors({
@@ -107,6 +113,7 @@ app.get("/test", protegerRuta, (req, res) => {
 });
 
 const port = process.env.PORT || 5000;
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`El servidor se esta ejecutando en el servidor ${port}`);
+  console.log(`Socket.io habilitado para chat en tiempo real`);
 });

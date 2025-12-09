@@ -23,6 +23,8 @@ import Notificacion from "./Notificacion.js";
 import ClienteDocumento from "./ClienteDocumento.js";
 import Ticket from "./Ticket.js";
 import LogSistema from "./LogSistema.js";
+import MensajeTicket from "./MensajeTicket.js";
+import ActividadTicket from "./ActividadTicket.js";
 
 //?estado de equipos
 import EstadoEquipo from "./EstadoEquipo.js";
@@ -86,6 +88,10 @@ const VisitaProgramadaModel = VisitaProgramada;
 
 // Modelo de Logs de Sistema
 const LogSistemaModel = LogSistema;
+
+// Modelos de Chat de Tickets
+const MensajeTicketModel = MensajeTicket;
+const ActividadTicketModel = ActividadTicket;
 
 // Relaciones Proyectos
 ProyectoModel.belongsTo(CuentaModel, {
@@ -473,6 +479,46 @@ LogSistemaModel.belongsTo(CuentaModel, {
 });
 CuentaModel.hasMany(LogSistemaModel, { foreignKey: "usuarioId", as: "logs" });
 
+// Relaciones MensajeTicket
+MensajeTicketModel.belongsTo(TicketModel, {
+  foreignKey: "ticketId",
+  as: "ticket",
+  onDelete: "CASCADE",
+});
+TicketModel.hasMany(MensajeTicketModel, {
+  foreignKey: "ticketId",
+  as: "mensajes",
+  onDelete: "CASCADE",
+});
+MensajeTicketModel.belongsTo(CuentaModel, {
+  foreignKey: "cuentaId",
+  as: "remitente",
+});
+CuentaModel.hasMany(MensajeTicketModel, {
+  foreignKey: "cuentaId",
+  as: "mensajesEnviados",
+});
+
+// Relaciones ActividadTicket
+ActividadTicketModel.belongsTo(TicketModel, {
+  foreignKey: "ticketId",
+  as: "ticket",
+  onDelete: "CASCADE",
+});
+TicketModel.hasMany(ActividadTicketModel, {
+  foreignKey: "ticketId",
+  as: "actividades",
+  onDelete: "CASCADE",
+});
+ActividadTicketModel.belongsTo(CuentaModel, {
+  foreignKey: "cuentaId",
+  as: "realizadoPor",
+});
+CuentaModel.hasMany(ActividadTicketModel, {
+  foreignKey: "cuentaId",
+  as: "actividadesRealizadas",
+});
+
 export {
   CuentaModel,
   TipoCuentaModel,
@@ -502,4 +548,6 @@ export {
   NotificacionModel,
   ClienteDocumentoModel,
   LogSistemaModel,
+  MensajeTicketModel,
+  ActividadTicketModel,
 };

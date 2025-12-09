@@ -27,6 +27,7 @@ import {
   limpiarDetalleTermino,
 } from "../utils/validators.js";
 import { construirNotificacionTicket } from "../utils/builders.js";
+import { registrarActividadTicket } from "./chatController.js";
 
 const ESTADO_TICKET_INGRESADO = "Ingresado";
 
@@ -1047,6 +1048,71 @@ export const actualizarTicket = async (req, res) => {
         nuevosIdsNotificacion,
         usuario.id
       );
+    }
+
+    // Registrar actividades en el chat timeline
+    const ticketAntes = {
+      estadoTicket: ticket._previousDataValues?.estadoTicket,
+      prioridad: ticket._previousDataValues?.prioridad,
+      tecnicoAsignadoId: ticket._previousDataValues?.tecnicoAsignadoId,
+    };
+    const ticketDespues = {
+      estadoTicket: ticket.estadoTicket,
+      prioridad: ticket.prioridad,
+      tecnicoAsignadoId: ticket.tecnicoAsignadoId,
+    };
+
+    if (
+      Object.prototype.hasOwnProperty.call(cambios, "estadoTicket") &&
+      cambios.estadoTicket !== ticketAntes.estadoTicket
+    ) {
+      await registrarActividadTicket({
+        ticketId: ticket.id,
+        cuentaId: usuario.id,
+        tipo: "estado",
+        valorAnterior: ticketAntes.estadoTicket || "Nuevo",
+        valorNuevo: cambios.estadoTicket,
+      });
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(cambios, "prioridad") &&
+      cambios.prioridad !== ticketAntes.prioridad
+    ) {
+      await registrarActividadTicket({
+        ticketId: ticket.id,
+        cuentaId: usuario.id,
+        tipo: "prioridad",
+        valorAnterior: ticketAntes.prioridad || "Media",
+        valorNuevo: cambios.prioridad,
+      });
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(cambios, "tecnicoAsignadoId") &&
+      cambios.tecnicoAsignadoId !== ticketAntes.tecnicoAsignadoId
+    ) {
+      const tecnicoAnterior = ticketAntes.tecnicoAsignadoId
+        ? await CuentaModel.findByPk(ticketAntes.tecnicoAsignadoId, {
+            attributes: ["name"],
+          })
+        : null;
+      const tecnicoNuevo = cambios.tecnicoAsignadoId
+        ? await CuentaModel.findByPk(cambios.tecnicoAsignadoId, {
+            attributes: ["name"],
+          })
+        : null;
+      await registrarActividadTicket({
+        ticketId: ticket.id,
+        cuentaId: usuario.id,
+        tipo: "transferencia",
+        valorAnterior: tecnicoAnterior?.name || "Sin asignar",
+        valorNuevo: tecnicoNuevo?.name || "Sin asignar",
+        metadata: {
+          fromId: ticketAntes.tecnicoAsignadoId,
+          toId: cambios.tecnicoAsignadoId,
+        },
+      });
     }
 
     // LOG

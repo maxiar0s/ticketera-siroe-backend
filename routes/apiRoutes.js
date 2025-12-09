@@ -98,6 +98,15 @@ import {
   eliminarTicket,
 } from "../controllers/ticketController.js";
 
+// Chat de Tickets
+import {
+  getMensajesTicket,
+  getActividadTicket,
+  getTimelineTicket,
+  enviarMensaje,
+  marcarMensajesLeidos,
+} from "../controllers/chatController.js";
+
 // Notifications
 import {
   getNotificaciones,
@@ -423,6 +432,17 @@ router.put(
   actualizarTicket
 );
 router.delete("/tickets/:id", protegerRutaAdmin, eliminarTicket);
+
+// Chat de Tickets
+router.get("/tickets/:ticketId/chat", protegerRuta, getMensajesTicket);
+router.post("/tickets/:ticketId/chat", protegerRuta, enviarMensaje);
+router.post(
+  "/tickets/:ticketId/chat/leidos",
+  protegerRuta,
+  marcarMensajesLeidos
+);
+router.get("/tickets/:ticketId/actividad", protegerRuta, getActividadTicket);
+router.get("/tickets/:ticketId/timeline", protegerRuta, getTimelineTicket);
 
 // Visitas programadas
 router.get("/visitas-programadas", protegerRuta, getVisitasProgramadas);
