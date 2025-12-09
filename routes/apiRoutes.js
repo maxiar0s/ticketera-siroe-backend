@@ -105,6 +105,7 @@ import {
   getTimelineTicket,
   enviarMensaje,
   marcarMensajesLeidos,
+  getMensajesNoLeidosPorTicket,
 } from "../controllers/chatController.js";
 
 // Notifications
@@ -415,6 +416,11 @@ router.put(
 router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
 
 // Tickets
+router.get(
+  "/tickets/mensajes-no-leidos",
+  protegerRuta,
+  getMensajesNoLeidosPorTicket
+);
 router.get("/tickets", protegerRuta, getTickets);
 router.get("/tickets/:id", protegerRuta, getTicketById);
 router.post(
@@ -435,7 +441,13 @@ router.delete("/tickets/:id", protegerRutaAdmin, eliminarTicket);
 
 // Chat de Tickets
 router.get("/tickets/:ticketId/chat", protegerRuta, getMensajesTicket);
-router.post("/tickets/:ticketId/chat", protegerRuta, enviarMensaje);
+router.post(
+  "/tickets/:ticketId/chat",
+  protegerRuta,
+  handleFiles,
+  processFiles,
+  enviarMensaje
+);
 router.post(
   "/tickets/:ticketId/chat/leidos",
   protegerRuta,

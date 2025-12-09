@@ -983,6 +983,13 @@ export const actualizarTicket = async (req, res) => {
       return res.json(current);
     }
 
+    // Guardar valores previos ANTES del update para el registro de actividades
+    const ticketAntes = {
+      estadoTicket: ticket.estadoTicket,
+      prioridad: ticket.prioridad,
+      tecnicoAsignadoId: ticket.tecnicoAsignadoId,
+    };
+
     cambios.actualizadoPorId = usuario.id;
     await ticket.update(cambios);
 
@@ -1051,11 +1058,6 @@ export const actualizarTicket = async (req, res) => {
     }
 
     // Registrar actividades en el chat timeline
-    const ticketAntes = {
-      estadoTicket: ticket._previousDataValues?.estadoTicket,
-      prioridad: ticket._previousDataValues?.prioridad,
-      tecnicoAsignadoId: ticket._previousDataValues?.tecnicoAsignadoId,
-    };
     const ticketDespues = {
       estadoTicket: ticket.estadoTicket,
       prioridad: ticket.prioridad,
@@ -1102,10 +1104,16 @@ export const actualizarTicket = async (req, res) => {
             attributes: ["name"],
           })
         : null;
+
+      // Usar "asignacion" si es primera asignación, "transferencia" si es cambio entre técnicos
+      const tipoActividad = ticketAntes.tecnicoAsignadoId
+        ? "transferencia"
+        : "asignacion";
+
       await registrarActividadTicket({
         ticketId: ticket.id,
         cuentaId: usuario.id,
-        tipo: "transferencia",
+        tipo: tipoActividad,
         valorAnterior: tecnicoAnterior?.name || "Sin asignar",
         valorNuevo: tecnicoNuevo?.name || "Sin asignar",
         metadata: {

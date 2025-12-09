@@ -1,6 +1,6 @@
 /**
- * @fileoverview Controlador de chat para tickets.
- * Maneja mensajes y actividad de tickets.
+ * @fileoverview Controlador de mensajes para tickets.
+ * Maneja mensajes y actividad de tickets (sin tiempo real).
  */
 
 import { Op } from "sequelize";
@@ -10,13 +10,8 @@ import {
   TicketModel,
   CuentaModel,
   CuentaCasaMatrizModel,
+  NotificacionModel,
 } from "../models/index.js";
-import {
-  emitNewMessage,
-  emitNewActivity,
-  isUserOnline,
-  getConnectedUsersInTicket,
-} from "../config/socketServer.js";
 import { enviarNotificacionChatEmail } from "../services/email/chatEmailService.js";
 
 // =====================================================
@@ -228,7 +223,12 @@ export const enviarMensaje = async (req, res) => {
     const { mensaje } = req.body;
     const usuario = req.usuario;
 
-    if (!mensaje || !mensaje.trim()) {
+    // Procesar adjuntos si existen
+    const adjuntos = Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [];
+
+    // Validar que haya mensaje o adjuntos
+    const mensajeLimpio = mensaje ? mensaje.trim() : "";
+    if (!mensajeLimpio && adjuntos.length === 0) {
       return res
         .status(400)
         .json({ error: "El mensaje no puede estar vacío." });
@@ -239,13 +239,10 @@ export const enviarMensaje = async (req, res) => {
       return res.status(acceso.status).json({ error: acceso.error });
     }
 
-    // Procesar adjuntos si existen
-    const adjuntos = Array.isArray(req.uploadedFiles) ? req.uploadedFiles : [];
-
     const nuevoMensaje = await MensajeTicketModel.create({
       ticketId: parseInt(ticketId, 10),
       cuentaId: usuario.id,
-      mensaje: mensaje.trim(),
+      mensaje: mensajeLimpio || "(Archivo adjunto)",
       adjuntos,
       leido: false,
     });
@@ -262,11 +259,8 @@ export const enviarMensaje = async (req, res) => {
 
     const respuesta = { ...mensajeCompleto.toJSON(), itemType: "mensaje" };
 
-    // Emitir a todos en la sala del ticket
-    emitNewMessage(ticketId, respuesta);
-
-    // Verificar usuarios offline para enviar email
-    enviarNotificacionSiOffline(ticketId, usuario.id, mensaje.trim());
+    // Enviar notificación al destinatario
+    crearNotificacionMensaje(ticketId, usuario.id, mensaje.trim());
 
     return res.status(201).json(respuesta);
   } catch (error) {
@@ -310,6 +304,65 @@ export const marcarMensajesLeidos = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene el conteo de mensajes no leídos por ticket para el usuario actual.
+ * GET /tickets/mensajes-no-leidos
+ */
+export const getMensajesNoLeidosPorTicket = async (req, res) => {
+  try {
+    const usuario = req.usuario;
+
+    // Construir condición de tickets accesibles según el rol del usuario
+    let ticketCondition = {};
+
+    if (usuario.tipoCuentaId === 4) {
+      // Cliente: solo tickets de sus casas matrices
+      const autorizados = await getAuthorizedClientIds(usuario.id);
+      if (autorizados.length === 0) {
+        return res.json({ data: {} });
+      }
+
+      // Obtener IDs de tickets accesibles
+      const ticketsAccesibles = await TicketModel.findAll({
+        where: { casaMatrizId: { [Op.in]: autorizados } },
+        attributes: ["id"],
+        raw: true,
+      });
+      const ticketIds = ticketsAccesibles.map((t) => t.id);
+
+      if (ticketIds.length === 0) {
+        return res.json({ data: {} });
+      }
+      ticketCondition = { ticketId: { [Op.in]: ticketIds } };
+    }
+    // Admin y técnicos ven todos los mensajes no leídos
+
+    // Obtener mensajes no leídos que no fueron enviados por el usuario
+    const mensajesNoLeidos = await MensajeTicketModel.findAll({
+      where: {
+        ...ticketCondition,
+        cuentaId: { [Op.ne]: usuario.id },
+        leido: false,
+      },
+      attributes: ["ticketId"],
+      raw: true,
+    });
+
+    // Agrupar por ticketId
+    const conteo = {};
+    for (const m of mensajesNoLeidos) {
+      conteo[m.ticketId] = (conteo[m.ticketId] || 0) + 1;
+    }
+
+    return res.json({ data: conteo });
+  } catch (error) {
+    console.error("Error al obtener mensajes no leídos:", error);
+    return res
+      .status(500)
+      .json({ error: "Error al obtener mensajes no leídos." });
+  }
+};
+
 // =====================================================
 // Funciones de actividad
 // =====================================================
@@ -342,24 +395,6 @@ export const registrarActividadTicket = async ({
       metadata,
     });
 
-    const actividadCompleta = await ActividadTicketModel.findByPk(
-      actividad.id,
-      {
-        include: [
-          {
-            model: CuentaModel,
-            as: "realizadoPor",
-            attributes: ["id", "name", "tipoCuentaId"],
-          },
-        ],
-      }
-    );
-
-    const respuesta = { ...actividadCompleta.toJSON(), itemType: "actividad" };
-
-    // Emitir a todos en la sala del ticket
-    emitNewActivity(ticketId, respuesta);
-
     return actividad;
   } catch (error) {
     console.error("Error al registrar actividad:", error);
@@ -368,22 +403,22 @@ export const registrarActividadTicket = async ({
 };
 
 // =====================================================
-// Helper para notificaciones email
+// Helper para notificaciones
 // =====================================================
 
-const enviarNotificacionSiOffline = async (ticketId, remitenteId, mensaje) => {
+const crearNotificacionMensaje = async (ticketId, remitenteId, mensaje) => {
   try {
     const ticket = await TicketModel.findByPk(ticketId, {
       include: [
         {
           model: CuentaModel,
           as: "creadoPor",
-          attributes: ["id", "name", "email"],
+          attributes: ["id", "name", "email", "tipoCuentaId"],
         },
         {
           model: CuentaModel,
           as: "tecnicoAsignado",
-          attributes: ["id", "name", "email"],
+          attributes: ["id", "name", "email", "tipoCuentaId"],
         },
       ],
     });
@@ -392,25 +427,55 @@ const enviarNotificacionSiOffline = async (ticketId, remitenteId, mensaje) => {
 
     const destinatarios = [];
 
-    // Si el remitente es el cliente, notificar al técnico
-    if (ticket.creadoPorId === remitenteId && ticket.tecnicoAsignado) {
-      if (!isUserOnline(ticket.tecnicoAsignado.id)) {
-        destinatarios.push(ticket.tecnicoAsignado);
-      }
+    // Determinar quién debe recibir la notificación
+    // Técnico asignado recibe notificación si no fue él quien envió
+    if (ticket.tecnicoAsignado && ticket.tecnicoAsignado.id !== remitenteId) {
+      destinatarios.push(ticket.tecnicoAsignado);
     }
 
-    // Si el remitente es el técnico, notificar al cliente
-    if (ticket.tecnicoAsignadoId === remitenteId && ticket.creadoPor) {
-      if (!isUserOnline(ticket.creadoPor.id)) {
+    // Cliente creador recibe notificación si no fue él quien envió
+    if (ticket.creadoPor && ticket.creadoPor.id !== remitenteId) {
+      // Solo notificar al cliente si el ticket tiene un técnico asignado (conversación activa)
+      if (ticket.tecnicoAsignadoId) {
         destinatarios.push(ticket.creadoPor);
       }
     }
 
-    // Enviar emails
+    // Crear notificaciones y enviar emails
     const remitente = await CuentaModel.findByPk(remitenteId, {
       attributes: ["name"],
     });
+
     for (const dest of destinatarios) {
+      // Verificar que no exista ya una notificación no leída del mismo ticket
+      const existente = await NotificacionModel.findOne({
+        where: {
+          cuentaId: dest.id,
+          referenciaId: ticketId,
+          referenciaTipo: "ticket",
+          tipo: "chat_mensaje",
+          leida: false,
+        },
+      });
+
+      if (!existente) {
+        // Crear notificación en la base de datos
+        await NotificacionModel.create({
+          cuentaId: dest.id,
+          tipo: "chat_mensaje",
+          titulo: `Nuevo mensaje en ticket #${ticketId}`,
+          mensaje: `${remitente?.name || "Usuario"}: ${mensaje.substring(
+            0,
+            100
+          )}${mensaje.length > 100 ? "..." : ""}`,
+          referenciaId: ticketId,
+          referenciaTipo: "ticket",
+          leida: false,
+          metadata: { remitenteId, ticketId },
+        });
+      }
+
+      // Enviar email de notificación
       await enviarNotificacionChatEmail({
         destinatario: dest,
         ticket,
@@ -419,7 +484,7 @@ const enviarNotificacionSiOffline = async (ticketId, remitenteId, mensaje) => {
       });
     }
   } catch (error) {
-    console.error("Error al enviar notificación email:", error);
+    console.error("Error al crear notificación:", error);
   }
 };
 
@@ -429,5 +494,6 @@ export default {
   getTimelineTicket,
   enviarMensaje,
   marcarMensajesLeidos,
+  getMensajesNoLeidosPorTicket,
   registrarActividadTicket,
 };
