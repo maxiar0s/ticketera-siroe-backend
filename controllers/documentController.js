@@ -317,14 +317,14 @@ export const getLogs = async (req, res) => {
     if (desde) {
       const desdeDate = new Date(desde);
       if (!Number.isNaN(desdeDate.getTime())) {
-        where.createdAt = { ...(where.createdAt || {}), [Op.gte]: desdeDate };
+        where.fecha = { ...(where.fecha || {}), [Op.gte]: desdeDate };
       }
     }
 
     if (hasta) {
       const hastaDate = new Date(hasta);
       if (!Number.isNaN(hastaDate.getTime())) {
-        where.createdAt = { ...(where.createdAt || {}), [Op.lte]: hastaDate };
+        where.fecha = { ...(where.fecha || {}), [Op.lte]: hastaDate };
       }
     }
 
@@ -333,11 +333,11 @@ export const getLogs = async (req, res) => {
       include: [
         {
           model: CuentaModel,
-          as: "cuenta",
+          as: "usuario",
           attributes: ["id", "name", "email"],
         },
       ],
-      order: [["createdAt", "DESC"]],
+      order: [["fecha", "DESC"]],
       limit: limitNumber,
       offset,
     });
