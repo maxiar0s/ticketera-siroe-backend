@@ -44,8 +44,8 @@ export const getNotificaciones = async (req, res) => {
     });
 
     return res.json({
-      data: notificaciones,
-      sinLeer,
+      notificaciones,
+      totalNoLeidas: sinLeer,
     });
   } catch (error) {
     console.error("Error al obtener notificaciones:", error);
@@ -80,11 +80,9 @@ export const marcarNotificacionesLeidas = async (req, res) => {
 
     const idsNormalizados = parseIdArray(ids);
     if (!idsNormalizados.length) {
-      return res
-        .status(400)
-        .json({
-          error: "Debe indicar al menos un ID de notificacion o marcar todas.",
-        });
+      return res.status(400).json({
+        error: "Debe indicar al menos un ID de notificacion o marcar todas.",
+      });
     }
 
     await NotificacionModel.update(

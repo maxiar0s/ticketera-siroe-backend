@@ -425,26 +425,66 @@ const crearNotificacionMensaje = async (ticketId, remitenteId, mensaje) => {
 
     if (!ticket) return;
 
-    const destinatarios = [];
+    const destinatariosMap = new Map();
 
-    // Determinar quién debe recibir la notificación
     // Técnico asignado recibe notificación si no fue él quien envió
     if (ticket.tecnicoAsignado && ticket.tecnicoAsignado.id !== remitenteId) {
-      destinatarios.push(ticket.tecnicoAsignado);
+      destinatariosMap.set(ticket.tecnicoAsignado.id, ticket.tecnicoAsignado);
     }
 
     // Cliente creador recibe notificación si no fue él quien envió
     if (ticket.creadoPor && ticket.creadoPor.id !== remitenteId) {
       // Solo notificar al cliente si el ticket tiene un técnico asignado (conversación activa)
       if (ticket.tecnicoAsignadoId) {
-        destinatarios.push(ticket.creadoPor);
+        destinatariosMap.set(ticket.creadoPor.id, ticket.creadoPor);
       }
     }
+
+    // Incluir técnicos anteriores del historial de transferencias
+    const historial = ticket.historialTransferencias || [];
+    if (Array.isArray(historial) && historial.length > 0) {
+      // Obtener IDs únicos de técnicos anteriores (fromId y toId de cada transferencia)
+      const pastTecnicoIds = new Set();
+      for (const transfer of historial) {
+        if (transfer.fromId && transfer.fromId !== remitenteId) {
+          pastTecnicoIds.add(transfer.fromId);
+        }
+        if (transfer.toId && transfer.toId !== remitenteId) {
+          pastTecnicoIds.add(transfer.toId);
+        }
+      }
+
+      // Excluir el técnico actual (ya está en destinatarios)
+      if (ticket.tecnicoAsignadoId) {
+        pastTecnicoIds.delete(ticket.tecnicoAsignadoId);
+      }
+
+      // Cargar datos de técnicos anteriores
+      if (pastTecnicoIds.size > 0) {
+        const pastTecnicos = await CuentaModel.findAll({
+          where: { id: { [Op.in]: Array.from(pastTecnicoIds) } },
+          attributes: ["id", "name", "email", "tipoCuentaId"],
+        });
+        for (const tec of pastTecnicos) {
+          if (!destinatariosMap.has(tec.id)) {
+            destinatariosMap.set(tec.id, tec);
+          }
+        }
+      }
+    }
+
+    const destinatarios = Array.from(destinatariosMap.values());
 
     // Crear notificaciones y enviar emails
     const remitente = await CuentaModel.findByPk(remitenteId, {
       attributes: ["name"],
     });
+
+    const remitenteNombre = remitente?.name || "Usuario";
+    const ticketTitulo =
+      ticket.titulo ||
+      ticket.descripcion?.substring(0, 50) ||
+      `Ticket #${ticketId}`;
 
     for (const dest of destinatarios) {
       // Verificar que no exista ya una notificación no leída del mismo ticket
@@ -464,14 +504,18 @@ const crearNotificacionMensaje = async (ticketId, remitenteId, mensaje) => {
           cuentaId: dest.id,
           tipo: "chat_mensaje",
           titulo: `Nuevo mensaje en ticket #${ticketId}`,
-          mensaje: `${remitente?.name || "Usuario"}: ${mensaje.substring(
-            0,
-            100
-          )}${mensaje.length > 100 ? "..." : ""}`,
+          mensaje: `${remitenteNombre}: ${mensaje.substring(0, 100)}${
+            mensaje.length > 100 ? "..." : ""
+          }`,
           referenciaId: ticketId,
           referenciaTipo: "ticket",
           leida: false,
-          metadata: { remitenteId, ticketId },
+          metadata: {
+            remitenteId,
+            remitenteNombre,
+            ticketId,
+            ticketTitulo,
+          },
         });
       }
 
@@ -479,7 +523,7 @@ const crearNotificacionMensaje = async (ticketId, remitenteId, mensaje) => {
       await enviarNotificacionChatEmail({
         destinatario: dest,
         ticket,
-        remitente: remitente?.name || "Usuario",
+        remitente: remitenteNombre,
         mensaje,
       });
     }

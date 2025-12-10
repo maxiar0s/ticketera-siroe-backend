@@ -317,8 +317,8 @@ export const getEliminarCuenta = async (req, res) => {
 };
 
 /**
- * Lista usuarios paginados con filtro por tipo de cuenta.
- * GET /usuarios?pagina=1&option=Administrador
+ * Lista usuarios paginados con filtro por tipo de cuenta y búsqueda por nombre.
+ * GET /usuarios?pagina=1&option=Administrador&buscar=Juan
  */
 export const getUsuarios = async (req, res) => {
   let paginaActual = parseInt(req.query.pagina);
@@ -332,7 +332,7 @@ export const getUsuarios = async (req, res) => {
   const limit = 12;
   const offset = (paginaActual - 1) * limit;
 
-  const { option } = req.query;
+  const { option, buscar } = req.query;
   let tipoCuentaFiltro = { [Op.in]: [1, 2, 3, 4, 5] };
   if (option === "Mesa de ayuda") {
     tipoCuentaFiltro = 3;
@@ -347,6 +347,11 @@ export const getUsuarios = async (req, res) => {
   }
 
   const where = { tipoCuentaId: tipoCuentaFiltro };
+
+  // Agregar búsqueda por nombre si se proporciona
+  if (buscar && buscar.trim()) {
+    where.name = { [Op.like]: `%${buscar.trim()}%` };
+  }
 
   const [cuentas, total] = await Promise.all([
     CuentaModel.scope("eliminarCampos").findAll({
