@@ -148,6 +148,54 @@ const normalizarNombreTecnico = (valor) => {
   return valor.trim().toLowerCase();
 };
 
+/**
+ * Verifica si un técnico tiene acceso a un ticket.
+ * Un técnico tiene acceso si:
+ * - El ticket está en estado "Nuevo" (sin asignar)
+ * - Es el técnico actualmente asignado
+ * - Está en el historial de transferencias del ticket
+ */
+const tecnicoTieneAccesoAlTicket = (usuarioId, ticket) => {
+  if (!ticket) return false;
+
+  // Tickets nuevos (sin asignar) son accesibles para todos los técnicos
+  if (ticket.estadoTicket === "Nuevo" || !ticket.tecnicoAsignadoId) {
+    return true;
+  }
+
+  // Es el técnico actualmente asignado
+  if (ticket.tecnicoAsignadoId === usuarioId) {
+    return true;
+  }
+
+  // Está en el historial de transferencias
+  let historial = [];
+  if (Array.isArray(ticket.historialTransferencias)) {
+    historial = ticket.historialTransferencias;
+  } else if (
+    typeof ticket.historialTransferencias === "string" &&
+    ticket.historialTransferencias.trim() !== ""
+  ) {
+    try {
+      historial = JSON.parse(ticket.historialTransferencias);
+    } catch (e) {
+      historial = [];
+    }
+  }
+
+  // Buscar si el usuario estuvo involucrado en alguna transferencia
+  for (const transferencia of historial) {
+    if (
+      transferencia.fromId === usuarioId ||
+      transferencia.toId === usuarioId
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // =====================================================
 // Endpoints
 // =====================================================
@@ -169,6 +217,7 @@ export const getTickets = async (req, res) => {
       sinProyecto,
       estado,
       tecnicoId,
+      sinAsignar,
     } = req.query;
 
     const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
@@ -214,12 +263,18 @@ export const getTickets = async (req, res) => {
       }
     }
 
-    if (tecnicoId) {
+    // Filtro por técnico asignado
+    if (parseBooleanFlag(sinAsignar, false)) {
+      // Filtrar tickets sin técnico asignado (estado Nuevo)
+      where.tecnicoAsignadoId = null;
+    } else if (tecnicoId) {
       const tecnicoIdNumero = Number.parseInt(`${tecnicoId}`, 10);
       if (Number.isInteger(tecnicoIdNumero) && tecnicoIdNumero > 0) {
         where.tecnicoAsignadoId = tecnicoIdNumero;
       }
     }
+
+    const esTecnico = usuario && usuario.tipoCuentaId === 2;
 
     if (esCliente) {
       const autorizados = await getAuthorizedClientIds(usuario.id);
@@ -238,6 +293,68 @@ export const getTickets = async (req, res) => {
       }
       if (!clienteId) {
         where.casaMatrizId = { [Op.in]: autorizados };
+      }
+    }
+
+    // Para técnicos: filtrar por tickets accesibles
+    // Un técnico puede ver: tickets Nuevos, asignados a él, o donde esté en historial
+    let ticketsAccesiblesIds = null;
+    if (esTecnico && !parseBooleanFlag(sinAsignar, false)) {
+      // Si hay filtro de tecnicoId específico, no sobreescribir
+      // Solo aplicar restricción si no hay filtro específico de tecnicoId
+      if (!tecnicoId) {
+        // Buscar todos los tickets donde el técnico tiene acceso
+        const todosTickets = await TicketModel.findAll({
+          attributes: [
+            "id",
+            "estadoTicket",
+            "tecnicoAsignadoId",
+            "historialTransferencias",
+          ],
+          raw: true,
+        });
+
+        ticketsAccesiblesIds = todosTickets
+          .filter((t) => {
+            // Tickets nuevos
+            if (t.estadoTicket === "Nuevo" || !t.tecnicoAsignadoId) {
+              return true;
+            }
+            // Asignado al usuario
+            if (t.tecnicoAsignadoId === usuario.id) {
+              return true;
+            }
+            // En historial de transferencias
+            let historial = [];
+            if (t.historialTransferencias) {
+              try {
+                historial = JSON.parse(t.historialTransferencias);
+              } catch (e) {
+                historial = [];
+              }
+            }
+            for (const transferencia of historial) {
+              if (
+                transferencia.fromId === usuario.id ||
+                transferencia.toId === usuario.id
+              ) {
+                return true;
+              }
+            }
+            return false;
+          })
+          .map((t) => t.id);
+
+        if (ticketsAccesiblesIds.length === 0) {
+          return res.json({
+            data: [],
+            total: 0,
+            pagina: pageNumber,
+            paginasTotales: 0,
+          });
+        }
+
+        where.id = { [Op.in]: ticketsAccesiblesIds };
       }
     }
 
@@ -287,12 +404,22 @@ export const getTicketById = async (req, res) => {
       return res.status(404).json({ error: "Ticket no encontrado." });
     }
 
+    // Validación para clientes
     if (usuario.tipoCuentaId === 4) {
       const autorizados = await getAuthorizedClientIds(usuario.id);
       if (!autorizados.includes(ticket.casaMatrizId)) {
         return res
           .status(403)
           .json({ error: "No tiene permisos para ver el ticket solicitado." });
+      }
+    }
+
+    // Validación para técnicos
+    if (usuario.tipoCuentaId === 2) {
+      if (!tecnicoTieneAccesoAlTicket(usuario.id, ticket)) {
+        return res
+          .status(403)
+          .json({ error: "No tiene permisos para ver este ticket." });
       }
     }
 
@@ -582,6 +709,15 @@ export const actualizarTicket = async (req, res) => {
       return res.status(404).json({ error: "Ticket no encontrado." });
     }
 
+    // Validación de permisos para técnicos
+    if (usuario.tipoCuentaId === 2) {
+      if (!tecnicoTieneAccesoAlTicket(usuario.id, ticket)) {
+        return res
+          .status(403)
+          .json({ error: "No tiene permisos para modificar este ticket." });
+      }
+    }
+
     const tecnicosPrevios = Array.isArray(ticket.tecnicos)
       ? ticket.tecnicos
           .map((item) => `${item}`.trim())
@@ -656,13 +792,17 @@ export const actualizarTicket = async (req, res) => {
       const comentarioDefinido = typeof comentarioInterno !== "undefined";
       const tiempoDefinido = typeof tiempoResolucion !== "undefined";
       const estadoDefinido = typeof estadoTicket !== "undefined";
+      const tecnicosDefinido = typeof tecnicos !== "undefined";
+      const tituloDefinido = typeof titulo !== "undefined";
 
       if (
         !descripcionDefinida &&
         !proyectoCambioSolicitado &&
         !comentarioDefinido &&
         !tiempoDefinido &&
-        !estadoDefinido
+        !estadoDefinido &&
+        !tecnicosDefinido &&
+        !tituloDefinido
       ) {
         return res.status(400).json({
           error: "El tecnico no proporciono campos validos para actualizar.",
@@ -677,6 +817,92 @@ export const actualizarTicket = async (req, res) => {
             .json({ error: "La nota del ticket no puede estar vacia." });
         }
         cambios.descripcion = descripcionLimpia;
+      }
+
+      // Permitir que técnicos cambien título
+      if (tituloDefinido) {
+        const tituloLimpio = `${titulo ?? ""}`.trim();
+        cambios.titulo = tituloLimpio.length > 0 ? tituloLimpio : null;
+      }
+
+      // Permitir que técnicos cambien estado del ticket
+      if (estadoDefinido) {
+        const estadoNormalizado = parseEstadoTicket(estadoTicket, null);
+        if (estadoNormalizado) {
+          cambios.estadoTicket = estadoNormalizado;
+        }
+      }
+
+      // Permitir que técnicos asignen técnicos (primera asignación o tickets a los que tienen acceso)
+      if (tecnicosDefinido) {
+        const tecnicosArray = parseStringArray(tecnicos);
+        let nuevoTecnicoAsignadoId = null;
+
+        if (tecnicosArray.length > 0) {
+          const nombreAsignado = tecnicosArray[0];
+          const ids = await obtenerCuentaIdsPorNombres([nombreAsignado]);
+          if (ids.length > 0) {
+            nuevoTecnicoAsignadoId = ids[0];
+          }
+        }
+
+        const estadoFinal = cambios.estadoTicket || ticket.estadoTicket;
+
+        if (estadoFinal === "Nuevo") {
+          cambios.tecnicoAsignadoId = null;
+          cambios.tecnicos = [];
+        } else {
+          if (!nuevoTecnicoAsignadoId && !ticket.tecnicoAsignadoId) {
+            return res.status(400).json({
+              error:
+                "Debe asignar un tecnico al cambiar el estado de un ticket Nuevo.",
+            });
+          }
+
+          if (tecnicosArray.length === 0) {
+            return res.status(400).json({
+              error: "No se puede dejar sin tecnico un ticket en curso.",
+            });
+          }
+
+          // Registrar historial de transferencia si cambia el técnico asignado
+          if (
+            nuevoTecnicoAsignadoId &&
+            ticket.tecnicoAsignadoId &&
+            ticket.tecnicoAsignadoId !== nuevoTecnicoAsignadoId
+          ) {
+            let historial = [];
+            if (Array.isArray(ticket.historialTransferencias)) {
+              historial = [...ticket.historialTransferencias];
+            } else if (
+              typeof ticket.historialTransferencias === "string" &&
+              ticket.historialTransferencias.trim() !== ""
+            ) {
+              try {
+                historial = JSON.parse(ticket.historialTransferencias);
+              } catch (e) {
+                historial = [];
+              }
+            }
+            historial.push({
+              fromId: ticket.tecnicoAsignadoId,
+              toId: nuevoTecnicoAsignadoId,
+              date: new Date().toISOString(),
+              by: usuario.id,
+            });
+            cambios.historialTransferencias = historial;
+          }
+
+          cambios.tecnicos = tecnicosArray;
+          if (nuevoTecnicoAsignadoId) {
+            cambios.tecnicoAsignadoId = nuevoTecnicoAsignadoId;
+          }
+
+          idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
+            bodyData,
+            tecnicosArray
+          );
+        }
       }
     } else if (usuario.tipoCuentaId === 1) {
       if (typeof descripcion !== "undefined") {
@@ -947,6 +1173,18 @@ export const actualizarTicket = async (req, res) => {
     const estadoTicketFinal = tieneCambio("estadoTicket")
       ? cambios.estadoTicket
       : parseEstadoTicket(ticket.estadoTicket, ESTADO_TICKET_INGRESADO);
+
+    // Validación: Si el estado final no es "Nuevo", debe tener técnico asignado
+    const tecnicoAsignadoIdFinal = tieneCambio("tecnicoAsignadoId")
+      ? cambios.tecnicoAsignadoId
+      : ticket.tecnicoAsignadoId;
+
+    if (estadoTicketFinal !== "Nuevo" && !tecnicoAsignadoIdFinal) {
+      return res.status(400).json({
+        error: "Debe asignar un técnico antes de cambiar el estado del ticket.",
+      });
+    }
+
     const fechaTerminoFinal = tieneCambio("fechaTermino")
       ? cambios.fechaTermino
       : ticket.fechaTermino;
@@ -1119,6 +1357,7 @@ export const actualizarTicket = async (req, res) => {
         metadata: {
           fromId: ticketAntes.tecnicoAsignadoId,
           toId: cambios.tecnicoAsignadoId,
+          assignedById: usuario.id,
         },
       });
     }

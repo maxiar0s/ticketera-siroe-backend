@@ -334,8 +334,54 @@ export const getMensajesNoLeidosPorTicket = async (req, res) => {
         return res.json({ data: {} });
       }
       ticketCondition = { ticketId: { [Op.in]: ticketIds } };
+    } else if (usuario.tipoCuentaId === 2) {
+      // Técnico: solo tickets nuevos, asignados a él, o donde esté en historial
+      const todosTickets = await TicketModel.findAll({
+        attributes: [
+          "id",
+          "estadoTicket",
+          "tecnicoAsignadoId",
+          "historialTransferencias",
+        ],
+        raw: true,
+      });
+
+      const ticketsAccesibles = todosTickets.filter((t) => {
+        // Tickets nuevos (sin asignar)
+        if (t.estadoTicket === "Nuevo" || !t.tecnicoAsignadoId) {
+          return true;
+        }
+        // Asignado al usuario
+        if (t.tecnicoAsignadoId === usuario.id) {
+          return true;
+        }
+        // En historial de transferencias
+        let historial = [];
+        if (t.historialTransferencias) {
+          try {
+            historial = JSON.parse(t.historialTransferencias);
+          } catch (e) {
+            historial = [];
+          }
+        }
+        for (const transferencia of historial) {
+          if (
+            transferencia.fromId === usuario.id ||
+            transferencia.toId === usuario.id
+          ) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      const ticketIds = ticketsAccesibles.map((t) => t.id);
+      if (ticketIds.length === 0) {
+        return res.json({ data: {} });
+      }
+      ticketCondition = { ticketId: { [Op.in]: ticketIds } };
     }
-    // Admin y técnicos ven todos los mensajes no leídos
+    // Admin ve todos los mensajes no leídos (sin condición adicional)
 
     // Obtener mensajes no leídos que no fueron enviados por el usuario
     const mensajesNoLeidos = await MensajeTicketModel.findAll({
