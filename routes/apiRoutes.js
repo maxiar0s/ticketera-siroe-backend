@@ -149,6 +149,14 @@ import {
   generarUrl,
 } from "../controllers/documentController.js";
 
+// Tags
+import {
+  getTags,
+  crearTag,
+  actualizarTag,
+  eliminarTag,
+} from "../controllers/tagController.js";
+
 const router = express.Router();
 
 // =====================================================
@@ -296,6 +304,20 @@ router.get("/clientes", protegerRuta, getResults);
 router.get("/cliente/:id", protegerRuta, getClientById);
 router.get("/cliente/:id/sucursales", protegerRuta, getSucursalesPorCliente);
 router.get("/cliente/:id/equipos", protegerRuta, getEquipmentsByCasaMatriz);
+
+// Tags de clientes
+router.get("/clientes/:clienteId/tags", protegerRuta, getTags);
+router.post("/clientes/:clienteId/tags", protegerRutaAdmin, crearTag);
+router.put(
+  "/clientes/:clienteId/tags/:tagId",
+  protegerRutaAdmin,
+  actualizarTag
+);
+router.delete(
+  "/clientes/:clienteId/tags/:tagId",
+  protegerRutaAdmin,
+  eliminarTag
+);
 
 // Sucursales
 router.get("/sucursal/:id", protegerRuta, getSucursalById);

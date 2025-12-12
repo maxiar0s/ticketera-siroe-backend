@@ -25,6 +25,8 @@ import Ticket from "./Ticket.js";
 import LogSistema from "./LogSistema.js";
 import MensajeTicket from "./MensajeTicket.js";
 import ActividadTicket from "./ActividadTicket.js";
+import Tag from "./Tag.js";
+import TicketTag from "./TicketTag.js";
 
 //?estado de equipos
 import EstadoEquipo from "./EstadoEquipo.js";
@@ -92,6 +94,10 @@ const LogSistemaModel = LogSistema;
 // Modelos de Chat de Tickets
 const MensajeTicketModel = MensajeTicket;
 const ActividadTicketModel = ActividadTicket;
+
+// Modelos de Tags
+const TagModel = Tag;
+const TicketTagModel = TicketTag;
 
 // Relaciones Proyectos
 ProyectoModel.belongsTo(CuentaModel, {
@@ -519,6 +525,32 @@ CuentaModel.hasMany(ActividadTicketModel, {
   as: "actividadesRealizadas",
 });
 
+// Relaciones Tags
+TagModel.belongsTo(CasaMatrizModel, {
+  foreignKey: "casaMatrizId",
+  as: "casaMatriz",
+  onDelete: "CASCADE",
+});
+CasaMatrizModel.hasMany(TagModel, {
+  foreignKey: "casaMatrizId",
+  as: "tags",
+  onDelete: "CASCADE",
+});
+
+// Relacion Ticket - Tag (muchos a muchos)
+TicketModel.belongsToMany(TagModel, {
+  through: TicketTagModel,
+  foreignKey: "ticketId",
+  otherKey: "tagId",
+  as: "tags",
+});
+TagModel.belongsToMany(TicketModel, {
+  through: TicketTagModel,
+  foreignKey: "tagId",
+  otherKey: "ticketId",
+  as: "tickets",
+});
+
 export {
   CuentaModel,
   TipoCuentaModel,
@@ -550,4 +582,6 @@ export {
   LogSistemaModel,
   MensajeTicketModel,
   ActividadTicketModel,
+  TagModel,
+  TicketTagModel,
 };

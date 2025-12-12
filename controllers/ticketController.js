@@ -13,6 +13,8 @@ import {
   ProyectoModel,
   SucursalModel,
   TicketModel,
+  TagModel,
+  TicketTagModel,
 } from "../models/index.js";
 import registrarLog from "../utils/logger.js";
 import {
@@ -50,6 +52,12 @@ const ticketIncludes = [
   { model: CuentaModel, as: "actualizadoPor", attributes: ["id", "name"] },
   { model: CuentaModel, as: "tecnicoAsignado", attributes: ["id", "name"] },
   { model: ProyectoModel, as: "proyecto", attributes: ["id", "nombre"] },
+  {
+    model: TagModel,
+    as: "tags",
+    attributes: ["id", "nombre", "color"],
+    through: { attributes: [] },
+  },
 ];
 
 // =====================================================
@@ -218,6 +226,7 @@ export const getTickets = async (req, res) => {
       estado,
       tecnicoId,
       sinAsignar,
+      tagIds,
     } = req.query;
 
     const pageNumber = Math.max(parseInt(pagina, 10) || 1, 1);
@@ -271,6 +280,29 @@ export const getTickets = async (req, res) => {
       const tecnicoIdNumero = Number.parseInt(`${tecnicoId}`, 10);
       if (Number.isInteger(tecnicoIdNumero) && tecnicoIdNumero > 0) {
         where.tecnicoAsignadoId = tecnicoIdNumero;
+      }
+    }
+
+    // Filtro por tags
+    let ticketIdsConTags = null;
+    if (tagIds) {
+      const tagIdsParsed = parseIdArray(tagIds);
+      if (tagIdsParsed.length > 0) {
+        const ticketsConTags = await TicketTagModel.findAll({
+          where: { tagId: { [Op.in]: tagIdsParsed } },
+          attributes: ["ticketId"],
+          raw: true,
+        });
+        ticketIdsConTags = [...new Set(ticketsConTags.map((t) => t.ticketId))];
+        if (ticketIdsConTags.length === 0) {
+          return res.json({
+            data: [],
+            total: 0,
+            pagina: pageNumber,
+            paginasTotales: 0,
+          });
+        }
+        where.id = { [Op.in]: ticketIdsConTags };
       }
     }
 
@@ -474,6 +506,7 @@ export const crearTicket = async (req, res) => {
       proyectoId,
       prioridad,
       tipo,
+      tagIds,
     } = bodyData;
 
     if (!casaMatrizId || !fechaVisita) {
@@ -653,6 +686,26 @@ export const crearTicket = async (req, res) => {
       tipo: tipo ?? "Incidente",
     });
 
+    // Asignar tags si se proporcionaron
+    const tagIdsParsed = parseIdArray(tagIds);
+    if (tagIdsParsed.length > 0) {
+      // Verificar que los tags pertenecen al cliente
+      const tagsValidos = await TagModel.findAll({
+        where: {
+          id: { [Op.in]: tagIdsParsed },
+          casaMatrizId: casaMatrizId,
+        },
+        attributes: ["id"],
+      });
+      const idsValidos = tagsValidos.map((t) => t.id);
+      if (idsValidos.length > 0) {
+        await TicketTagModel.bulkCreate(
+          idsValidos.map((tagId) => ({ ticketId: nuevoTicket.id, tagId })),
+          { ignoreDuplicates: true }
+        );
+      }
+    }
+
     const ticketCreado = await TicketModel.findByPk(nuevoTicket.id, {
       include: ticketIncludes,
     });
@@ -753,6 +806,7 @@ export const actualizarTicket = async (req, res) => {
       tipo,
       comentarioInterno,
       tiempoResolucion,
+      tagIds,
     } = bodyData;
 
     let proyectoCambioSolicitado = false;
@@ -1360,6 +1414,37 @@ export const actualizarTicket = async (req, res) => {
           assignedById: usuario.id,
         },
       });
+    }
+
+    // Sincronizar tags si se proporcionaron
+    if (Object.prototype.hasOwnProperty.call(bodyData, "tagIds")) {
+      const tagIdsParsed = parseIdArray(tagIds);
+      // Obtener cliente del ticket
+      const clienteIdTicket = ticket.casaMatrizId;
+
+      // Eliminar tags actuales
+      await TicketTagModel.destroy({ where: { ticketId: ticket.id } });
+
+      // Agregar nuevos tags (validando que pertenezcan al cliente)
+      if (tagIdsParsed.length > 0) {
+        const tagsValidos = await TagModel.findAll({
+          where: {
+            id: { [Op.in]: tagIdsParsed },
+            casaMatrizId: clienteIdTicket,
+          },
+          attributes: ["id"],
+        });
+        const idsValidos = tagsValidos.map((t) => t.id);
+        if (idsValidos.length > 0) {
+          await TicketTagModel.bulkCreate(
+            idsValidos.map((tagId) => ({ ticketId: ticket.id, tagId })),
+            { ignoreDuplicates: true }
+          );
+        }
+      }
+
+      // Recargar ticket con tags actualizados
+      await ticket.reload({ include: ticketIncludes });
     }
 
     // LOG
