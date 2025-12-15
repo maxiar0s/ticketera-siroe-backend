@@ -2,6 +2,14 @@ import jwt from "jsonwebtoken";
 import registrarLog from "../utils/logger.js";
 
 const logRequest = (req, res, next) => {
+  // Solo loggear operaciones de escritura para reducir carga en la BD
+  const methodsToLog = ["POST", "PUT", "DELETE", "PATCH"];
+
+  if (!methodsToLog.includes(req.method) || req.path.startsWith("/auth/")) {
+    // No loggear GET requests ni auth (auth se loggea en su controller)
+    return next();
+  }
+
   // Extract user ID from token if available, but don't block request if not
   let usuarioId = null;
   try {
@@ -17,31 +25,25 @@ const logRequest = (req, res, next) => {
     // Ignore token errors here, auth middleware handles security
   }
 
-  // Log the request
-  // We log 'CONSULTA' for general requests.
-  // Login/Logout will be logged explicitly in controller with specific actions.
-  if (!req.path.startsWith("/auth/")) {
-    // Avoid double logging auth requests if handled in controller
-    const detalles = {
-      query: req.query,
-      body: req.body,
-    };
+  const detalles = {
+    query: req.query,
+    body: req.body,
+  };
 
-    // Sanitize sensitive data from body if needed (e.g. passwords)
-    // Create a shallow copy to avoid mutating the original request body
-    if (detalles.body && detalles.body.password) {
-      detalles.body = { ...detalles.body, password: "***" };
-    }
-
-    registrarLog(
-      usuarioId,
-      "CONSULTA",
-      req.method,
-      req.path,
-      req.ip || req.connection.remoteAddress,
-      detalles
-    );
+  // Sanitize sensitive data from body if needed (e.g. passwords)
+  if (detalles.body && detalles.body.password) {
+    detalles.body = { ...detalles.body, password: "***" };
   }
+
+  // Loggear de forma asíncrona (no esperar a que termine)
+  registrarLog(
+    usuarioId,
+    "CONSULTA",
+    req.method,
+    req.path,
+    req.ip || req.connection.remoteAddress,
+    detalles
+  ).catch((err) => console.error("Error al registrar log:", err));
 
   next();
 };
