@@ -39,10 +39,11 @@ app.use(logRequest);
 // Conexión a DB
 try {
   await db.authenticate();
-  await db.sync();
+  // db.sync() removido - la base de datos ya tiene las tablas creadas
+  // Solo se necesita sync() en desarrollo inicial o al agregar nuevas tablas
   console.log("Conexion a la base datos establecida");
 } catch (error) {
-  console.log(error);
+  console.log("Error conectando a la base de datos:", error.message);
 }
 
 // Add these test routes BEFORE your main route registration
