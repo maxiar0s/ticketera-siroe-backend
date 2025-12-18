@@ -213,6 +213,20 @@ export class EmailTicketProcessor {
         )
         .filter((domain) => domain && domain.length > 0)
     );
+    this.noReplyEmails = new Set(
+      ensureArray(config.noReplyEmails)
+        .map(normalizeEmail)
+        .filter((email) => email.length > 0)
+    );
+    this.noReplyDomains = new Set(
+      ensureArray(config.noReplyDomains)
+        .map((domain) =>
+          domain && typeof domain === "string"
+            ? domain.replace(/^@/, "").trim().toLowerCase()
+            : null
+        )
+        .filter((domain) => domain && domain.length > 0)
+    );
     this.lastAllowListRefresh = 0;
   }
 
@@ -374,6 +388,26 @@ export class EmailTicketProcessor {
     }
 
     if (hasEmailAllow || hasDomainAllow) {
+      return false;
+    }
+
+    return true;
+  }
+
+  shouldSendReply(email) {
+    const normalized = normalizeEmail(email);
+    if (!normalized) {
+      return false;
+    }
+
+    // Check if exact email is in no-reply list
+    if (this.noReplyEmails.has(normalized)) {
+      return false;
+    }
+
+    // Check if domain is in no-reply list
+    const domain = normalized.split("@")[1];
+    if (domain && this.noReplyDomains.has(domain.toLowerCase())) {
       return false;
     }
 
@@ -613,12 +647,18 @@ export class EmailTicketProcessor {
       fuente: "Email",
     });
 
-    await this.enviarAcuseRecibo({
-      destinatario: remitente,
-      ticket: nuevoTicket,
-      asuntoOriginal: tituloBase,
-      clienteNombre: casaMatriz?.razonSocial ?? "",
-    });
+    if (this.shouldSendReply(remitente)) {
+      await this.enviarAcuseRecibo({
+        destinatario: remitente,
+        ticket: nuevoTicket,
+        asuntoOriginal: tituloBase,
+        clienteNombre: casaMatriz?.razonSocial ?? "",
+      });
+    } else {
+      console.log(
+        `[EmailTicketProcessor] Omitiendo acuse de recibo para ${remitente} (en lista no-reply).`
+      );
+    }
 
     return nuevoTicket;
   }

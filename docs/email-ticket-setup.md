@@ -4,12 +4,13 @@ Este módulo procesa correos entrantes en la casilla definida para soporte y cre
 
 ## 1. Configuración en la base de datos
 
-1. **Cuenta “mesa de ayuda” (creador del ticket)**  
-   - Identifica el `id` de la cuenta que debe figurar como creadora/actualizadora de los tickets automáticos (por ejemplo, la cuenta de Mesa de Ayuda).  
+1. **Cuenta “mesa de ayuda” (creador del ticket)**
+
+   - Identifica el `id` de la cuenta que debe figurar como creadora/actualizadora de los tickets automáticos (por ejemplo, la cuenta de Mesa de Ayuda).
    - Si prefieres que el ticket quede asociado al usuario cliente que escribe el correo, basta con mantener `TICKET_INBOUND_USE_SENDER_ACCOUNT_AS_CREATOR=true` y no necesitas el id de la mesa.
 
-2. **Correos de clientes**  
-   - Asegúrate de que los clientes tengan registrado su correo en:  
+2. **Correos de clientes**
+   - Asegúrate de que los clientes tengan registrado su correo en:
      - `CasasMatrices.correo` **o**
      - `Cuentas.email` asociadas al cliente mediante `CuentasCasasMatrices`.
 
@@ -37,6 +38,11 @@ TICKET_INBOUND_CRON_EXPRESSION=*/5 * * * *   # frecuencia del cron interno
 TICKET_INBOUND_ALLOWED_SENDER_EMAILS=cliente1@midominio.com,cliente2@otra.cl
 TICKET_INBOUND_ALLOWED_SENDER_DOMAINS=midominio.com,otra.cl
 
+# Remitentes que NO deben recibir acuse de recibo (opcionales)
+# Útil para correos automáticos, sistemas de notificación, etc.
+TICKET_INBOUND_NO_REPLY_EMAILS=noreply@cliente.com,sistema@notificaciones.cl
+TICKET_INBOUND_NO_REPLY_DOMAINS=noreply.ejemplo.com
+
 # Ticket resultante
 TICKET_INBOUND_DEFAULT_TECHNICIANS=Mesa de ayuda
 TICKET_INBOUND_USE_SENDER_ACCOUNT_AS_CREATOR=true
@@ -63,16 +69,17 @@ TICKET_OUTBOUND_SUBJECT_PREFIX=[Ticket creado]
 TICKET_OUTBOUND_ACK_TEMPLATE="Hola,\n\nAcuso recibo: el ticket #{ticketId} ha sido creado correctamente con el asunto \"{ticketTitle}\".\n\nSaludos,\nMesa de Ayuda"
 ```
 
-> **Notas**  
-> - Si usas `TICKET_INBOUND_ALLOWED_*` sólo se procesarán correos que cumplan el filtro. Si dejas ambos vacíos, se aceptan todos.  
-> - Configura `TICKET_INBOUND_FALLBACK_CREATOR_ID` con el `id` de la cuenta “Mesa de Ayuda” si no quieres que el creador sea el cliente.  
+> **Notas**
+>
+> - Si usas `TICKET_INBOUND_ALLOWED_*` sólo se procesarán correos que cumplan el filtro. Si dejas ambos vacíos, se aceptan todos.
+> - Configura `TICKET_INBOUND_FALLBACK_CREATOR_ID` con el `id` de la cuenta “Mesa de Ayuda” si no quieres que el creador sea el cliente.
 > - El procesador sube adjuntos a GCS usando la configuración existente (`GCLOUD_*`).
 
 ## 3. Crear y proteger la casilla de correo
 
-1. Crea un buzón dedicado (ej. `tickets@midominio.com`).  
-2. Habilita acceso IMAP.  
-3. Activa autenticación segura (TLS / contraseña de app si usas Google/Microsoft).  
+1. Crea un buzón dedicado (ej. `tickets@midominio.com`).
+2. Habilita acceso IMAP.
+3. Activa autenticación segura (TLS / contraseña de app si usas Google/Microsoft).
 4. Opcional: aplica reglas en tu proveedor de correo para redirigir únicamente los mensajes relevantes a este buzón.
 
 ## 4. Ejecutar el procesador
@@ -85,11 +92,13 @@ npm install
 ```
 
 ### Ejecución manual
+
 ```bash
 npm run tickets:email
 ```
 
 ### Ejecución continua (cron / servicio)
+
 ```bash
 npm run tickets:email -- --watch         # pooling en vivo
 npm run tickets:cron -- --now            # cron interno (ejecuta ahora y queda programado)
@@ -100,21 +109,21 @@ El cron interno usa `TICKET_INBOUND_CRON_EXPRESSION` (por defecto cada 5 minutos
 
 ## 5. Automatizar en producción
 
-1. **Cron interno (recomendado)**  
-   - Arranca con `npm run tickets:cron -- --now`.  
+1. **Cron interno (recomendado)**
+   - Arranca con `npm run tickets:cron -- --now`.
    - Supervísalo con PM2, systemd o el Programador de tareas de Windows para reiniciarlo si la instancia se cae.
-2. **Cron/PM2 tradicional**  
-   - Linux (cron): `*/5 * * * * /usr/bin/node /ruta/app-soporte-siroe/scripts/email-ticket-processor.js`  
+2. **Cron/PM2 tradicional**
+   - Linux (cron): `*/5 * * * * /usr/bin/node /ruta/app-soporte-siroe/scripts/email-ticket-processor.js`
    - PM2: `pm2 start scripts/email-ticket-processor.js --name tickets-email --watch -- --watch`
-3. **Logs**  
-   - Revisa los logs para detectar remitentes sin cliente asociado u otros errores.  
+3. **Logs**
+   - Revisa los logs para detectar remitentes sin cliente asociado u otros errores.
    - Ajusta `TICKET_INBOUND_MARK_SEEN_ON_ERROR` si prefieres que los correos con errores no queden sin leer.
 
 ## 6. Personalizaciones recomendadas
 
-- **Técnicos por defecto**: define una lista separada por comas para que aparezca el responsable inicial del ticket.  
-- **Fallback de cliente**: útil para correos sin coincidencia. Luego puedes reasignar manualmente.  
-- **Reglas anti-spam**: configura filtros en el servidor de correo para evitar que ingresen tickets no deseados.  
+- **Técnicos por defecto**: define una lista separada por comas para que aparezca el responsable inicial del ticket.
+- **Fallback de cliente**: útil para correos sin coincidencia. Luego puedes reasignar manualmente.
+- **Reglas anti-spam**: configura filtros en el servidor de correo para evitar que ingresen tickets no deseados.
 - **Alertas**: considera añadir monitoreo (ej. un dashboard) para detectar si el procesador deja de crear tickets.
 
 ---
