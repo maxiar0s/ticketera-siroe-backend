@@ -10,6 +10,8 @@ import {
   processVehiculoSalidaArchivos,
   handleDocumentoCliente,
   processDocumentoCliente,
+  handleClienteImages,
+  processClienteImages,
 } from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
@@ -177,15 +179,15 @@ router.get("/tecnicos", protegerRuta, getTecnicosDisponibles);
 router.post(
   "/ingresar-cliente",
   protegerRutaAdmin,
-  handleUpload,
-  processFile,
+  handleClienteImages,
+  processClienteImages,
   postCliente
 );
 router.post(
   "/modificar-cliente/:id",
   protegerRutaAdmin,
-  handleUpload,
-  processFile,
+  handleClienteImages,
+  processClienteImages,
   postModificarCliente
 );
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);

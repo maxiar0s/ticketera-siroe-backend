@@ -31,6 +31,7 @@ const cuentaIncludes = [
       "razonSocial",
       "rut",
       "servicios",
+      "logoPerfil",
       "banco",
       "tipoCuentaBancaria",
       "numeroCuentaBancaria",
@@ -69,6 +70,14 @@ export const postCuenta = async (req, res) => {
       ? Number(estadoCuentaId)
       : undefined;
   const clienteIds = parseClientesAutorizados(clientesAutorizados);
+
+  // Validar que usuarios con rol Cliente solo tengan 1 cliente autorizado
+  if (tipoCuentaNumero === 4 && clienteIds.length > 1) {
+    return res.status(400).json({
+      error:
+        "Los usuarios con rol Cliente solo pueden tener 1 cliente autorizado.",
+    });
+  }
 
   try {
     if (id) {
@@ -425,6 +434,16 @@ export const getPerfil = async (req, res) => {
             incluirDatosBancarios,
           }) ?? cliente
       );
+    }
+
+    // Si es cliente (tipoCuentaId === 4) y tiene 1 cliente autorizado,
+    // asignar su logoPerfil al perfil del usuario
+    if (
+      perfilPlano.tipoCuentaId === 4 &&
+      perfilPlano.clientesAutorizados?.length === 1
+    ) {
+      perfilPlano.logoPerfil =
+        perfilPlano.clientesAutorizados[0].logoPerfil ?? null;
     }
 
     return res.json(perfilPlano);

@@ -1,22 +1,22 @@
-import multer from 'multer';
-import { v4 as uuidv4 } from 'uuid';
-import bucket from '../config/gcs.js';
+import multer from "multer";
+import { v4 as uuidv4 } from "uuid";
+import bucket from "../config/gcs.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
 });
 
 const uploadToGCS = async (file) => {
-  const typeFile = file.originalname.split('.');
-  const ext = typeFile.length > 1 ? typeFile[typeFile.length - 1] : '';
+  const typeFile = file.originalname.split(".");
+  const ext = typeFile.length > 1 ? typeFile[typeFile.length - 1] : "";
   const blob = bucket.file(`${uuidv4()}.${ext}`);
   const stream = blob.createWriteStream({
     metadata: { contentType: file.mimetype },
   });
 
   return new Promise((resolve, reject) => {
-    stream.on('error', reject);
-    stream.on('finish', async () => {
+    stream.on("error", reject);
+    stream.on("finish", async () => {
       resolve(blob.name);
     });
     stream.end(file.buffer);
@@ -24,18 +24,18 @@ const uploadToGCS = async (file) => {
 };
 
 // single image compatibility
-export const handleUpload = upload.single('imagen');
+export const handleUpload = upload.single("imagen");
 export const processFile = async (req, res, next) => {
   try {
     if (!req.file) {
-      console.log('No se proporcionó ningún archivo, continuando...');
+      console.log("No se proporcionó ningún archivo, continuando...");
       return next();
     }
 
-    console.log('Archivo recibido en processFile:', req.file.originalname);
+    console.log("Archivo recibido en processFile:", req.file.originalname);
 
     const fileName = await uploadToGCS(req.file);
-    console.log('Nombre de archivo subido a GCS:', fileName);
+    console.log("Nombre de archivo subido a GCS:", fileName);
     req.uploadedFile = fileName;
     next();
   } catch (error) {
@@ -44,7 +44,7 @@ export const processFile = async (req, res, next) => {
   }
 };
 
-export const handleDocumentoCliente = upload.single('archivo');
+export const handleDocumentoCliente = upload.single("archivo");
 export const processDocumentoCliente = async (req, res, next) => {
   try {
     if (!req.file) {
@@ -60,20 +60,22 @@ export const processDocumentoCliente = async (req, res, next) => {
     };
     next();
   } catch (error) {
-    console.error('Error subiendo documento de cliente:', error);
+    console.error("Error subiendo documento de cliente:", error);
     next();
   }
 };
 
 // multiple files support for bitacoras
 export const handleFiles = upload.fields([
-  { name: 'files', maxCount: 20 },
-  { name: 'evidenceFiles', maxCount: 20 },
+  { name: "files", maxCount: 20 },
+  { name: "evidenceFiles", maxCount: 20 },
 ]);
 export const processFiles = async (req, res, next) => {
   try {
-    if (!req.files || (Object.keys(req.files).length === 0)) {
-      console.log('No se proporcionaron archivos (files/evidenceFiles), continuando...');
+    if (!req.files || Object.keys(req.files).length === 0) {
+      console.log(
+        "No se proporcionaron archivos (files/evidenceFiles), continuando..."
+      );
       return next();
     }
 
@@ -95,15 +97,15 @@ export const processFiles = async (req, res, next) => {
       return subidos;
     };
 
-    const adjuntosIngreso = await procesarCampo('files');
-    const adjuntosEvidencia = await procesarCampo('evidenceFiles');
+    const adjuntosIngreso = await procesarCampo("files");
+    const adjuntosEvidencia = await procesarCampo("evidenceFiles");
 
     if (adjuntosIngreso.length) {
-      console.log('Archivos de ingreso subidos a GCS:', adjuntosIngreso);
+      console.log("Archivos de ingreso subidos a GCS:", adjuntosIngreso);
       req.uploadedFiles = adjuntosIngreso;
     }
     if (adjuntosEvidencia.length) {
-      console.log('Archivos de evidencia subidos a GCS:', adjuntosEvidencia);
+      console.log("Archivos de evidencia subidos a GCS:", adjuntosEvidencia);
       req.uploadedEvidenceFiles = adjuntosEvidencia;
     }
 
@@ -115,8 +117,8 @@ export const processFiles = async (req, res, next) => {
 };
 
 export const handleProjectAssets = upload.fields([
-  { name: 'foto', maxCount: 1 },
-  { name: 'archivos', maxCount: 20 },
+  { name: "foto", maxCount: 1 },
+  { name: "archivos", maxCount: 20 },
 ]);
 
 export const processProjectAssets = async (req, res, next) => {
@@ -141,7 +143,7 @@ export const processProjectAssets = async (req, res, next) => {
             size: file.size,
           });
         } catch (err) {
-          console.error('Error subiendo archivo de proyecto a GCS:', err);
+          console.error("Error subiendo archivo de proyecto a GCS:", err);
         }
       }
       return resultados;
@@ -169,8 +171,8 @@ export const processProjectAssets = async (req, res, next) => {
 };
 
 export const handleVehiculoSalidaArchivos = upload.fields([
-  { name: 'adjuntos', maxCount: 20 },
-  { name: 'comprobante', maxCount: 5 },
+  { name: "adjuntos", maxCount: 20 },
+  { name: "comprobante", maxCount: 5 },
 ]);
 
 export const processVehiculoSalidaArchivos = async (req, res, next) => {
@@ -205,8 +207,8 @@ export const processVehiculoSalidaArchivos = async (req, res, next) => {
       return resultados;
     };
 
-    const adjuntos = await procesarLista('adjuntos');
-    const comprobantes = await procesarLista('comprobante');
+    const adjuntos = await procesarLista("adjuntos");
+    const comprobantes = await procesarLista("comprobante");
 
     if (adjuntos.length) {
       req.vehiculoSalidaAdjuntos = adjuntos;
@@ -217,7 +219,38 @@ export const processVehiculoSalidaArchivos = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Error procesando archivos de salida de vehículo:', error);
+    console.error("Error procesando archivos de salida de vehículo:", error);
+    next();
+  }
+};
+
+// Handler para cliente con imagen y logoPerfil
+export const handleClienteImages = upload.fields([
+  { name: "imagen", maxCount: 1 },
+  { name: "logoPerfil", maxCount: 1 },
+]);
+
+export const processClienteImages = async (req, res, next) => {
+  try {
+    if (!req.files || Object.keys(req.files).length === 0) {
+      console.log("No se proporcionaron archivos de cliente, continuando...");
+      return next();
+    }
+
+    if (req.files.imagen?.[0]) {
+      const imagenName = await uploadToGCS(req.files.imagen[0]);
+      console.log("Imagen de cliente subida a GCS:", imagenName);
+      req.uploadedFile = imagenName;
+    }
+    if (req.files.logoPerfil?.[0]) {
+      const logoName = await uploadToGCS(req.files.logoPerfil[0]);
+      console.log("Logo de perfil subido a GCS:", logoName);
+      req.uploadedLogoPerfil = logoName;
+    }
+
+    next();
+  } catch (error) {
+    console.error("Error procesando imágenes de cliente:", error);
     next();
   }
 };

@@ -126,6 +126,7 @@ export const postCliente = async (req, res) => {
     const { presente: datosBancariosPresentes, datos: datosBancarios } =
       obtenerDatosBancariosDesdeBody(req.body);
     const imagenName = req.uploadedFile;
+    const logoPerfilName = req.uploadedLogoPerfil;
     const esLead = parseBooleanFlag(esLeadEntrada, false);
     console.log("Valor de req.uploadedFile en postCliente:", imagenName);
 
@@ -232,6 +233,7 @@ export const postCliente = async (req, res) => {
       rut: rutNormalizado ?? null,
       razonSocial: razonSocial ?? null,
       imagen: imagenName,
+      logoPerfil: logoPerfilName ?? null,
       encargadoGeneral: encargadoGeneral ?? null,
       correo: correo ?? null,
       telefonoEncargado: telefonoEncargadoNum,
@@ -508,6 +510,14 @@ export const postModificarCliente = async (req, res) => {
     if (req.uploadedFile) {
       updateData.imagen = req.uploadedFile;
       console.log("Nueva imagen subida en modificación:", req.uploadedFile);
+    }
+
+    if (req.uploadedLogoPerfil) {
+      updateData.logoPerfil = req.uploadedLogoPerfil;
+      console.log(
+        "Nuevo logo de perfil subido en modificación:",
+        req.uploadedLogoPerfil
+      );
     }
 
     updateData.esLead = esLead;
