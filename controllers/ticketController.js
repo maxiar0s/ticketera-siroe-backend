@@ -505,7 +505,7 @@ export const crearTicket = async (req, res) => {
       ticketDetalleTermino,
       proyectoId,
       prioridad,
-      tipo,
+      estimacion,
       tagIds,
     } = bodyData;
 
@@ -683,7 +683,7 @@ export const crearTicket = async (req, res) => {
         ? req.uploadedEvidenceFiles
         : [],
       prioridad: prioridad ?? "Media",
-      tipo: tipo ?? "Incidente",
+      estimacion: estimacion ?? null,
     });
 
     // Asignar tags si se proporcionaron
@@ -803,7 +803,7 @@ export const actualizarTicket = async (req, res) => {
       detalleTermino,
       ticketDetalleTermino,
       prioridad,
-      tipo,
+      estimacion,
       comentarioInterno,
       tiempoResolucion,
       tagIds,
@@ -1022,6 +1022,21 @@ export const actualizarTicket = async (req, res) => {
         }
       }
 
+      // IMPORTANTE: Procesar estadoTicket ANTES de tecnicos para que estadoFinal sea correcto
+      const tieneEstadoTicketEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
+      if (tieneEstadoTicketEntrada) {
+        const estadoEntrada =
+          typeof estadoTicket !== "undefined"
+            ? estadoTicket
+            : bodyData.ticketEstado;
+        const estadoNormalizado = parseEstadoTicket(estadoEntrada, null);
+        if (estadoNormalizado) {
+          cambios.estadoTicket = estadoNormalizado;
+        }
+      }
+
       if (typeof tecnicos !== "undefined") {
         const tecnicosArray = parseStringArray(tecnicos);
         let nuevoTecnicoAsignadoId = null;
@@ -1101,28 +1116,17 @@ export const actualizarTicket = async (req, res) => {
         );
       }
 
-      const tieneEstadoTicketEntrada =
-        Object.prototype.hasOwnProperty.call(bodyData, "estadoTicket") ||
-        Object.prototype.hasOwnProperty.call(bodyData, "ticketEstado");
-      if (tieneEstadoTicketEntrada) {
-        const estadoEntrada =
-          typeof estadoTicket !== "undefined"
-            ? estadoTicket
-            : bodyData.ticketEstado;
-        const estadoNormalizado = parseEstadoTicket(estadoEntrada, null);
-        if (estadoNormalizado) {
-          cambios.estadoTicket = estadoNormalizado;
-        }
-      }
+      // estadoTicket ya procesado arriba antes de tecnicos
 
       if (typeof prioridad !== "undefined") {
         const prioridadLimpia = `${prioridad ?? ""}`.trim();
         if (prioridadLimpia) cambios.prioridad = prioridadLimpia;
       }
 
-      if (typeof tipo !== "undefined") {
-        const tipoLimpio = `${tipo ?? ""}`.trim();
-        if (tipoLimpio) cambios.tipo = tipoLimpio;
+      if (typeof estimacion !== "undefined") {
+        const estimacionNum = parseFloat(estimacion);
+        cambios.estimacion =
+          !isNaN(estimacionNum) && estimacionNum >= 0 ? estimacionNum : null;
       }
 
       const tieneFechaTerminoEntrada =

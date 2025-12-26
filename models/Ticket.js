@@ -218,10 +218,10 @@ const ticket = db.define(
       allowNull: false,
       defaultValue: "Media",
     },
-    tipo: {
-      type: DataTypes.ENUM("Incidente", "Problema", "Pregunta", "Peticion"),
-      allowNull: false,
-      defaultValue: "Incidente",
+    estimacion: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      defaultValue: null,
     },
     fuente: {
       type: DataTypes.ENUM("Web", "Email"),

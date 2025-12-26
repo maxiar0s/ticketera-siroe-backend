@@ -12,6 +12,9 @@ const db = new Sequelize({
   port: process.env.DB_PORT,
   dialectOptions: {
     connectTimeout: 60000, // Increase connection timeout to 60 seconds
+    ssl: {
+      rejectUnauthorized: false, // DigitalOcean managed databases require SSL
+    },
   },
   pool: {
     max: 30, // Máximo de conexiones en el pool
