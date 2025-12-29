@@ -218,11 +218,7 @@ const ticket = db.define(
       allowNull: false,
       defaultValue: "Media",
     },
-    estimacion: {
-      type: DataTypes.FLOAT,
-      allowNull: true,
-      defaultValue: null,
-    },
+
     fuente: {
       type: DataTypes.ENUM("Web", "Email"),
       allowNull: false,
