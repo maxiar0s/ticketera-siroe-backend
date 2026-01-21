@@ -7,6 +7,7 @@ import swaggerUi from "swagger-ui-express";
 import swaggerSpec from "../config/swagger.js";
 import protegerRuta from "../middleware/protegerRuta.js";
 import logRequest from "../middleware/logRequest.js";
+import { initCronJobs } from "../services/cronService.js";
 
 const app = express();
 
@@ -28,7 +29,7 @@ app.use(
       "Origin",
     ],
     credentials: true, // Permite cookies/headers seguros
-  })
+  }),
 );
 
 app.use(express.json());
@@ -42,6 +43,9 @@ try {
   // db.sync() removido - la base de datos ya tiene las tablas creadas
   // Solo se necesita sync() en desarrollo inicial o al agregar nuevas tablas
   console.log("Conexion a la base datos establecida");
+
+  // Inicializar CRON jobs
+  initCronJobs();
 } catch (error) {
   console.log("Error conectando a la base de datos:", error.message);
 }
@@ -92,7 +96,7 @@ app.use(
   swaggerUi.setup(swaggerSpec, {
     explorer: true,
     customSiteTitle: "Soporte Siroe API Docs",
-  })
+  }),
 );
 
 app.get("/docs.json", (req, res) => {

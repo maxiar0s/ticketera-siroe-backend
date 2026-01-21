@@ -77,8 +77,8 @@ const obtenerCuentaIdsPorNombres = async (nombres) => {
   if (!Array.isArray(nombres) || nombres.length === 0) return [];
   const normalizados = Array.from(
     new Set(
-      nombres.map((item) => `${item}`.trim()).filter((item) => item.length > 0)
-    )
+      nombres.map((item) => `${item}`.trim()).filter((item) => item.length > 0),
+    ),
   );
   if (!normalizados.length) return [];
   const cuentas = await CuentaModel.findAll({
@@ -94,11 +94,11 @@ const extraerIdsTecnicosAsignacion = async (body, tecnicosNombres) => {
       body?.tecnicoIds ??
       body?.tecnicosId ??
       body?.tecnicoId ??
-      []
+      [],
   );
   if (idsEntrada.length > 0) {
     return Array.from(
-      new Set(idsEntrada.filter((id) => Number.isInteger(id) && id > 0))
+      new Set(idsEntrada.filter((id) => Number.isInteger(id) && id > 0)),
     );
   }
   return obtenerCuentaIdsPorNombres(tecnicosNombres);
@@ -107,11 +107,11 @@ const extraerIdsTecnicosAsignacion = async (body, tecnicosNombres) => {
 const crearNotificacionesAsignacionTicket = async (
   ticket,
   cuentaIds,
-  asignadoPorId
+  asignadoPorId,
 ) => {
   if (!ticket || !Array.isArray(cuentaIds) || cuentaIds.length === 0) return;
   const idsUnicos = Array.from(
-    new Set(cuentaIds.filter((id) => Number.isInteger(id) && id > 0))
+    new Set(cuentaIds.filter((id) => Number.isInteger(id) && id > 0)),
   );
   if (!idsUnicos.length) return;
 
@@ -144,10 +144,10 @@ const crearNotificacionesAsignacionTicket = async (
             metadata: { ...datos.metadata, referenciaTipo },
             updatedAt: ahora,
           },
-          { hooks: false }
+          { hooks: false },
         );
       }
-    })
+    }),
   );
 };
 
@@ -532,11 +532,11 @@ export const crearTicket = async (req, res) => {
       typeof estadoTicketEntrada !== "undefined"
         ? estadoTicketEntrada
         : typeof ticketEstado !== "undefined"
-        ? ticketEstado
-        : null;
+          ? ticketEstado
+          : null;
     const estadoTicketNormalizado = parseEstadoTicket(
       estadoEntrada,
-      ESTADO_TICKET_INGRESADO
+      ESTADO_TICKET_INGRESADO,
     );
 
     const fechaTerminoEntrada =
@@ -658,7 +658,7 @@ export const crearTicket = async (req, res) => {
 
     const tecnicosIdsAsignados = await extraerIdsTecnicosAsignacion(
       bodyData,
-      tecnicosArray
+      tecnicosArray,
     );
 
     const nuevoTicket = await TicketModel.create({
@@ -701,7 +701,7 @@ export const crearTicket = async (req, res) => {
       if (idsValidos.length > 0) {
         await TicketTagModel.bulkCreate(
           idsValidos.map((tagId) => ({ ticketId: nuevoTicket.id, tagId })),
-          { ignoreDuplicates: true }
+          { ignoreDuplicates: true },
         );
       }
     }
@@ -721,7 +721,7 @@ export const crearTicket = async (req, res) => {
       await crearNotificacionesAsignacionTicket(
         ticketCreado,
         idsParaNotificar,
-        usuario.id
+        usuario.id,
       );
     }
 
@@ -732,7 +732,7 @@ export const crearTicket = async (req, res) => {
       req.method,
       req.path,
       req.ip || req.connection.remoteAddress,
-      { ticketId: ticketCreado.id, clienteId: casaMatrizId }
+      { ticketId: ticketCreado.id, clienteId: casaMatrizId },
     );
 
     return res.status(201).json(ticketCreado);
@@ -829,9 +829,8 @@ export const actualizarTicket = async (req, res) => {
             .status(400)
             .json({ error: "El proyecto indicado no es valido." });
         }
-        const proyectoSeleccionado = await ProyectoModel.findByPk(
-          proyectoIdNumero
-        );
+        const proyectoSeleccionado =
+          await ProyectoModel.findByPk(proyectoIdNumero);
         if (!proyectoSeleccionado) {
           return res.status(404).json({ error: "Proyecto no encontrado." });
         }
@@ -954,9 +953,47 @@ export const actualizarTicket = async (req, res) => {
 
           idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
             bodyData,
-            tecnicosArray
+            tecnicosArray,
           );
         }
+      }
+
+      const tieneFechaTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "fechaTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketFechaTermino");
+      if (tieneFechaTerminoEntrada) {
+        const entradaFecha = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "fechaTermino",
+        )
+          ? bodyData.fechaTermino
+          : bodyData.ticketFechaTermino;
+        if (entradaFecha) {
+          const fechaNormalizada = toISODateOnly(entradaFecha);
+          if (!fechaNormalizada) {
+            return res
+              .status(400)
+              .json({ error: "La fecha de termino del ticket no es valida." });
+          }
+          cambios.fechaTermino = fechaNormalizada;
+        } else {
+          cambios.fechaTermino = null;
+        }
+      }
+
+      const tieneDetalleTerminoEntrada =
+        Object.prototype.hasOwnProperty.call(bodyData, "detalleTermino") ||
+        Object.prototype.hasOwnProperty.call(bodyData, "ticketDetalleTermino");
+      if (tieneDetalleTerminoEntrada) {
+        const entradaDetalle = Object.prototype.hasOwnProperty.call(
+          bodyData,
+          "detalleTermino",
+        )
+          ? bodyData.detalleTermino
+          : bodyData.ticketDetalleTermino;
+        const detalleLimpio = limpiarDetalleTermino(entradaDetalle);
+        cambios.detalleTermino =
+          detalleLimpio.length > 0 ? detalleLimpio : null;
       }
     } else if (usuario.tipoCuentaId === 1) {
       if (typeof descripcion !== "undefined") {
@@ -1105,14 +1142,14 @@ export const actualizarTicket = async (req, res) => {
 
         idsAsignacionEntrada = await extraerIdsTecnicosAsignacion(
           bodyData,
-          tecnicosArray
+          tecnicosArray,
         );
       }
 
       if (typeof isEmergencia !== "undefined") {
         cambios.isEmergencia = parseBooleanFlag(
           isEmergencia,
-          ticket.isEmergencia
+          ticket.isEmergencia,
         );
       }
 
@@ -1135,7 +1172,7 @@ export const actualizarTicket = async (req, res) => {
       if (tieneFechaTerminoEntrada) {
         const entradaFecha = Object.prototype.hasOwnProperty.call(
           bodyData,
-          "fechaTermino"
+          "fechaTermino",
         )
           ? bodyData.fechaTermino
           : bodyData.ticketFechaTermino;
@@ -1158,7 +1195,7 @@ export const actualizarTicket = async (req, res) => {
       if (tieneDetalleTerminoEntrada) {
         const entradaDetalle = Object.prototype.hasOwnProperty.call(
           bodyData,
-          "detalleTermino"
+          "detalleTermino",
         )
           ? bodyData.detalleTermino
           : bodyData.ticketDetalleTermino;
@@ -1309,7 +1346,7 @@ export const actualizarTicket = async (req, res) => {
             ? ticket.adjuntosTermino
             : [];
           ticket.adjuntosTermino = actualesEvidencia.concat(
-            nuevosAdjuntosEvidencia
+            nuevosAdjuntosEvidencia,
           );
         }
         await ticket.save();
@@ -1326,19 +1363,19 @@ export const actualizarTicket = async (req, res) => {
           ? await obtenerCuentaIdsPorNombres(tecnicosPrevios)
           : [];
       nuevosIdsNotificacion = idsAsignacionEntrada.filter(
-        (id) => !idsPrevios.includes(id)
+        (id) => !idsPrevios.includes(id),
       );
     } else if (Object.prototype.hasOwnProperty.call(cambios, "tecnicos")) {
       const previosSet = new Set(
-        tecnicosPrevios.map((nombre) => normalizarNombreTecnico(nombre))
+        tecnicosPrevios.map((nombre) => normalizarNombreTecnico(nombre)),
       );
       const actualesSet = new Set(
         (Array.isArray(ticket.tecnicos) ? ticket.tecnicos : []).map((nombre) =>
-          normalizarNombreTecnico(nombre)
-        )
+          normalizarNombreTecnico(nombre),
+        ),
       );
       const nuevosNombres = Array.from(actualesSet).filter(
-        (nombre) => !previosSet.has(nombre)
+        (nombre) => !previosSet.has(nombre),
       );
       if (nuevosNombres.length) {
         nuevosIdsNotificacion = await obtenerCuentaIdsPorNombres(nuevosNombres);
@@ -1349,7 +1386,7 @@ export const actualizarTicket = async (req, res) => {
       await crearNotificacionesAsignacionTicket(
         ticket,
         nuevosIdsNotificacion,
-        usuario.id
+        usuario.id,
       );
     }
 
@@ -1442,7 +1479,7 @@ export const actualizarTicket = async (req, res) => {
         if (idsValidos.length > 0) {
           await TicketTagModel.bulkCreate(
             idsValidos.map((tagId) => ({ ticketId: ticket.id, tagId })),
-            { ignoreDuplicates: true }
+            { ignoreDuplicates: true },
           );
         }
       }
@@ -1458,7 +1495,7 @@ export const actualizarTicket = async (req, res) => {
       req.method,
       req.path,
       req.ip || req.connection.remoteAddress,
-      { ticketId: ticket.id }
+      { ticketId: ticket.id },
     );
 
     return res.json(ticket);
@@ -1499,7 +1536,7 @@ export const eliminarTicket = async (req, res) => {
       req.method,
       req.path,
       req.ip || req.connection.remoteAddress,
-      { ticketId: id }
+      { ticketId: id },
     );
 
     return res.json({ mensaje: "Ticket eliminado correctamente." });
