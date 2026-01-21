@@ -12,6 +12,8 @@ import {
   processDocumentoCliente,
   handleClienteImages,
   processClienteImages,
+  handleBibliotecaAssets,
+  processBibliotecaAssets,
 } from "../middleware/imagenes.js";
 import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
@@ -159,6 +161,17 @@ import {
   eliminarTag,
 } from "../controllers/tagController.js";
 
+// Biblioteca
+import {
+  getBibliotecaProyectos,
+  getBibliotecaProyecto,
+  crearBibliotecaProyecto,
+  actualizarBibliotecaProyecto,
+  eliminarBibliotecaProyecto,
+  agregarAdjuntosBiblioteca,
+  eliminarAdjuntoBiblioteca,
+} from "../controllers/bibliotecaController.js";
+
 const router = express.Router();
 
 // =====================================================
@@ -181,36 +194,36 @@ router.post(
   protegerRutaAdmin,
   handleClienteImages,
   processClienteImages,
-  postCliente
+  postCliente,
 );
 router.post(
   "/modificar-cliente/:id",
   protegerRutaAdmin,
   handleClienteImages,
   processClienteImages,
-  postModificarCliente
+  postModificarCliente,
 );
 router.post("/eliminar-cliente/:id", protegerRutaAdmin, postEliminarCliente);
 router.delete("/clientes/:id", protegerRutaAdmin, postEliminarCliente);
-router.get("/clientes/listado", protegerRutaAdmin, getClientesResumen);
+router.get("/clientes/listado", protegerRutaTecnico, getClientesResumen);
 
 // Documentación de clientes
 router.get(
   "/documentacion",
   protegerRutaAdminComercial,
-  getDocumentacionClientes
+  getDocumentacionClientes,
 );
 router.post(
   "/documentacion",
   protegerRutaAdminComercial,
   handleDocumentoCliente,
   processDocumentoCliente,
-  crearDocumentoCliente
+  crearDocumentoCliente,
 );
 router.delete(
   "/documentacion/:id",
   protegerRutaAdminComercial,
-  eliminarDocumentoCliente
+  eliminarDocumentoCliente,
 );
 
 // Sucursales
@@ -224,12 +237,12 @@ router.delete("/tipos-equipos/:id", protegerRutaAdmin, eliminarTipoEquipo);
 router.get(
   "/tipos-equipos/:id/campos",
   protegerRutaAdmin,
-  obtenerCamposTipoEquipo
+  obtenerCamposTipoEquipo,
 );
 router.put(
   "/tipos-equipos/:id/campos",
   protegerRutaAdmin,
-  sincronizarCamposTipoEquipo
+  sincronizarCamposTipoEquipo,
 );
 router.get("/campos", protegerRutaAdmin, obtenerCampos);
 router.post("/campos", protegerRutaAdmin, crearCampo);
@@ -238,22 +251,22 @@ router.delete("/campos/:id", protegerRutaAdmin, eliminarCampo);
 router.get(
   "/departamentos-equipos",
   protegerRutaTecnico,
-  obtenerDepartamentosEquipo
+  obtenerDepartamentosEquipo,
 );
 router.post(
   "/departamentos-equipos",
   protegerRutaAdmin,
-  crearDepartamentoEquipo
+  crearDepartamentoEquipo,
 );
 router.put(
   "/departamentos-equipos/:id",
   protegerRutaAdmin,
-  actualizarDepartamentoEquipo
+  actualizarDepartamentoEquipo,
 );
 router.delete(
   "/departamentos-equipos/:id",
   protegerRutaAdmin,
-  eliminarDepartamentoEquipo
+  eliminarDepartamentoEquipo,
 );
 
 // =====================================================
@@ -266,7 +279,7 @@ router.post(
   protegerRutaTecnico,
   handleUpload,
   processFile,
-  postModificarEquipo
+  postModificarEquipo,
 );
 router.post("/eliminar-equipo/:id", protegerRutaTecnico, deleteEquiptment);
 
@@ -279,12 +292,12 @@ router.get("/estados-equipos", protegerRuta, getEstadosEquipo);
 router.patch(
   "/estados-equipos/:id",
   protegerRutaTecnico,
-  actualizarEstadoEquipo
+  actualizarEstadoEquipo,
 );
 router.post(
   "/actualizar-estado-equipo/:id",
   protegerRutaTecnico,
-  actualizarSoloEstadoEquipo
+  actualizarSoloEstadoEquipo,
 );
 
 // Estados de sucursales
@@ -292,7 +305,7 @@ router.get("/estados-sucursales", protegerRuta, getEstadosSucursal);
 router.post(
   "/actualizar-estado-sucursal/:id",
   protegerRutaTecnico,
-  actualizarEstadoSucursal
+  actualizarEstadoSucursal,
 );
 
 // =====================================================
@@ -313,12 +326,12 @@ router.post("/clientes/:clienteId/tags", protegerRutaAdmin, crearTag);
 router.put(
   "/clientes/:clienteId/tags/:tagId",
   protegerRutaAdmin,
-  actualizarTag
+  actualizarTag,
 );
 router.delete(
   "/clientes/:clienteId/tags/:tagId",
   protegerRutaAdmin,
-  eliminarTag
+  eliminarTag,
 );
 
 // Sucursales
@@ -329,7 +342,7 @@ router.get("/notificaciones", protegerRuta, getNotificaciones);
 router.patch(
   "/notificaciones/leidas",
   protegerRuta,
-  marcarNotificacionesLeidas
+  marcarNotificacionesLeidas,
 );
 
 // Equipos
@@ -343,14 +356,14 @@ router.post(
   protegerRutaTecnico,
   handleProjectAssets,
   processProjectAssets,
-  crearProyecto
+  crearProyecto,
 );
 router.put(
   "/proyectos/:id",
   protegerRutaTecnico,
   handleProjectAssets,
   processProjectAssets,
-  actualizarProyecto
+  actualizarProyecto,
 );
 router.delete("/proyectos/:id", protegerRutaAdmin, eliminarProyecto);
 router.post(
@@ -358,22 +371,22 @@ router.post(
   protegerRutaTecnico,
   handleProjectAssets,
   processProjectAssets,
-  agregarAdjuntosProyecto
+  agregarAdjuntosProyecto,
 );
 router.post(
   "/proyectos/:id/bitacoras",
   protegerRutaTecnico,
-  agregarBitacorasAProyecto
+  agregarBitacorasAProyecto,
 );
 router.delete(
   "/proyectos/:id/bitacoras/:bitacoraId",
   protegerRutaTecnico,
-  removerBitacoraDeProyecto
+  removerBitacoraDeProyecto,
 );
 router.delete(
   "/proyectos/:id/adjuntos/:adjuntoId",
   protegerRutaTecnico,
-  eliminarProyectoAdjunto
+  eliminarProyectoAdjunto,
 );
 
 // Vehículos
@@ -384,14 +397,14 @@ router.post(
   protegerRutaTecnico,
   handleUpload,
   processFile,
-  crearVehiculo
+  crearVehiculo,
 );
 router.put(
   "/vehiculos/:id",
   protegerRutaTecnico,
   handleUpload,
   processFile,
-  actualizarVehiculo
+  actualizarVehiculo,
 );
 router.delete("/vehiculos/:id", protegerRutaTecnico, eliminarVehiculo);
 router.post(
@@ -399,24 +412,24 @@ router.post(
   protegerRutaTecnico,
   handleVehiculoSalidaArchivos,
   processVehiculoSalidaArchivos,
-  crearVehiculoSalida
+  crearVehiculoSalida,
 );
 router.put(
   "/vehiculos/:vehiculoId/salidas/:salidaId",
   protegerRutaTecnico,
   handleVehiculoSalidaArchivos,
   processVehiculoSalidaArchivos,
-  actualizarVehiculoSalida
+  actualizarVehiculoSalida,
 );
 router.delete(
   "/vehiculos/:vehiculoId/salidas/:salidaId",
   protegerRutaTecnico,
-  eliminarVehiculoSalida
+  eliminarVehiculoSalida,
 );
 router.delete(
   "/vehiculos/:vehiculoId/salidas/:salidaId/adjuntos/:adjuntoId",
   protegerRutaTecnico,
-  eliminarVehiculoSalidaAdjunto
+  eliminarVehiculoSalidaAdjunto,
 );
 
 // Bitácoras
@@ -428,14 +441,14 @@ router.post(
   protegerRutaTecnico,
   handleFiles,
   processFiles,
-  crearBitacora
+  crearBitacora,
 );
 router.put(
   "/bitacoras/:id",
   protegerRutaTecnico,
   handleFiles,
   processFiles,
-  actualizarBitacora
+  actualizarBitacora,
 );
 router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
 
@@ -443,7 +456,7 @@ router.delete("/bitacoras/:id", protegerRutaAdmin, eliminarBitacora);
 router.get(
   "/tickets/mensajes-no-leidos",
   protegerRuta,
-  getMensajesNoLeidosPorTicket
+  getMensajesNoLeidosPorTicket,
 );
 router.get("/tickets", protegerRuta, getTickets);
 router.get("/tickets/:id", protegerRuta, getTicketById);
@@ -452,14 +465,14 @@ router.post(
   protegerRutaTecnico,
   handleFiles,
   processFiles,
-  crearTicket
+  crearTicket,
 );
 router.put(
   "/tickets/:id",
   protegerRutaTecnico,
   handleFiles,
   processFiles,
-  actualizarTicket
+  actualizarTicket,
 );
 router.delete("/tickets/:id", protegerRutaAdmin, eliminarTicket);
 
@@ -470,12 +483,12 @@ router.post(
   protegerRuta,
   handleFiles,
   processFiles,
-  enviarMensaje
+  enviarMensaje,
 );
 router.post(
   "/tickets/:ticketId/chat/leidos",
   protegerRuta,
-  marcarMensajesLeidos
+  marcarMensajesLeidos,
 );
 router.get("/tickets/:ticketId/actividad", protegerRuta, getActividadTicket);
 router.get("/tickets/:ticketId/timeline", protegerRuta, getTimelineTicket);
@@ -486,7 +499,7 @@ router.post("/visitas-programadas", protegerRutaTecnico, crearVisitaProgramada);
 router.delete(
   "/visitas-programadas/:id",
   protegerRutaAdmin,
-  eliminarVisitaProgramada
+  eliminarVisitaProgramada,
 );
 
 // Google Cloud Storage
@@ -497,5 +510,38 @@ router.delete("/equipos/:id", protegerRutaTecnico, deleteEquiptment);
 
 // Logs del sistema
 router.get("/logs", protegerRutaAdmin, getLogs);
+
+// =====================================================
+// Rutas de Biblioteca
+// =====================================================
+router.get("/biblioteca", protegerRutaTecnico, getBibliotecaProyectos);
+router.get("/biblioteca/:id", protegerRutaTecnico, getBibliotecaProyecto);
+router.post(
+  "/biblioteca",
+  protegerRutaTecnico,
+  handleBibliotecaAssets,
+  processBibliotecaAssets,
+  crearBibliotecaProyecto,
+);
+router.put(
+  "/biblioteca/:id",
+  protegerRutaTecnico,
+  handleBibliotecaAssets,
+  processBibliotecaAssets,
+  actualizarBibliotecaProyecto,
+);
+router.delete("/biblioteca/:id", protegerRutaAdmin, eliminarBibliotecaProyecto);
+router.post(
+  "/biblioteca/:id/adjuntos",
+  protegerRutaTecnico,
+  handleBibliotecaAssets,
+  processBibliotecaAssets,
+  agregarAdjuntosBiblioteca,
+);
+router.delete(
+  "/biblioteca/:id/adjuntos/:adjuntoId",
+  protegerRutaTecnico,
+  eliminarAdjuntoBiblioteca,
+);
 
 export default router;

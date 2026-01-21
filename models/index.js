@@ -28,6 +28,10 @@ import ActividadTicket from "./ActividadTicket.js";
 import Tag from "./Tag.js";
 import TicketTag from "./TicketTag.js";
 
+// Biblioteca
+import BibliotecaProyecto from "./BibliotecaProyecto.js";
+import BibliotecaAdjunto from "./BibliotecaAdjunto.js";
+
 //?estado de equipos
 import EstadoEquipo from "./EstadoEquipo.js";
 
@@ -98,6 +102,10 @@ const ActividadTicketModel = ActividadTicket;
 // Modelos de Tags
 const TagModel = Tag;
 const TicketTagModel = TicketTag;
+
+// Modelos de Biblioteca
+const BibliotecaProyectoModel = BibliotecaProyecto;
+const BibliotecaAdjuntoModel = BibliotecaAdjunto;
 
 // Relaciones Proyectos
 ProyectoModel.belongsTo(CuentaModel, {
@@ -551,6 +559,57 @@ TagModel.belongsToMany(TicketModel, {
   as: "tickets",
 });
 
+// Relaciones Biblioteca
+BibliotecaProyectoModel.belongsTo(CasaMatrizModel, {
+  foreignKey: "casaMatrizId",
+  as: "casaMatriz",
+  onDelete: "CASCADE",
+});
+CasaMatrizModel.hasMany(BibliotecaProyectoModel, {
+  foreignKey: "casaMatrizId",
+  as: "bibliotecaProyectos",
+  onDelete: "CASCADE",
+});
+
+BibliotecaProyectoModel.belongsTo(CuentaModel, {
+  foreignKey: "creadoPorId",
+  as: "creadoPor",
+});
+BibliotecaProyectoModel.belongsTo(CuentaModel, {
+  foreignKey: "actualizadoPorId",
+  as: "actualizadoPor",
+});
+CuentaModel.hasMany(BibliotecaProyectoModel, {
+  foreignKey: "creadoPorId",
+  as: "bibliotecaProyectosCreados",
+});
+CuentaModel.hasMany(BibliotecaProyectoModel, {
+  foreignKey: "actualizadoPorId",
+  as: "bibliotecaProyectosActualizados",
+});
+
+BibliotecaProyectoModel.hasMany(BibliotecaAdjuntoModel, {
+  foreignKey: "bibliotecaProyectoId",
+  as: "adjuntos",
+  onDelete: "CASCADE",
+  hooks: true,
+});
+BibliotecaAdjuntoModel.belongsTo(BibliotecaProyectoModel, {
+  foreignKey: "bibliotecaProyectoId",
+  as: "bibliotecaProyecto",
+  onDelete: "CASCADE",
+});
+
+BibliotecaAdjuntoModel.belongsTo(CuentaModel, {
+  foreignKey: "subidoPorId",
+  as: "subidoPor",
+  onDelete: "SET NULL",
+});
+CuentaModel.hasMany(BibliotecaAdjuntoModel, {
+  foreignKey: "subidoPorId",
+  as: "bibliotecaAdjuntosSubidos",
+});
+
 export {
   CuentaModel,
   TipoCuentaModel,
@@ -584,4 +643,6 @@ export {
   ActividadTicketModel,
   TagModel,
   TicketTagModel,
+  BibliotecaProyectoModel,
+  BibliotecaAdjuntoModel,
 };
