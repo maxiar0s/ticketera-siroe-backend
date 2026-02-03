@@ -250,68 +250,45 @@ export const processClienteImages = async (req, res, next) => {
   }
 };
 
-// Biblioteca (Multiples secciones)
-export const handleBibliotecaAssets = upload.fields([
-  { name: "files_general", maxCount: 10 },
-  { name: "files_env", maxCount: 5 },
-  { name: "files_instalacion", maxCount: 5 },
-  { name: "files_produccion", maxCount: 5 },
-  { name: "files_manual", maxCount: 5 },
-  { name: "files_credenciales", maxCount: 5 },
-]);
+// Biblioteca (Acepta campos dinámicos files_*)
+// Usamos upload.any() para aceptar cualquier campo que comience con "files_"
+export const handleBibliotecaAssets = upload.any();
 
 // Procesa archivos de biblioteca y los agrupa por sección en req.bibliotecaFiles
 export const processBibliotecaAssets = async (req, res, next) => {
   try {
-    if (!req.files || Object.keys(req.files).length === 0) {
+    // Filtrar solo archivos que comiencen con "files_"
+    const archivos = Array.isArray(req.files)
+      ? req.files.filter((f) => f.fieldname.startsWith("files_"))
+      : [];
+
+    if (archivos.length === 0) {
       return next();
     }
 
-    req.bibliotecaFiles = {}; // Objeto estructurado por sección
+    req.bibliotecaFiles = {}; // Objeto estructurado por campo/sección
 
-    // Helper para procesar una lista de archivos
-    const procesarLista = async (lista, seccion) => {
-      if (!Array.isArray(lista) || lista.length === 0) return [];
+    for (const file of archivos) {
+      const campo = file.fieldname; // ej: "files_1", "files_general", etc.
 
-      const resultados = [];
-      for (const file of lista) {
-        try {
-          const storageName = await uploadToGCS(file);
-          resultados.push({
-            storageName,
-            originalName: file.originalname,
-            mimeType: file.mimetype,
-            size: file.size,
-            seccion, // Agregamos la sección aquí para facilitar
-          });
-        } catch (err) {
-          console.error(
-            `Error subiendo archivo biblioteca (${seccion}) a GCS:`,
-            err,
-          );
+      try {
+        const storageName = await uploadToGCS(file);
+        const archivoData = {
+          storageName,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          size: file.size,
+        };
+
+        if (!req.bibliotecaFiles[campo]) {
+          req.bibliotecaFiles[campo] = [];
         }
-      }
-      return resultados;
-    };
-
-    // Procesamos cada campo
-    const campos = [
-      "files_general",
-      "files_env",
-      "files_instalacion",
-      "files_produccion",
-      "files_manual",
-      "files_credenciales",
-    ];
-
-    for (const campo of campos) {
-      if (req.files[campo]) {
-        // Mapear nombre del campo a nombre de la sección (opcional, o usar el mismo)
-        // Usaremos el mismo nombre del campo como key en la BD
-        const archivosProcesados = await procesarLista(req.files[campo], campo);
-        if (archivosProcesados.length > 0) {
-          req.bibliotecaFiles[campo] = archivosProcesados;
-        }
+        req.bibliotecaFiles[campo].push(archivoData);
+      } catch (err) {
+        console.error(
+          `Error subiendo archivo biblioteca (${campo}) a GCS:`,
+          err,
+        );
       }
     }
 

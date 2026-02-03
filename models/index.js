@@ -31,6 +31,7 @@ import TicketTag from "./TicketTag.js";
 // Biblioteca
 import BibliotecaProyecto from "./BibliotecaProyecto.js";
 import BibliotecaAdjunto from "./BibliotecaAdjunto.js";
+import BibliotecaCategoria from "./BibliotecaCategoria.js";
 
 //?estado de equipos
 import EstadoEquipo from "./EstadoEquipo.js";
@@ -106,6 +107,7 @@ const TicketTagModel = TicketTag;
 // Modelos de Biblioteca
 const BibliotecaProyectoModel = BibliotecaProyecto;
 const BibliotecaAdjuntoModel = BibliotecaAdjunto;
+const BibliotecaCategoriaModel = BibliotecaCategoria;
 
 // Relaciones Proyectos
 ProyectoModel.belongsTo(CuentaModel, {
@@ -610,6 +612,36 @@ CuentaModel.hasMany(BibliotecaAdjuntoModel, {
   as: "bibliotecaAdjuntosSubidos",
 });
 
+// Relaciones BibliotecaCategoria
+BibliotecaCategoriaModel.belongsTo(CuentaModel, {
+  foreignKey: "creadoPorId",
+  as: "creadoPor",
+});
+BibliotecaCategoriaModel.belongsTo(CuentaModel, {
+  foreignKey: "actualizadoPorId",
+  as: "actualizadoPor",
+});
+CuentaModel.hasMany(BibliotecaCategoriaModel, {
+  foreignKey: "creadoPorId",
+  as: "bibliotecaCategoriasCreadas",
+});
+CuentaModel.hasMany(BibliotecaCategoriaModel, {
+  foreignKey: "actualizadoPorId",
+  as: "bibliotecaCategoriasActualizadas",
+});
+
+// Relación BibliotecaProyecto - BibliotecaCategoria
+BibliotecaProyectoModel.belongsTo(BibliotecaCategoriaModel, {
+  foreignKey: "categoriaId",
+  as: "categoria",
+  onDelete: "SET NULL",
+});
+BibliotecaCategoriaModel.hasMany(BibliotecaProyectoModel, {
+  foreignKey: "categoriaId",
+  as: "documentos",
+  onDelete: "SET NULL",
+});
+
 export {
   CuentaModel,
   TipoCuentaModel,
@@ -645,4 +677,5 @@ export {
   TicketTagModel,
   BibliotecaProyectoModel,
   BibliotecaAdjuntoModel,
+  BibliotecaCategoriaModel,
 };

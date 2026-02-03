@@ -172,6 +172,15 @@ import {
   eliminarAdjuntoBiblioteca,
 } from "../controllers/bibliotecaController.js";
 
+// Biblioteca Categorías
+import {
+  getBibliotecaCategorias,
+  getBibliotecaCategoria,
+  crearBibliotecaCategoria,
+  actualizarBibliotecaCategoria,
+  eliminarBibliotecaCategoria,
+} from "../controllers/bibliotecaCategoriaController.js";
+
 const router = express.Router();
 
 // =====================================================
@@ -514,6 +523,35 @@ router.get("/logs", protegerRutaAdmin, getLogs);
 // =====================================================
 // Rutas de Biblioteca
 // =====================================================
+
+// IMPORTANTE: Rutas de categorías DEBEN ir ANTES de /biblioteca/:id
+router.get(
+  "/biblioteca/categorias",
+  protegerRutaTecnico,
+  getBibliotecaCategorias,
+);
+router.get(
+  "/biblioteca/categorias/:id",
+  protegerRutaTecnico,
+  getBibliotecaCategoria,
+);
+router.post(
+  "/biblioteca/categorias",
+  protegerRutaAdmin,
+  crearBibliotecaCategoria,
+);
+router.put(
+  "/biblioteca/categorias/:id",
+  protegerRutaAdmin,
+  actualizarBibliotecaCategoria,
+);
+router.delete(
+  "/biblioteca/categorias/:id",
+  protegerRutaAdmin,
+  eliminarBibliotecaCategoria,
+);
+
+// Rutas de proyectos de biblioteca
 router.get("/biblioteca", protegerRutaTecnico, getBibliotecaProyectos);
 router.get("/biblioteca/:id", protegerRutaTecnico, getBibliotecaProyecto);
 router.post(

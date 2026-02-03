@@ -11,7 +11,11 @@ const BibliotecaProyecto = db.define(
     },
     casaMatrizId: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true, // Ahora opcional, puede ser documentación sin cliente
+    },
+    categoriaId: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Opcional para retrocompatibilidad
     },
     nombre: {
       type: DataTypes.STRING(255),
@@ -21,6 +25,14 @@ const BibliotecaProyecto = db.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    // Campo para contenido dinámico por columna
+    contenido: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      defaultValue: {},
+      // Estructura: { "columnaId": { texto: "...", esPrivado: false } }
+    },
+    // Campos legacy para retrocompatibilidad
     linkRepositorio: {
       type: DataTypes.TEXT,
       allowNull: true,

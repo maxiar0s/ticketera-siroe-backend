@@ -7,6 +7,7 @@ import { Op } from "sequelize";
 import {
   BibliotecaProyectoModel,
   BibliotecaAdjuntoModel,
+  BibliotecaCategoriaModel,
   CasaMatrizModel,
   CuentaModel,
 } from "../models/index.js";
@@ -16,6 +17,11 @@ const bibliotecaIncludes = [
     model: CasaMatrizModel,
     as: "casaMatriz",
     attributes: ["id", "razonSocial", "imagen"],
+  },
+  {
+    model: BibliotecaCategoriaModel,
+    as: "categoria",
+    attributes: ["id", "nombre", "color", "columnas"],
   },
   { model: CuentaModel, as: "creadoPor", attributes: ["id", "name", "email"] },
   {
@@ -122,6 +128,7 @@ export const crearBibliotecaProyecto = async (req, res) => {
   try {
     const {
       casaMatrizId,
+      categoriaId,
       nombre,
       descripcion,
       linkRepositorio,
@@ -132,6 +139,7 @@ export const crearBibliotecaProyecto = async (req, res) => {
       manualUsuario,
       notasTecnicas,
       tecnologias,
+      contenido,
     } = req.body;
 
     const usuarioId = req.usuario?.id;
@@ -161,11 +169,22 @@ export const crearBibliotecaProyecto = async (req, res) => {
       }
     }
 
+    // Parsear contenido dinámico si viene como string
+    let contenidoParsed = null;
+    if (contenido) {
+      try {
+        contenidoParsed =
+          typeof contenido === "string" ? JSON.parse(contenido) : contenido;
+      } catch {
+        contenidoParsed = null;
+      }
+    }
+
     const nuevoProyecto = await BibliotecaProyectoModel.create({
       casaMatrizId,
+      categoriaId: categoriaId || null,
       nombre,
       descripcion: descripcion || null,
-      linkRepositorio: linkRepositorio || null,
       linkRepositorio: linkRepositorio || null,
       envVariables: envVariables || null,
       credenciales: credenciales || null,
@@ -174,6 +193,7 @@ export const crearBibliotecaProyecto = async (req, res) => {
       manualUsuario: manualUsuario || null,
       notasTecnicas: notasTecnicas || null,
       tecnologias: tecnologiasArray,
+      contenido: contenidoParsed,
       creadoPorId: usuarioId,
       actualizadoPorId: usuarioId,
     });
@@ -228,6 +248,7 @@ export const actualizarBibliotecaProyecto = async (req, res) => {
     const { id } = req.params;
     const {
       casaMatrizId,
+      categoriaId,
       nombre,
       descripcion,
       linkRepositorio,
@@ -238,6 +259,7 @@ export const actualizarBibliotecaProyecto = async (req, res) => {
       manualUsuario,
       notasTecnicas,
       tecnologias,
+      contenido,
     } = req.body;
 
     const usuarioId = req.usuario?.id;
@@ -261,8 +283,21 @@ export const actualizarBibliotecaProyecto = async (req, res) => {
       }
     }
 
+    // Parsear contenido dinámico si viene como string
+    let contenidoParsed = proyecto.contenido;
+    if (contenido !== undefined) {
+      try {
+        contenidoParsed =
+          typeof contenido === "string" ? JSON.parse(contenido) : contenido;
+      } catch {
+        contenidoParsed = null;
+      }
+    }
+
     await proyecto.update({
       casaMatrizId: casaMatrizId || proyecto.casaMatrizId,
+      categoriaId:
+        categoriaId !== undefined ? categoriaId || null : proyecto.categoriaId,
       nombre: nombre || proyecto.nombre,
       descripcion:
         descripcion !== undefined ? descripcion : proyecto.descripcion,
@@ -287,6 +322,7 @@ export const actualizarBibliotecaProyecto = async (req, res) => {
       notasTecnicas:
         notasTecnicas !== undefined ? notasTecnicas : proyecto.notasTecnicas,
       tecnologias: tecnologiasArray,
+      contenido: contenidoParsed,
       actualizadoPorId: usuarioId,
     });
 
