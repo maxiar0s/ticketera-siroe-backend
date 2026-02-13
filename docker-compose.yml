@@ -1,0 +1,71 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: ss_ticketera_mysql_local
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      - MYSQL_DATABASE=ticketera_local
+      - MYSQL_USER=ticketera
+      - MYSQL_PASSWORD=ticketera123
+      - MYSQL_ROOT_PASSWORD=root123
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_local:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ss_ticketera_back_local
+    command: npm run server
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=local
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ss_ticketera_seed_local
+    command: node ./scripts/seed-if-needed.js
+    env_file:
+      - .env.local
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  tickets-cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    container_name: ss_ticketera_cron_local
+    profiles:
+      - cron
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=local
+    restart: unless-stopped
+
+volumes:
+  mysql_data_local:
