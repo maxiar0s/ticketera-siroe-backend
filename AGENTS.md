@@ -143,6 +143,11 @@ If a proper test framework is added later, update this section with exact single
 
 - Required env vars include DB settings and JWT secret (`JWT_SECRETPASSWORD`).
 - Email and GCS integrations depend on additional env vars in `config/` and `services/`.
+- Biblioteca -> RAG sync webhook env vars:
+  - `RAG_SYNC_ENABLED` (default `true`)
+  - `RAG_SYNC_WEBHOOK_URL` (ej: `http://rag-ticketera-ai:8000/kb/sync`)
+  - `RAG_SYNC_WEBHOOK_SECRET` (debe coincidir con `RAG_SYNC_WEBHOOK_SECRET` del microservicio RAG)
+  - `RAG_SYNC_TIMEOUT_MS` (default `5000`)
 - Never commit secrets from `.env`, credential files, or private keys.
 
 ## Agent Workflow Expectations
