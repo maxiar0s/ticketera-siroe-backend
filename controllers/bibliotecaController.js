@@ -11,6 +11,7 @@ import {
   CasaMatrizModel,
   CuentaModel,
 } from "../models/index.js";
+import { dispatchBibliotecaSync } from "../services/ragSyncService.js";
 
 const bibliotecaIncludes = [
   {
@@ -229,6 +230,12 @@ export const crearBibliotecaProyecto = async (req, res) => {
       { include: bibliotecaIncludes },
     );
 
+    dispatchBibliotecaSync({
+      action: "upsert",
+      projectId: nuevoProyecto.id,
+      triggeredBy: `biblioteca:create:${usuarioId || "system"}`,
+    });
+
     return res.status(201).json(proyectoCompleto);
   } catch (error) {
     console.error("Error al crear proyecto de biblioteca:", error);
@@ -355,6 +362,12 @@ export const actualizarBibliotecaProyecto = async (req, res) => {
       include: bibliotecaIncludes,
     });
 
+    dispatchBibliotecaSync({
+      action: "upsert",
+      projectId: Number(id),
+      triggeredBy: `biblioteca:update:${usuarioId || "system"}`,
+    });
+
     return res.json(proyectoActualizado);
   } catch (error) {
     console.error("Error al actualizar proyecto de biblioteca:", error);
@@ -381,6 +394,12 @@ export const eliminarBibliotecaProyecto = async (req, res) => {
 
     // Los adjuntos se eliminan automáticamente por CASCADE
     await proyecto.destroy();
+
+    dispatchBibliotecaSync({
+      action: "delete",
+      projectId: Number(id),
+      triggeredBy: `biblioteca:delete:${req.usuario?.id || "system"}`,
+    });
 
     return res.json({ mensaje: "Proyecto eliminado correctamente" });
   } catch (error) {
