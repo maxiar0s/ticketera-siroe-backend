@@ -4,5 +4,5 @@ node_modules/
 .env.off
 .env.demo
 docs/
-config/*.json
-config/gcp/
+config/gcp/*.json
+api.soportesiroe.cl
