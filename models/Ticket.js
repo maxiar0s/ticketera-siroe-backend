@@ -224,6 +224,10 @@ const ticket = db.define(
       allowNull: false,
       defaultValue: "Web",
     },
+    creatorEmail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     fechaRespuesta: {
       type: DataTypes.DATE,
       allowNull: true,

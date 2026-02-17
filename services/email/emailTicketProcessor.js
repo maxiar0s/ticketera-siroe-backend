@@ -645,6 +645,7 @@ export class EmailTicketProcessor {
       createdAt: correoDate,
       updatedAt: correoDate,
       fuente: "Email",
+      creatorEmail: normalizeEmail(remitente) || remitente,
     });
 
     if (this.shouldSendReply(remitente)) {

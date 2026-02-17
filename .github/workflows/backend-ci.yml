@@ -1,0 +1,50 @@
+name: Backend CI
+
+on:
+  # Ejecuta CI cuando abres/actualizas PRs hacia develop o main.
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - '**'
+      - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/backend-cd.yml'
+
+  # Ejecuta también en pushes directos (por ejemplo hotfix a develop/main).
+  push:
+    branches: [develop, main]
+    paths:
+      - '**'
+      - '.github/workflows/backend-ci.yml'
+      - '.github/workflows/backend-cd.yml'
+
+jobs:
+  validate-backend:
+    name: Validate backend (install + syntax)
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1) Descarga el código del commit/PR.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2) Prepara Node 18 y cache de npm para acelerar ejecuciones.
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      # 3) Instala dependencias de forma reproducible.
+      - name: Install dependencies
+        run: npm ci
+
+      # 4) Validación mínima: parsea todos los .js con Node.
+      #    Esto detecta errores de sintaxis antes del deploy.
+      - name: Syntax check (all JS files)
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            node --check "$file"
+          done < <(git ls-files '*.js')

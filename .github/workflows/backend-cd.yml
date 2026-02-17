@@ -1,0 +1,69 @@
+name: Backend CD (DigitalOcean)
+
+on:
+  # Deploy automático cuando llega código a main.
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '.github/workflows/backend-cd.yml'
+
+  # Deploy manual opcional desde la pestaña Actions.
+  workflow_dispatch:
+
+# Evita despliegues concurrentes a producción.
+concurrency:
+  group: backend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend to droplet
+    runs-on: ubuntu-latest
+
+    # Puedes proteger este environment desde GitHub (aprobaciones manuales).
+    environment: production
+
+    steps:
+      # 1) Ejecuta comandos remotos en tu droplet por SSH.
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            # Ruta del repositorio backend en el droplet.
+            BACK_PATH='${{ secrets.BACK_PATH }}'
+            # Ruta donde vive tu docker-compose.yml (infraestructura).
+            INFRA_PATH='${{ secrets.INFRA_PATH }}'
+            # Nombre del servicio backend en docker-compose (opcional).
+            BACK_SERVICE='${{ secrets.BACK_SERVICE }}'
+            # URL de healthcheck opcional (ej: http://localhost:3000/health).
+            APP_HEALTHCHECK_URL='${{ secrets.APP_HEALTHCHECK_URL }}'
+
+            # 2) Actualiza código del backend en rama main.
+            cd "$BACK_PATH"
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # 3) Instala dependencias del backend (igual que tu proceso manual).
+            npm install
+
+            # 4) Levanta/actualiza contenedores desde infraestructura.
+            cd "$INFRA_PATH"
+            if [ -n "$BACK_SERVICE" ]; then
+              docker compose up -d --build "$BACK_SERVICE"
+            else
+              docker compose up -d --build
+            fi
+
+            # 5) Verificación opcional de salud de la app.
+            if [ -n "$APP_HEALTHCHECK_URL" ]; then
+              curl -fsS "$APP_HEALTHCHECK_URL"
+            fi
