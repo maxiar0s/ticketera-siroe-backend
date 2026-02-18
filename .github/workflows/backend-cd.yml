@@ -1,15 +1,16 @@
 name: Backend CD (DigitalOcean)
 
 on:
-  # Deploy automático cuando llega código a main.
-  push:
-    branches: [main]
-    paths:
-      - '**'
-      - '.github/workflows/backend-cd.yml'
+  # Deploy automático cuando CI de main termina exitosamente.
+  workflow_run:
+    workflows: ['Backend CI']
+    types: [completed]
 
   # Deploy manual opcional desde la pestaña Actions.
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 # Evita despliegues concurrentes a producción.
 concurrency:
@@ -20,6 +21,14 @@ jobs:
   deploy:
     name: Deploy backend to droplet
     runs-on: ubuntu-latest
+
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
 
     # Puedes proteger este environment desde GitHub (aprobaciones manuales).
     environment: production
@@ -53,7 +62,11 @@ jobs:
             git pull origin main
 
             # 3) Instala dependencias del backend (igual que tu proceso manual).
-            npm install
+            if [ -f package-lock.json ]; then
+              npm ci --omit=dev
+            else
+              npm install --omit=dev
+            fi
 
             # 4) Levanta/actualiza contenedores desde infraestructura.
             cd "$INFRA_PATH"
@@ -65,5 +78,20 @@ jobs:
 
             # 5) Verificación opcional de salud de la app.
             if [ -n "$APP_HEALTHCHECK_URL" ]; then
-              curl -fsS "$APP_HEALTHCHECK_URL"
+              MAX_RETRIES=10
+              RETRY_DELAY=5
+              ATTEMPT=1
+
+              until curl -fsS "$APP_HEALTHCHECK_URL" > /dev/null; do
+                if [ "$ATTEMPT" -ge "$MAX_RETRIES" ]; then
+                  echo "Healthcheck failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+
+                echo "Healthcheck attempt $ATTEMPT/$MAX_RETRIES failed. Retrying in $RETRY_DELAY seconds..."
+                ATTEMPT=$((ATTEMPT + 1))
+                sleep "$RETRY_DELAY"
+              done
+
+              echo "Healthcheck OK"
             fi

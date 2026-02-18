@@ -17,6 +17,16 @@ on:
       - '.github/workflows/backend-ci.yml'
       - '.github/workflows/backend-cd.yml'
 
+  # Permite ejecutar CI manualmente desde GitHub Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-backend:
     name: Validate backend (install + syntax)
@@ -41,10 +51,17 @@ jobs:
 
       # 4) Validación mínima: parsea todos los .js con Node.
       #    Esto detecta errores de sintaxis antes del deploy.
-      - name: Syntax check (all JS files)
+      - name: Syntax check (all JS/CJS files)
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r file; do
+
+          mapfile -t files < <(git ls-files '*.js' '*.cjs')
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No JS/CJS files found to check"
+            exit 0
+          fi
+
+          for file in "${files[@]}"; do
             node --check "$file"
-          done < <(git ls-files '*.js')
+          done
