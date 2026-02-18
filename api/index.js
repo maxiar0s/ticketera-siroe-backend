@@ -104,6 +104,24 @@ app.get("/docs.json", (req, res) => {
   res.send(swaggerSpec);
 });
 
+app.get("/health", async (req, res) => {
+  try {
+    await db.query("SELECT 1");
+    res.status(200).json({
+      status: "ok",
+      service: "ss-ticketera-back",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: "error",
+      service: "ss-ticketera-back",
+      timestamp: new Date().toISOString(),
+      message: "Database unavailable",
+    });
+  }
+});
+
 app.use("/auth/", usuarioRoutes);
 app.use("/", apiRoutes);
 
