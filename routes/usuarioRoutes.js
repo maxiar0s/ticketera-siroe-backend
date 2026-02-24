@@ -3,6 +3,7 @@ import {
   crearUsuario,
   login,
   recuperarAcceso,
+  restablecerContrasena,
   logout,
 } from "../controller/usuarioController.js";
 import protegerRuta from "../middleware/protegerRuta.js";
@@ -12,6 +13,7 @@ const router = express.Router();
 // URL sin proteccion
 router.post("/login", login);
 router.post("/recuperar-acceso", recuperarAcceso);
+router.post("/restablecer-contrasena", restablecerContrasena);
 router.post("/logout", protegerRuta, logout);
 
 export default router;
