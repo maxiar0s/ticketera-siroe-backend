@@ -1,0 +1,97 @@
+name: Backend CD (DigitalOcean)
+
+on:
+  # Deploy automático cuando CI de main termina exitosamente.
+  workflow_run:
+    workflows: ['Backend CI']
+    types: [completed]
+
+  # Deploy manual opcional desde la pestaña Actions.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Evita despliegues concurrentes a producción.
+concurrency:
+  group: backend-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend to droplet
+    runs-on: ubuntu-latest
+
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
+
+    # Puedes proteger este environment desde GitHub (aprobaciones manuales).
+    environment: production
+
+    steps:
+      # 1) Ejecuta comandos remotos en tu droplet por SSH.
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          port: ${{ secrets.DO_PORT || '22' }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            # Ruta del repositorio backend en el droplet.
+            BACK_PATH='${{ secrets.BACK_PATH }}'
+            # Ruta donde vive tu docker-compose.yml (infraestructura).
+            INFRA_PATH='${{ secrets.INFRA_PATH }}'
+            # Nombre del servicio backend en docker-compose (opcional).
+            BACK_SERVICE='${{ secrets.BACK_SERVICE }}'
+            # URL de healthcheck opcional (ej: http://localhost:3000/health).
+            APP_HEALTHCHECK_URL='${{ secrets.APP_HEALTHCHECK_URL }}'
+
+            # 2) Actualiza código del backend en rama main.
+            cd "$BACK_PATH"
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            # 3) Instala dependencias del backend (igual que tu proceso manual).
+            if [ -f package-lock.json ]; then
+              npm ci --omit=dev
+            else
+              npm install --omit=dev
+            fi
+
+            # 4) Levanta/actualiza contenedores desde infraestructura.
+            cd "$INFRA_PATH"
+            if [ -n "$BACK_SERVICE" ]; then
+              docker compose up -d --build "$BACK_SERVICE"
+            else
+              docker compose up -d --build
+            fi
+
+            # 5) Verificación opcional de salud de la app.
+            if [ -n "$APP_HEALTHCHECK_URL" ]; then
+              MAX_RETRIES=10
+              RETRY_DELAY=5
+              ATTEMPT=1
+
+              until curl -fsS "$APP_HEALTHCHECK_URL" > /dev/null; do
+                if [ "$ATTEMPT" -ge "$MAX_RETRIES" ]; then
+                  echo "Healthcheck failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+
+                echo "Healthcheck attempt $ATTEMPT/$MAX_RETRIES failed. Retrying in $RETRY_DELAY seconds..."
+                ATTEMPT=$((ATTEMPT + 1))
+                sleep "$RETRY_DELAY"
+              done
+
+              echo "Healthcheck OK"
+            fi

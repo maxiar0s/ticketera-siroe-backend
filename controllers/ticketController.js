@@ -33,6 +33,45 @@ import { registrarActividadTicket } from "./chatController.js";
 
 const ESTADO_TICKET_INGRESADO = "Ingresado";
 
+const decodeHtmlEntities = (text) => {
+  if (!text) {
+    return "";
+  }
+
+  return `${text}`
+    .replace(/&#(\d+);/g, (_match, dec) => {
+      const code = Number.parseInt(dec, 10);
+      return Number.isNaN(code) ? _match : String.fromCharCode(code);
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => {
+      const code = Number.parseInt(hex, 16);
+      return Number.isNaN(code) ? _match : String.fromCharCode(code);
+    })
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+};
+
+const normalizarDescripcionTicket = (value) => {
+  if (typeof value === "undefined" || value === null) {
+    return "";
+  }
+
+  const base = `${value}`
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/p\s*>/gi, "\n")
+    .replace(/<\s*p[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, " ");
+
+  return decodeHtmlEntities(base)
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
+
 // =====================================================
 // Includes para queries
 // =====================================================
@@ -521,7 +560,7 @@ export const crearTicket = async (req, res) => {
         .json({ error: "La fecha de ingreso no es valida." });
     }
 
-    const descripcionLimpia = descripcion ? `${descripcion}`.trim() : "";
+    const descripcionLimpia = normalizarDescripcionTicket(descripcion);
     if (!descripcionLimpia) {
       return res
         .status(400)
@@ -661,6 +700,18 @@ export const crearTicket = async (req, res) => {
       tecnicosArray,
     );
 
+    let creatorEmail =
+      typeof usuario.email === "string" ? usuario.email.trim() : "";
+    if (!creatorEmail) {
+      const cuentaCreadora = await CuentaModel.findByPk(usuario.id, {
+        attributes: ["email"],
+      });
+      creatorEmail =
+        typeof cuentaCreadora?.email === "string"
+          ? cuentaCreadora.email.trim()
+          : "";
+    }
+
     const nuevoTicket = await TicketModel.create({
       casaMatrizId,
       sucursalId: sucursal ? sucursal.id : null,
@@ -684,6 +735,8 @@ export const crearTicket = async (req, res) => {
         : [],
       prioridad: prioridad ?? "Media",
       estimacion: estimacion ?? null,
+      fuente: "Web",
+      creatorEmail: creatorEmail || null,
     });
 
     // Asignar tags si se proporcionaron
@@ -863,7 +916,7 @@ export const actualizarTicket = async (req, res) => {
       }
 
       if (descripcionDefinida) {
-        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        const descripcionLimpia = normalizarDescripcionTicket(descripcion);
         if (!descripcionLimpia) {
           return res
             .status(400)
@@ -997,7 +1050,7 @@ export const actualizarTicket = async (req, res) => {
       }
     } else if (usuario.tipoCuentaId === 1) {
       if (typeof descripcion !== "undefined") {
-        const descripcionLimpia = `${descripcion ?? ""}`.trim();
+        const descripcionLimpia = normalizarDescripcionTicket(descripcion);
         if (!descripcionLimpia) {
           return res
             .status(400)

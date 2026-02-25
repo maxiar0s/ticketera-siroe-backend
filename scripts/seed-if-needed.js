@@ -1,6 +1,9 @@
 import mysql from 'mysql2/promise';
 import { spawn } from 'node:child_process';
 
+import db from '../config/db.js';
+import { ensureTicketCreatorEmailColumn } from './ensure-ticket-creator-email.js';
+
 const maxRetries = 20;
 const retryDelayMs = 3000;
 
@@ -61,15 +64,26 @@ function runDemoSeeder() {
   });
 }
 
+async function runCreatorEmailMigration() {
+  try {
+    await db.authenticate();
+    await ensureTicketCreatorEmailColumn();
+  } finally {
+    await db.close();
+  }
+}
+
 async function main() {
   const shouldSeed = await waitForDbAndShouldSeed();
   if (!shouldSeed) {
     console.log('Seeder omitido: la base local ya contiene datos.');
+    await runCreatorEmailMigration();
     process.exit(0);
   }
 
   console.log('Base local vacía detectada. Ejecutando demo seeder...');
   await runDemoSeeder();
+  await runCreatorEmailMigration();
   console.log('Seeder completado correctamente.');
 }
 

@@ -12,6 +12,7 @@
     "departamentos:sync": "node ./scripts/sincronizar-departamentos.js",
     "db:servicios-arriendo": "node ./scripts/add-client-services-equipo-arriendo.js",
     "db:proyectos": "node ./scripts/add-proyectos-module.js",
+    "db:tickets-creator-email": "node ./scripts/add-ticket-creator-email.js",
     "tickets:email": "node ./scripts/email-ticket-processor.js",
     "tickets:cron": "node ./scripts/email-ticket-cron.js"
   },
