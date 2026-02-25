@@ -23,18 +23,17 @@ const getResetTransporter = () => {
     process.env.TICKET_OUTBOUND_SMTP_SECURE || process.env.SMTP_SECURE;
   const secure = `${secureSetting || "false"}`.toLowerCase() === "true";
 
-  if (!host || !user || !pass) {
+  if (!host) {
     return null;
   }
+
+  const auth = user && pass ? { user, pass } : undefined;
 
   return nodemailer.createTransport({
     host,
     port: Number.isFinite(port) ? port : 587,
     secure,
-    auth: {
-      user,
-      pass,
-    },
+    auth,
   });
 };
 
