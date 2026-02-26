@@ -220,7 +220,7 @@ const ticket = db.define(
     },
 
     fuente: {
-      type: DataTypes.ENUM("Web", "Email"),
+      type: DataTypes.ENUM("Web", "Email", "Telegram IA"),
       allowNull: false,
       defaultValue: "Web",
     },
