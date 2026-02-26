@@ -1,6 +1,8 @@
 import { consultarAgenteRag } from "../services/ragAgentService.js";
 
 const OPEN_CREATE_TICKET_MARKER = "[[ACTION_OPEN_CREATE_TICKET]]";
+const CREATE_TICKET_GUIDANCE_TEXT =
+  "Si prefieres mandame la informacion del ticket y lo creo por ti";
 
 const parseAgentActions = (solution) => {
   const raw = typeof solution === "string" ? solution : "";
@@ -10,6 +12,12 @@ const parseAgentActions = (solution) => {
   if (raw.includes(OPEN_CREATE_TICKET_MARKER)) {
     actions.push("open_create_ticket");
     respuesta = raw.split(OPEN_CREATE_TICKET_MARKER).join(" ").trim();
+
+    if (!respuesta.toLowerCase().includes(CREATE_TICKET_GUIDANCE_TEXT.toLowerCase())) {
+      respuesta = respuesta
+        ? `${respuesta}\n\n${CREATE_TICKET_GUIDANCE_TEXT}`
+        : CREATE_TICKET_GUIDANCE_TEXT;
+    }
   }
 
   return {
