@@ -32,7 +32,7 @@ import { construirNotificacionTicket } from "../utils/builders.js";
 import { registrarActividadTicket } from "./chatController.js";
 
 const ESTADO_TICKET_INGRESADO = "Ingresado";
-const FUENTES_TICKET_VALIDAS = ["Web", "Email", "Telegram IA"];
+const FUENTES_TICKET_VALIDAS = ["Web", "Email", "Telegram IA", "Agente IA"];
 
 const normalizarFuenteTicket = (value) => {
   if (typeof value !== "string") {
@@ -48,6 +48,9 @@ const normalizarFuenteTicket = (value) => {
   }
   if (fuente === "telegram ia" || fuente === "telegram_ia") {
     return "Telegram IA";
+  }
+  if (fuente === "agente ia" || fuente === "agente_ia") {
+    return "Agente IA";
   }
 
   return "Web";
