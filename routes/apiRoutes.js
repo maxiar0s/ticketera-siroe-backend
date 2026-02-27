@@ -112,6 +112,9 @@ import {
   getMensajesNoLeidosPorTicket,
 } from "../controllers/chatController.js";
 
+// Agente IA
+import { consultarAgente } from "../controllers/agentController.js";
+
 // Notifications
 import {
   getNotificaciones,
@@ -501,6 +504,9 @@ router.post(
 );
 router.get("/tickets/:ticketId/actividad", protegerRuta, getActividadTicket);
 router.get("/tickets/:ticketId/timeline", protegerRuta, getTimelineTicket);
+
+// Agente IA
+router.post("/agente/chat", protegerRuta, consultarAgente);
 
 // Visitas programadas
 router.get("/visitas-programadas", protegerRuta, getVisitasProgramadas);

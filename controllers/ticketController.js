@@ -32,6 +32,68 @@ import { construirNotificacionTicket } from "../utils/builders.js";
 import { registrarActividadTicket } from "./chatController.js";
 
 const ESTADO_TICKET_INGRESADO = "Ingresado";
+const FUENTES_TICKET_VALIDAS = ["Web", "Email", "Telegram IA", "Agente IA"];
+
+const normalizarFuenteTicket = (value) => {
+  if (typeof value !== "string") {
+    return "Web";
+  }
+
+  const fuente = value.trim().toLowerCase();
+  if (fuente === "web") {
+    return "Web";
+  }
+  if (fuente === "email") {
+    return "Email";
+  }
+  if (fuente === "telegram ia" || fuente === "telegram_ia") {
+    return "Telegram IA";
+  }
+  if (fuente === "agente ia" || fuente === "agente_ia") {
+    return "Agente IA";
+  }
+
+  return "Web";
+};
+
+const decodeHtmlEntities = (text) => {
+  if (!text) {
+    return "";
+  }
+
+  return `${text}`
+    .replace(/&#(\d+);/g, (_match, dec) => {
+      const code = Number.parseInt(dec, 10);
+      return Number.isNaN(code) ? _match : String.fromCharCode(code);
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, hex) => {
+      const code = Number.parseInt(hex, 16);
+      return Number.isNaN(code) ? _match : String.fromCharCode(code);
+    })
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+};
+
+const normalizarDescripcionTicket = (value) => {
+  if (typeof value === "undefined" || value === null) {
+    return "";
+  }
+
+  const base = `${value}`
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/p\s*>/gi, "\n")
+    .replace(/<\s*p[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, " ");
+
+  return decodeHtmlEntities(base)
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
 
 const decodeHtmlEntities = (text) => {
   if (!text) {
@@ -546,6 +608,7 @@ export const crearTicket = async (req, res) => {
       prioridad,
       estimacion,
       tagIds,
+      fuente,
     } = bodyData;
 
     if (!casaMatrizId || !fechaVisita) {
@@ -712,6 +775,11 @@ export const crearTicket = async (req, res) => {
           : "";
     }
 
+    const fuenteTicketNormalizada = normalizarFuenteTicket(fuente);
+    const fuenteTicket = FUENTES_TICKET_VALIDAS.includes(fuenteTicketNormalizada)
+      ? fuenteTicketNormalizada
+      : "Web";
+
     const nuevoTicket = await TicketModel.create({
       casaMatrizId,
       sucursalId: sucursal ? sucursal.id : null,
@@ -735,7 +803,7 @@ export const crearTicket = async (req, res) => {
         : [],
       prioridad: prioridad ?? "Media",
       estimacion: estimacion ?? null,
-      fuente: "Web",
+      fuente: fuenteTicket,
       creatorEmail: creatorEmail || null,
     });
 

@@ -38,11 +38,13 @@ import EstadosSucursal from './EstadoSucursal.js';
 import db from '../config/db.js';
 import estadoCuenta from './EstadoCuenta.js';
 import { ensureTicketCreatorEmailColumn } from '../scripts/ensure-ticket-creator-email.js';
+import { ensureTicketFuenteEnum } from '../scripts/ensure-ticket-fuente-enum.js';
 
 const importarDatos = async () => {
     try {
         await db.authenticate();
         await db.sync();
+        await ensureTicketFuenteEnum();
         await ensureTicketCreatorEmailColumn({ runBackfill: false });
 
         await Promise.all([

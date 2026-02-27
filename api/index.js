@@ -8,6 +8,8 @@ import swaggerSpec from "../config/swagger.js";
 import protegerRuta from "../middleware/protegerRuta.js";
 import logRequest from "../middleware/logRequest.js";
 import { initCronJobs } from "../services/cronService.js";
+import { ensureTicketFuenteEnum } from "../scripts/ensure-ticket-fuente-enum.js";
+import { ensureTicketCreatorEmailColumn } from "../scripts/ensure-ticket-creator-email.js";
 
 const app = express();
 
@@ -40,6 +42,8 @@ app.use(logRequest);
 // Conexión a DB
 try {
   await db.authenticate();
+  await ensureTicketFuenteEnum();
+  await ensureTicketCreatorEmailColumn();
   // db.sync() removido - la base de datos ya tiene las tablas creadas
   // Solo se necesita sync() en desarrollo inicial o al agregar nuevas tablas
   console.log("Conexion a la base datos establecida");

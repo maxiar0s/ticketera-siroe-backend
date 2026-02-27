@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 
 import db from '../config/db.js';
 import { ensureTicketCreatorEmailColumn } from './ensure-ticket-creator-email.js';
+import { ensureTicketFuenteEnum } from './ensure-ticket-fuente-enum.js';
 
 const maxRetries = 20;
 const retryDelayMs = 3000;
@@ -67,6 +68,7 @@ function runDemoSeeder() {
 async function runCreatorEmailMigration() {
   try {
     await db.authenticate();
+    await ensureTicketFuenteEnum();
     await ensureTicketCreatorEmailColumn();
   } finally {
     await db.close();
