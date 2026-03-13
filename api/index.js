@@ -10,6 +10,7 @@ import logRequest from "../middleware/logRequest.js";
 import { initCronJobs } from "../services/cronService.js";
 import { ensureTicketFuenteEnum } from "../scripts/ensure-ticket-fuente-enum.js";
 import { ensureTicketCreatorEmailColumn } from "../scripts/ensure-ticket-creator-email.js";
+import { ensureInventarioModule } from "../scripts/add-inventario-module.js";
 
 const app = express();
 
@@ -44,6 +45,7 @@ try {
   await db.authenticate();
   await ensureTicketFuenteEnum();
   await ensureTicketCreatorEmailColumn();
+  await ensureInventarioModule();
   // db.sync() removido - la base de datos ya tiene las tablas creadas
   // Solo se necesita sync() en desarrollo inicial o al agregar nuevas tablas
   console.log("Conexion a la base datos establecida");

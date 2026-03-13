@@ -72,15 +72,21 @@ If a proper test framework is added later, update this section with exact single
 - `npm run db:importar` -> run standard seeder import.
 - `npm run db:eliminar` -> remove seeded data.
 - `npm run db:importar-demo` -> reset/import demo dataset.
+- `npm run db:copiar-prod-local` -> copy shared tables from prod DB (`.env`) into local DB (`.env.local`).
 - `npm run departamentos:sync` -> sync equipment departments.
 - `npm run db:servicios-arriendo` -> apply equipment rental service script.
+- `npm run db:cuentas-modulos` -> add per-user module access column.
 - `npm run db:proyectos` -> apply project module script.
+- `npm run db:inventario` -> apply inventory module tables and default states.
+- `npm run db:migrar-bitacoras-terreno` -> add-only migration from Terreno to Ticketera for `CasasMatrices`, `Cuentas`, `CuentasCasasMatrices`, `Sucursales`, and `Bitacoras` using source/target DB env vars or env files.
+- `npm run db:migrar-equipos-terreno` -> add-only migration from Terreno to Ticketera for `CasasMatrices`, `Sucursales`, `TipoEquipos`, and `Equipos`, tracking migrated equipment to support incremental reruns.
+- `npm run db:reasignar-tickets-cliente` -> move existing `Tickets` from one `CasaMatriz` to another without changing ticket IDs, preserving related activity/chat/tag rows.
 - `npm run tickets:email` -> process inbound ticket email once.
 - `npm run tickets:cron` -> run email ticket cron worker.
 
 ## Docker Commands
 
-- `docker compose up --build` -> run local MySQL + backend.
+- `docker compose up --build` -> run local MySQL + backend + MinIO (S3 local).
 - `docker compose run --rm seeder` -> run seed-if-needed flow.
 - `docker compose --profile cron up --build` -> include cron container.
 
@@ -142,7 +148,8 @@ If a proper test framework is added later, update this section with exact single
 ### Security and Configuration
 
 - Required env vars include DB settings and JWT secret (`JWT_SECRETPASSWORD`).
-- Email and GCS integrations depend on additional env vars in `config/` and `services/`.
+- Email and storage integrations depend on additional env vars in `config/` and `services/`.
+- Storage supports `STORAGE_PROVIDER=gcs|s3`; local Docker uses MinIO via S3-compatible vars.
 - Biblioteca -> RAG sync webhook env vars:
   - `RAG_SYNC_ENABLED` (default `true`)
   - `RAG_SYNC_WEBHOOK_URL` (ej: `http://rag-ticketera-ai:8000/kb/sync`)

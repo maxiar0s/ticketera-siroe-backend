@@ -14,8 +14,11 @@ import {
 } from "../models/index.js";
 import registrarLog from "../utils/logger.js";
 import {
+  buildModuleAccessByOccupation,
+  parseModuleAccess,
   parseBooleanFlag,
   parseClientesAutorizados,
+  parseOcupacion,
 } from "../utils/parsers.js";
 import { transformarClienteRespuesta } from "../utils/builders.js";
 
@@ -58,7 +61,9 @@ export const postCuenta = async (req, res) => {
     estadoCuentaId,
     clientesAutorizados,
     esTecnico,
+    ocupacion,
     haveTickets,
+    modulosAcceso,
   } = req.body;
 
   const tipoCuentaNumero =
@@ -97,6 +102,22 @@ export const postCuenta = async (req, res) => {
         tipoCuentaId: tipoCuentaFinal,
       };
 
+      const esTecnicoActivo =
+        tipoCuentaFinal === 2 ||
+        (tipoCuentaFinal === 1 && parseBooleanFlag(esTecnico, cuenta.esTecnico));
+
+      const puedeGuardarOcupacion = [1, 2].includes(tipoCuentaFinal);
+      const ocupacionFinal = puedeGuardarOcupacion
+        ? parseOcupacion(ocupacion, cuenta.ocupacion)
+        : null;
+
+      if (esTecnicoActivo && !ocupacionFinal) {
+        return res.status(400).json({
+          error:
+            "La ocupacion es obligatoria para tecnicos y administradores con visitas tecnicas.",
+        });
+      }
+
       if (!Number.isNaN(estadoCuentaNumero)) {
         updates.estadoCuentaId = estadoCuentaNumero;
       }
@@ -107,6 +128,8 @@ export const postCuenta = async (req, res) => {
         updates.esTecnico = false;
       }
 
+      updates.ocupacion = ocupacionFinal;
+
       if (tipoCuentaFinal === 4) {
         updates.haveTickets = parseBooleanFlag(haveTickets, cuenta.haveTickets);
       } else if (tipoCuentaFinal === 1 || tipoCuentaFinal === 2) {
@@ -114,6 +137,11 @@ export const postCuenta = async (req, res) => {
       } else {
         updates.haveTickets = false;
       }
+
+      updates.modulosAcceso = parseModuleAccess(
+        modulosAcceso,
+        cuenta.modulosAcceso ?? buildModuleAccessByOccupation(ocupacionFinal)
+      );
 
       if (password && password.trim() !== "") {
         updates.password = await bcrypt.hash(password, 10);
@@ -160,6 +188,19 @@ export const postCuenta = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const esTecnicoActivo =
+      tipoCuentaNumero === 2 ||
+      (tipoCuentaNumero === 1 && parseBooleanFlag(esTecnico, false));
+    const puedeGuardarOcupacion = [1, 2].includes(tipoCuentaNumero);
+    const ocupacionFinal = puedeGuardarOcupacion ? parseOcupacion(ocupacion) : null;
+
+    if (esTecnicoActivo && !ocupacionFinal) {
+      return res.status(400).json({
+        error:
+          "La ocupacion es obligatoria para tecnicos y administradores con visitas tecnicas.",
+      });
+    }
+
     const nuevaCuenta = await CuentaModel.create({
       name,
       telefono,
@@ -169,12 +210,17 @@ export const postCuenta = async (req, res) => {
       estadoCuentaId: 1,
       esTecnico:
         tipoCuentaNumero === 1 ? parseBooleanFlag(esTecnico, false) : false,
+      ocupacion: ocupacionFinal,
       haveTickets:
         tipoCuentaNumero === 4
           ? parseBooleanFlag(haveTickets, false)
           : [1, 2].includes(tipoCuentaNumero)
           ? true
           : false,
+      modulosAcceso: parseModuleAccess(
+        modulosAcceso,
+        buildModuleAccessByOccupation(ocupacionFinal)
+      ),
     });
 
     if (tipoCuentaNumero === 4) {
@@ -227,6 +273,7 @@ export const getTecnicosDisponibles = async (_req, res) => {
         "email",
         "tipoCuentaId",
         "esTecnico",
+        "ocupacion",
         "haveTickets",
       ],
       order: [["name", "ASC"]],
@@ -425,14 +472,17 @@ export const getPerfil = async (req, res) => {
 
     const perfilPlano = perfil?.toJSON ? perfil.toJSON() : perfil;
     if (perfilPlano) {
-      const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
       perfilPlano.clientesAutorizados = (
         perfilPlano.clientesAutorizados ?? []
       ).map(
         (cliente) =>
           transformarClienteRespuesta(cliente, {
-            incluirDatosBancarios,
+            incluirDatosBancarios: false,
           }) ?? cliente
+      ).filter(
+        (cliente) =>
+          typeof cliente?.razonSocial !== "string" ||
+          cliente.razonSocial.trim().toLowerCase() !== "ticketera"
       );
     }
 
@@ -546,14 +596,17 @@ export const actualizarPerfil = async (req, res) => {
       ? perfilActualizado.toJSON()
       : perfilActualizado;
     if (perfilPlano) {
-      const incluirDatosBancarios = perfilPlano.tipoCuentaId === 4;
       perfilPlano.clientesAutorizados = (
         perfilPlano.clientesAutorizados ?? []
       ).map(
         (cliente) =>
           transformarClienteRespuesta(cliente, {
-            incluirDatosBancarios,
+            incluirDatosBancarios: false,
           }) ?? cliente
+      ).filter(
+        (cliente) =>
+          typeof cliente?.razonSocial !== "string" ||
+          cliente.razonSocial.trim().toLowerCase() !== "ticketera"
       );
     }
 

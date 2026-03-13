@@ -147,6 +147,19 @@ import {
   eliminarVehiculoSalidaAdjunto,
 } from "../controllers/vehicleController.js";
 
+// Inventory
+import {
+  getInventarios,
+  getInventario,
+  crearInventario,
+  actualizarInventario,
+  eliminarInventario,
+  getEstadosInventario,
+  crearEstadoInventario,
+  actualizarEstadoInventario,
+  eliminarEstadoInventario,
+} from "../controllers/inventoryController.js";
+
 // Documents & Logs
 import {
   getDocumentacionClientes,
@@ -320,6 +333,24 @@ router.post(
   actualizarEstadoSucursal,
 );
 
+// Estados de inventario
+router.get("/estados-inventario", protegerRuta, getEstadosInventario);
+router.post(
+  "/estados-inventario",
+  protegerRutaAdmin,
+  crearEstadoInventario,
+);
+router.put(
+  "/estados-inventario/:id",
+  protegerRutaAdmin,
+  actualizarEstadoInventario,
+);
+router.delete(
+  "/estados-inventario/:id",
+  protegerRutaAdmin,
+  eliminarEstadoInventario,
+);
+
 // =====================================================
 // Rutas Generales (cualquier cuenta autenticada)
 // =====================================================
@@ -443,6 +474,13 @@ router.delete(
   protegerRutaTecnico,
   eliminarVehiculoSalidaAdjunto,
 );
+
+// Inventario
+router.get("/inventario", protegerRuta, getInventarios);
+router.get("/inventario/:id", protegerRuta, getInventario);
+router.post("/inventario", protegerRutaTecnico, crearInventario);
+router.put("/inventario/:id", protegerRutaTecnico, actualizarInventario);
+router.delete("/inventario/:id", protegerRutaAdmin, eliminarInventario);
 
 // Bitácoras
 router.get("/bitacoras/clientes", protegerRuta, getClientesBitacora);

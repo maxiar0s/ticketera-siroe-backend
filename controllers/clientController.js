@@ -3,7 +3,7 @@
  * Maneja CRUD de casas matriz, sucursales y datos bancarios.
  */
 
-import { col, fn, Op } from "sequelize";
+import { col, fn, Op, where as sqlWhere } from "sequelize";
 import {
   CasaMatrizModel,
   CuentaCasaMatrizModel,
@@ -15,8 +15,6 @@ import {
 } from "../models/index.js";
 import registrarLog from "../utils/logger.js";
 import {
-  parseBooleanFlag,
-  parseBooleanQueryParam,
   parseNonNegativeInt,
   parseNumericQueryParam,
   parseStringArray,
@@ -26,12 +24,32 @@ import {
   obtenerFechasReferenciaVisitas,
 } from "../utils/validators.js";
 import {
-  mapearDatosBancariosADB,
-  obtenerDatosBancariosDesdeBody,
   transformarClienteRespuesta,
-  DATOS_BANCARIOS_COLUMNAS_DB,
 } from "../utils/builders.js";
 import { BitacoraModel } from "../models/index.js";
+
+const CLIENTE_OCULTO_NOMBRE = "ticketera";
+
+const normalizarNombreCliente = (valor) =>
+  typeof valor === "string" ? valor.trim().toLowerCase() : "";
+
+const esClienteOculto = (razonSocial) =>
+  normalizarNombreCliente(razonSocial) === CLIENTE_OCULTO_NOMBRE;
+
+const condicionClienteVisible = () =>
+  sqlWhere(fn("LOWER", fn("TRIM", col("razonSocial"))), {
+    [Op.ne]: CLIENTE_OCULTO_NOMBRE,
+  });
+
+const clienteTieneSoporteTI = (servicios) =>
+  parseStringArray(servicios).some((servicio) => {
+    const normalizado = normalizarTexto(servicio)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    return normalizado === "soporte ti" || normalizado === "soportes ti";
+  });
 
 /**
  * Obtiene IDs de clientes autorizados para una cuenta.
@@ -121,22 +139,17 @@ export const postCliente = async (req, res) => {
       visitasMensuales,
       visitasEmergenciaAnuales,
       servicios,
-      esLead: esLeadEntrada,
     } = req.body ?? {};
-    const { presente: datosBancariosPresentes, datos: datosBancarios } =
-      obtenerDatosBancariosDesdeBody(req.body);
     const imagenName = req.uploadedFile;
     const logoPerfilName = req.uploadedLogoPerfil;
-    const esLead = parseBooleanFlag(esLeadEntrada, false);
     console.log("Valor de req.uploadedFile en postCliente:", imagenName);
 
     const camposRequeridos =
-      !esLead &&
-      (!rut ||
-        !razonSocial ||
-        !encargadoGeneral ||
-        !correo ||
-        telefonoEncargado === undefined);
+      !rut ||
+      !razonSocial ||
+      !encargadoGeneral ||
+      !correo ||
+      telefonoEncargado === undefined;
 
     if (camposRequeridos) {
       return res.status(400).json({
@@ -174,18 +187,17 @@ export const postCliente = async (req, res) => {
         : null;
     }
 
-    if (!esLead) {
-      if (
-        telefonoEncargadoNum === null ||
-        Number.isNaN(telefonoEncargadoNum) ||
-        telefonoEncargadoNum.toString().length > 9
-      ) {
-        return res.status(400).json({
-          resp: "Error: El número de teléfono no es válido",
-          recibido: telefonoEncargado,
-        });
-      }
-    } else if (
+    if (
+      telefonoEncargadoNum === null ||
+      Number.isNaN(telefonoEncargadoNum) ||
+      telefonoEncargadoNum.toString().length > 9
+    ) {
+      return res.status(400).json({
+        resp: "Error: El número de teléfono no es válido",
+        recibido: telefonoEncargado,
+      });
+    }
+    if (
       telefonoEncargadoNum !== null &&
       telefonoEncargadoNum.toString().length > 9
     ) {
@@ -225,8 +237,6 @@ export const postCliente = async (req, res) => {
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
-      datosBancarios,
-      esLead,
     });
 
     const nuevaCasaMatriz = await CasaMatrizModel.create({
@@ -240,10 +250,6 @@ export const postCliente = async (req, res) => {
       visitasMensuales: visitasMensualesParse.parsed,
       visitasEmergenciaAnuales: visitasEmergenciaParse.parsed,
       servicios: serviciosSanitizados,
-      esLead,
-      ...mapearDatosBancariosADB(
-        datosBancariosPresentes ? datosBancarios : null
-      ),
     });
 
     // LOG
@@ -352,13 +358,7 @@ export const postModificarCliente = async (req, res) => {
       visitasMensuales,
       visitasEmergenciaAnuales,
       servicios,
-      esLead: esLeadEntrada,
     } = body;
-
-    const { presente: datosBancariosPresentes, datos: datosBancarios } =
-      obtenerDatosBancariosDesdeBody(body);
-
-    const esLead = parseBooleanFlag(esLeadEntrada, cliente.esLead);
     const campoFueEnviado = (campo) =>
       Object.prototype.hasOwnProperty.call(body, campo);
 
@@ -455,12 +455,11 @@ export const postModificarCliente = async (req, res) => {
     const telefonoFinal = telefonoEncargadoNum;
 
     if (
-      !esLead &&
-      (!rutFinal ||
-        !razonFinal ||
-        !encargadoFinal ||
-        !correoFinal ||
-        telefonoFinal === null)
+      !rutFinal ||
+      !razonFinal ||
+      !encargadoFinal ||
+      !correoFinal ||
+      telefonoFinal === null
     ) {
       return res.status(400).json({
         resp: "Error: Faltan campos requeridos",
@@ -468,11 +467,7 @@ export const postModificarCliente = async (req, res) => {
       });
     }
 
-    if (
-      !esLead &&
-      telefonoFinal !== null &&
-      telefonoFinal.toString().length > 9
-    ) {
+    if (telefonoFinal !== null && telefonoFinal.toString().length > 9) {
       return res.status(400).json({
         resp: "Error: El número de teléfono no es válido",
         recibido: telefonoEncargado,
@@ -503,10 +498,6 @@ export const postModificarCliente = async (req, res) => {
       updateData.servicios = parseStringArray(servicios);
     }
 
-    if (datosBancariosPresentes) {
-      Object.assign(updateData, mapearDatosBancariosADB(datosBancarios));
-    }
-
     if (req.uploadedFile) {
       updateData.imagen = req.uploadedFile;
       console.log("Nueva imagen subida en modificación:", req.uploadedFile);
@@ -519,8 +510,6 @@ export const postModificarCliente = async (req, res) => {
         req.uploadedLogoPerfil
       );
     }
-
-    updateData.esLead = esLead;
 
     console.log("Datos a actualizar:", updateData);
     await cliente.update(updateData);
@@ -565,6 +554,38 @@ export const postSucursal = async (req, res) => {
   const sucursalNombre = sucursal;
 
   if (!casaMatrizId && !sucursalId) return;
+
+  const obtenerClienteSoporte = async () => {
+    if (casaMatrizId) {
+      return await CasaMatrizModel.findByPk(casaMatrizId, {
+        attributes: ["id", "servicios"],
+      });
+    }
+
+    if (!sucursalId) {
+      return null;
+    }
+
+    const sucursalActual = await SucursalModel.findByPk(sucursalId, {
+      attributes: ["id", "casaMatrizId"],
+    });
+
+    if (!sucursalActual?.casaMatrizId) {
+      return null;
+    }
+
+    return await CasaMatrizModel.findByPk(sucursalActual.casaMatrizId, {
+      attributes: ["id", "servicios"],
+    });
+  };
+
+  const clienteSoporte = await obtenerClienteSoporte();
+
+  if (!clienteSoporte || !clienteTieneSoporteTI(clienteSoporte.servicios)) {
+    return res.status(400).json({
+      resp: "Solo los clientes con servicio Soporte TI pueden manejar sucursales.",
+    });
+  }
 
   if (sucursalId) {
     const sucursalExistente = await SucursalModel.findByPk(sucursalId);
@@ -660,10 +681,7 @@ export const getResults = async (req, res) => {
   const visitasEmergenciaMax = parseNumericQueryParam(
     req.query.visitasEmergenciaMax
   );
-  const esLeadFiltro = parseBooleanQueryParam(req.query.esLead);
-  const datosBancariosFiltro = parseBooleanQueryParam(
-    req.query.tieneDatosBancarios ?? req.query.datosBancarios
-  );
+  whereConditions.push(condicionClienteVisible());
 
   if (serviciosFiltro.length) {
     serviciosFiltro.forEach((servicio) => {
@@ -695,24 +713,6 @@ export const getResults = async (req, res) => {
   if (Object.keys(visitasEmergenciaRango).length) {
     whereConditions.push({
       visitasEmergenciaAnuales: visitasEmergenciaRango,
-    });
-  }
-
-  if (esLeadFiltro !== null) {
-    whereConditions.push({ esLead: esLeadFiltro });
-  }
-
-  if (datosBancariosFiltro === true) {
-    whereConditions.push({
-      [Op.or]: DATOS_BANCARIOS_COLUMNAS_DB.map((columna) => ({
-        [columna]: { [Op.ne]: null },
-      })),
-    });
-  } else if (datosBancariosFiltro === false) {
-    whereConditions.push({
-      [Op.and]: DATOS_BANCARIOS_COLUMNAS_DB.map((columna) => ({
-        [columna]: { [Op.is]: null },
-      })),
     });
   }
 
@@ -771,7 +771,7 @@ export const getResults = async (req, res) => {
 export const getClientesResumen = async (req, res) => {
   try {
     const usuario = req.usuario;
-    let where = {};
+    let where = { [Op.and]: [condicionClienteVisible()] };
 
     if (usuario && usuario.tipoCuentaId === 4) {
       const autorizados =
@@ -780,12 +780,12 @@ export const getClientesResumen = async (req, res) => {
       if (!autorizados.length) {
         return res.json([]);
       }
-      where = { id: { [Op.in]: autorizados } };
+      where = { [Op.and]: [condicionClienteVisible(), { id: { [Op.in]: autorizados } }] };
     }
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial", "servicios", "esLead", "rut"],
+      attributes: ["id", "razonSocial", "servicios", "rut"],
       order: [["razonSocial", "ASC"]],
     });
 
@@ -813,7 +813,7 @@ export const getClientesResumen = async (req, res) => {
 export const getClientesBitacora = async (req, res) => {
   try {
     const usuario = req.usuario;
-    const where = {};
+    const where = { [Op.and]: [condicionClienteVisible()] };
 
     if (usuario && usuario.tipoCuentaId === 4) {
       const autorizados =
@@ -822,12 +822,12 @@ export const getClientesBitacora = async (req, res) => {
       if (autorizados.length === 0) {
         return res.json([]);
       }
-      where.id = { [Op.in]: autorizados };
+      where[Op.and].push({ id: { [Op.in]: autorizados } });
     }
 
     const clientes = await CasaMatrizModel.findAll({
       where,
-      attributes: ["id", "razonSocial", "rut", "servicios", "esLead"],
+      attributes: ["id", "razonSocial", "rut", "servicios"],
       order: [["razonSocial", "ASC"]],
     });
 

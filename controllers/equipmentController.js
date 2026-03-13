@@ -38,6 +38,16 @@ const getAuthorizedClientIds = async (cuentaId) => {
   return rows.map((row) => row.casaMatrizId);
 };
 
+const clienteTieneSoporteTI = (servicios) =>
+  parseStringArray(servicios).some((servicio) => {
+    const normalizado = normalizarTexto(servicio)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+    return normalizado === "soporte ti" || normalizado === "soportes ti";
+  });
+
 // =====================================================
 // Funciones Helper Internas
 // =====================================================
@@ -164,6 +174,38 @@ export const postEquipo = async (req, res) => {
     return res
       .status(400)
       .json({ error: "Debe proporcionar un clienteId o sucursalId" });
+  }
+
+  const obtenerCliente = async () => {
+    if (clienteId) {
+      return await CasaMatrizModel.findByPk(clienteId, {
+        attributes: ["id", "servicios"],
+      });
+    }
+
+    if (!sucursalId) {
+      return null;
+    }
+
+    const sucursal = await SucursalModel.findByPk(sucursalId, {
+      attributes: ["id", "casaMatrizId"],
+    });
+
+    if (!sucursal?.casaMatrizId) {
+      return null;
+    }
+
+    return await CasaMatrizModel.findByPk(sucursal.casaMatrizId, {
+      attributes: ["id", "servicios"],
+    });
+  };
+
+  const cliente = await obtenerCliente();
+
+  if (!cliente || !clienteTieneSoporteTI(cliente.servicios)) {
+    return res.status(400).json({
+      error: "Solo los clientes con servicio Soporte TI pueden manejar equipos.",
+    });
   }
 
   let imagenName = null;

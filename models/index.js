@@ -19,6 +19,7 @@ import Vehiculo from "./Vehiculo.js";
 import VehiculoSalida from "./VehiculoSalida.js";
 import VehiculoSalidaAdjunto from "./VehiculoSalidaAdjunto.js";
 import VehiculoSalidaTecnico from "./VehiculoSalidaTecnico.js";
+import Inventario from "./Inventario.js";
 import Notificacion from "./Notificacion.js";
 import ClienteDocumento from "./ClienteDocumento.js";
 import Ticket from "./Ticket.js";
@@ -38,6 +39,9 @@ import EstadoEquipo from "./EstadoEquipo.js";
 
 //?estado de sucursales
 import EstadoSucursal from "./EstadoSucursal.js";
+
+//?estado de inventario
+import EstadoInventario from "./EstadoInventario.js";
 
 // Visitas programadas
 import VisitaProgramada from "./VisitaProgramada.js";
@@ -76,6 +80,7 @@ const VehiculoModel = Vehiculo;
 const VehiculoSalidaModel = VehiculoSalida;
 const VehiculoSalidaAdjuntoModel = VehiculoSalidaAdjunto;
 const VehiculoSalidaTecnicoModel = VehiculoSalidaTecnico;
+const InventarioModel = Inventario;
 const NotificacionModel = Notificacion;
 const ClienteDocumentoModel = ClienteDocumento;
 
@@ -84,6 +89,9 @@ const EstadoEquipoModel = EstadoEquipo;
 
 //?estado de sucursales
 const EstadoSucursalModel = EstadoSucursal;
+
+//?estado de inventario
+const EstadoInventarioModel = EstadoInventario;
 
 // Modelo de Bitacoras
 const BitacoraModel = Bitacora;
@@ -450,6 +458,16 @@ VehiculoSalidaAdjuntoModel.belongsTo(VehiculoSalidaModel, {
   onDelete: "CASCADE",
 });
 
+// Relaciones Inventario
+InventarioModel.belongsTo(EstadoInventarioModel, {
+  foreignKey: "estado",
+  as: "estadoInventario",
+});
+EstadoInventarioModel.hasMany(InventarioModel, {
+  foreignKey: "estado",
+  as: "inventarios",
+});
+
 // Relación Equipo - TipoEquipo (uno a muchos)
 EquipoModel.belongsTo(TipoEquipoModel, {
   foreignKey: "tipoEquipoId",
@@ -659,6 +677,7 @@ export {
   EstadoEquipoModel,
   //?estado de sucursales
   EstadoSucursalModel,
+  EstadoInventarioModel,
   BitacoraModel,
   TicketModel,
   VisitaProgramadaModel,
@@ -668,6 +687,7 @@ export {
   VehiculoSalidaModel,
   VehiculoSalidaAdjuntoModel,
   VehiculoSalidaTecnicoModel,
+  InventarioModel,
   NotificacionModel,
   ClienteDocumentoModel,
   LogSistemaModel,
