@@ -22,10 +22,43 @@ const cuenta = db.define('Cuentas', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    modulosAcceso: {
+        type: DataTypes.TEXT('long'),
+        allowNull: true,
+        get() {
+            const rawValue = this.getDataValue('modulosAcceso');
+
+            if (!rawValue) {
+                return null;
+            }
+
+            if (typeof rawValue === 'object') {
+                return rawValue;
+            }
+
+            try {
+                return JSON.parse(rawValue);
+            } catch (_error) {
+                return null;
+            }
+        },
+        set(value) {
+            if (!value || typeof value !== 'object' || Array.isArray(value)) {
+                this.setDataValue('modulosAcceso', null);
+                return;
+            }
+
+            this.setDataValue('modulosAcceso', JSON.stringify(value));
+        }
+    },
     esTecnico: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
         defaultValue: false
+    },
+    ocupacion: {
+        type: DataTypes.STRING,
+        allowNull: true
     },
     haveTickets: {
         type: DataTypes.BOOLEAN,

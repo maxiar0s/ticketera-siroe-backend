@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 
 import db from '../config/db.js';
 import { ensureTicketCreatorEmailColumn } from '../scripts/ensure-ticket-creator-email.js';
+import { ensureInventarioModule } from '../scripts/add-inventario-module.js';
 import {
   CampoModel,
   CasaMatrizModel,
@@ -47,6 +48,7 @@ const importarDatosDemo = async () => {
     await db.authenticate();
     await db.sync({ force: true });
     await ensureTicketCreatorEmailColumn({ runBackfill: false });
+    await ensureInventarioModule();
 
     await Promise.all([
       EstadoCuentaModel.bulkCreate(estadoCuenta),

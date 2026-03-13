@@ -180,6 +180,122 @@ export const parseBooleanFlag = (value, defaultValue = false) => {
   return defaultValue;
 };
 
+export const MODULE_ACCESS_KEYS = [
+  'dashboard',
+  'calendario',
+  'dashboardCliente',
+  'clientes',
+  'sucursal',
+  'bitacora',
+  'tickets',
+  'proyectos',
+  'biblioteca',
+  'vehiculos',
+  'inventario',
+  'opciones',
+  'perfil',
+  'adminUsuarios',
+  'adminTiposEquipos',
+  'reportes',
+];
+
+export const VALID_OCCUPATIONS = new Set([
+  'Software',
+  'Terreno',
+  'Software/Terreno',
+]);
+
+export const normalizeOcupacionLabel = (value) => {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+
+  const normalized = `${value}`.trim();
+
+  if (normalized === 'Tecnico de Software') {
+    return 'Software';
+  }
+
+  if (normalized === 'Tecnico en Terreno') {
+    return 'Terreno';
+  }
+
+  return normalized;
+};
+
+export const buildDefaultModuleAccess = (enabled = true) => {
+  return MODULE_ACCESS_KEYS.reduce((accumulator, moduleKey) => {
+    accumulator[moduleKey] = enabled;
+    return accumulator;
+  }, {});
+};
+
+export const buildModuleAccessByOccupation = (occupation) => {
+  const normalizedOccupation = normalizeOcupacionLabel(occupation);
+  const normalized = buildDefaultModuleAccess(true);
+
+  if (normalizedOccupation === 'Software') {
+    normalized.clientes = false;
+    normalized.sucursal = false;
+    normalized.bitacora = false;
+    normalized.vehiculos = false;
+    normalized.inventario = false;
+    normalized.adminTiposEquipos = false;
+    return normalized;
+  }
+
+  if (normalizedOccupation === 'Terreno') {
+    normalized.proyectos = false;
+    normalized.biblioteca = false;
+    return normalized;
+  }
+
+  return normalized;
+};
+
+export const parseOcupacion = (value, fallbackValue = null) => {
+  if (value === undefined || value === null || value === '') {
+    return normalizeOcupacionLabel(fallbackValue);
+  }
+
+  const normalized = normalizeOcupacionLabel(value);
+  return VALID_OCCUPATIONS.has(normalized) ? normalized : null;
+};
+
+export const parseModuleAccess = (value, fallbackValue = null) => {
+  const normalized = buildDefaultModuleAccess(true);
+  const sources = [fallbackValue, value];
+
+  sources.forEach((source) => {
+    let sourceValue = source;
+
+    if (typeof sourceValue === 'string') {
+      try {
+        sourceValue = JSON.parse(sourceValue);
+      } catch (_error) {
+        return;
+      }
+    }
+
+    if (
+      !sourceValue ||
+      typeof sourceValue !== 'object' ||
+      Array.isArray(sourceValue)
+    ) {
+      return;
+    }
+
+    MODULE_ACCESS_KEYS.forEach((moduleKey) => {
+      normalized[moduleKey] = parseBooleanFlag(
+        sourceValue[moduleKey],
+        normalized[moduleKey]
+      );
+    });
+  });
+
+  return normalized;
+};
+
 /**
  * Parsea un query param a boolean, retornando null si está ausente.
  * @param {*} value - Valor del query param

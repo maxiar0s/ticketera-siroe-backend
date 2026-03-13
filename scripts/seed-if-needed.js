@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import db from '../config/db.js';
 import { ensureTicketCreatorEmailColumn } from './ensure-ticket-creator-email.js';
 import { ensureTicketFuenteEnum } from './ensure-ticket-fuente-enum.js';
+import { ensureInventarioModule } from './add-inventario-module.js';
 
 const maxRetries = 20;
 const retryDelayMs = 3000;
@@ -70,6 +71,7 @@ async function runCreatorEmailMigration() {
     await db.authenticate();
     await ensureTicketFuenteEnum();
     await ensureTicketCreatorEmailColumn();
+    await ensureInventarioModule();
   } finally {
     await db.close();
   }
