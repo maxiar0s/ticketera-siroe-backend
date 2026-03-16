@@ -159,10 +159,8 @@ export const postCliente = async (req, res) => {
     }
 
     const rutNormalizado =
-      typeof rut === "string"
-        ? rut.trim().slice(0, 10)
-        : rut !== undefined && rut !== null
-        ? `${rut}`.slice(0, 10)
+      rut !== undefined && rut !== null
+        ? `${rut}`.replace(/[^0-9kK]/g, "").toUpperCase() || null
         : null;
 
     if (rutNormalizado && rutNormalizado.length) {
@@ -374,11 +372,11 @@ export const postModificarCliente = async (req, res) => {
       if (valor === undefined) {
         return undefined;
       }
-      const texto = normalizarTexto(`${valor ?? ""}`);
+      const texto = `${valor ?? ""}`.replace(/[^0-9kK]/g, "").toUpperCase();
       if (!texto || !texto.length) {
         return null;
       }
-      return texto.slice(0, 10);
+      return texto;
     };
 
     const rutNormalizado = normalizarRut(rut);

@@ -237,6 +237,12 @@ export const processClienteImages = async (req, res, next) => {
       return next();
     }
 
+    if (req.files.imagen?.[0]) {
+      const imageName = await uploadToGCS(req.files.imagen[0]);
+      console.log("Imagen de cliente subida a GCS:", imageName);
+      req.uploadedFile = imageName;
+    }
+
     if (req.files.logoPerfil?.[0]) {
       const logoName = await uploadToGCS(req.files.logoPerfil[0]);
       console.log("Logo de perfil subido a GCS:", logoName);
