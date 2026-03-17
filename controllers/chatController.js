@@ -18,6 +18,107 @@ import { enviarNotificacionChatEmail } from "../services/email/chatEmailService.
 // Helpers
 // =====================================================
 
+const THREAD_SUBJECT_PREFIX_REGEX = /^(\s*(re|rv|fw|fwd|aw)\s*:\s*)+/i;
+const THREAD_TICKET_TAG_REGEX = /\[\s*ticket\s*#?\s*\d+\s*\]/gi;
+
+const normalizeThreadSubject = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(THREAD_TICKET_TAG_REGEX, " ")
+    .replace(THREAD_SUBJECT_PREFIX_REGEX, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+};
+
+const parseEmailTicketDescription = (descripcion = "") => {
+  if (typeof descripcion !== "string" || !descripcion.trim()) {
+    return {
+      cuerpo: "",
+      remitenteEmail: null,
+      remitenteNombre: null,
+    };
+  }
+
+  const [cuerpoRaw, metadataRaw = ""] = descripcion.split(/\n---\n/i);
+  const cuerpo = cuerpoRaw.trim();
+  const remitenteEmailMatch = metadataRaw.match(/Correo original:\s*(.+)/i);
+  const remitenteNombreMatch = metadataRaw.match(/Nombre remitente:\s*(.+)/i);
+
+  return {
+    cuerpo,
+    remitenteEmail: remitenteEmailMatch?.[1]?.trim() || null,
+    remitenteNombre: remitenteNombreMatch?.[1]?.trim() || null,
+  };
+};
+
+const buildCorreoItemFromTicket = (ticket, ticketPrincipalId) => {
+  const emailData = parseEmailTicketDescription(ticket.descripcion);
+  const remitenteNombre =
+    emailData.remitenteNombre ||
+    ticket.creadoPor?.name ||
+    emailData.remitenteEmail ||
+    ticket.creatorEmail ||
+    "Correo";
+
+  return {
+    id: `correo-ticket-${ticket.id}`,
+    itemType: "correo",
+    ticketId: ticketPrincipalId,
+    sourceTicketId: ticket.id,
+    asunto: ticket.titulo || `Ticket #${ticket.id}`,
+    mensaje: emailData.cuerpo || ticket.descripcion || "",
+    adjuntos: Array.isArray(ticket.adjuntos) ? ticket.adjuntos : [],
+    createdAt: ticket.createdAt,
+    estadoTicket: ticket.estadoTicket,
+    esTicketPrincipal: ticket.id === ticketPrincipalId,
+    remitente: {
+      id: ticket.creadoPor?.id || null,
+      name: remitenteNombre,
+      email: emailData.remitenteEmail || ticket.creatorEmail || null,
+      tipoCuentaId: ticket.creadoPor?.tipoCuentaId || null,
+    },
+  };
+};
+
+const isEmailActivity = (actividad) => {
+  const metadata = actividad?.metadata || {};
+  return actividad?.tipo === "comentario" && metadata.origen === "email";
+};
+
+const buildCorreoItemFromActividad = (actividad) => {
+  const metadata = actividad.metadata || {};
+  const remitenteNombre =
+    metadata.remitenteNombre ||
+    actividad.realizadoPor?.name ||
+    metadata.remitenteEmail ||
+    "Correo";
+
+  return {
+    id: `correo-actividad-${actividad.id}`,
+    itemType: "correo",
+    ticketId: actividad.ticketId,
+    sourceTicketId: metadata.sourceTicketId || actividad.ticketId,
+    asunto: metadata.asunto || actividad.valorNuevo || `Ticket #${actividad.ticketId}`,
+    mensaje: metadata.cuerpo || "",
+    adjuntos: Array.isArray(metadata.adjuntos) ? metadata.adjuntos : [],
+    createdAt: actividad.createdAt,
+    estadoTicket: metadata.estadoTicket || null,
+    esTicketPrincipal:
+      !metadata.sourceTicketId || metadata.sourceTicketId === actividad.ticketId,
+    remitente: {
+      id: metadata.remitenteCuentaId || actividad.realizadoPor?.id || null,
+      name: remitenteNombre,
+      email: metadata.remitenteEmail || null,
+      tipoCuentaId:
+        actividad.realizadoPor?.tipoCuentaId || metadata.remitenteTipoCuentaId || null,
+    },
+  };
+};
+
 const getAuthorizedClientIds = async (cuentaId) => {
   const rows = await CuentaCasaMatrizModel.findAll({
     where: { cuentaId },
@@ -165,11 +266,83 @@ export const getTimelineTicket = async (req, res) => {
       return res.status(acceso.status).json({ error: acceso.error });
     }
 
-    const limitNumber = Math.min(Math.max(parseInt(limite, 10) || 100, 1), 200);
+    const limitNumber = Math.min(Math.max(parseInt(limite, 10) || 100, 1), 300);
+    const ticketPrincipal = await TicketModel.findByPk(ticketId, {
+      attributes: [
+        "id",
+        "titulo",
+        "descripcion",
+        "adjuntos",
+        "createdAt",
+        "estadoTicket",
+        "fuente",
+        "creatorEmail",
+        "casaMatrizId",
+      ],
+      include: [
+        {
+          model: CuentaModel,
+          as: "creadoPor",
+          attributes: ["id", "name", "tipoCuentaId"],
+        },
+      ],
+    });
 
-    // Obtener mensajes
+    if (!ticketPrincipal) {
+      return res.status(404).json({ error: "Ticket no encontrado" });
+    }
+
+    let ticketsRelacionados = [ticketPrincipal];
+    const asuntoNormalizado = normalizeThreadSubject(ticketPrincipal.titulo || "");
+
+    if (ticketPrincipal.fuente === "Email" && asuntoNormalizado) {
+      const whereRelacionados = {
+        fuente: "Email",
+        casaMatrizId: ticketPrincipal.casaMatrizId,
+      };
+
+      if (ticketPrincipal.creatorEmail) {
+        whereRelacionados.creatorEmail = ticketPrincipal.creatorEmail;
+      }
+
+      const candidatos = await TicketModel.findAll({
+        where: whereRelacionados,
+        attributes: [
+          "id",
+          "titulo",
+          "descripcion",
+          "adjuntos",
+          "createdAt",
+          "estadoTicket",
+          "fuente",
+          "creatorEmail",
+          "casaMatrizId",
+        ],
+        include: [
+          {
+            model: CuentaModel,
+            as: "creadoPor",
+            attributes: ["id", "name", "tipoCuentaId"],
+          },
+        ],
+        order: [["createdAt", "ASC"]],
+      });
+
+      ticketsRelacionados = candidatos.filter((candidate) => {
+        return normalizeThreadSubject(candidate.titulo || "") === asuntoNormalizado;
+      });
+
+      if (!ticketsRelacionados.some((candidate) => candidate.id === ticketPrincipal.id)) {
+        ticketsRelacionados.unshift(ticketPrincipal);
+      }
+    }
+
+    const ticketIds = Array.from(
+      new Set(ticketsRelacionados.map((ticket) => Number(ticket.id)).filter(Boolean)),
+    );
+
     const mensajes = await MensajeTicketModel.findAll({
-      where: { ticketId },
+      where: { ticketId: { [Op.in]: ticketIds } },
       include: [
         {
           model: CuentaModel,
@@ -181,9 +354,8 @@ export const getTimelineTicket = async (req, res) => {
       limit: limitNumber,
     });
 
-    // Obtener actividades
     const actividades = await ActividadTicketModel.findAll({
-      where: { ticketId },
+      where: { ticketId: { [Op.in]: ticketIds } },
       include: [
         {
           model: CuentaModel,
@@ -195,10 +367,21 @@ export const getTimelineTicket = async (req, res) => {
       limit: limitNumber,
     });
 
-    // Combinar y ordenar por fecha
+    const correosTickets = ticketsRelacionados.map((ticket) =>
+      buildCorreoItemFromTicket(ticket, Number(ticketId)),
+    );
+
+    const correosActividad = actividades
+      .filter((actividad) => isEmailActivity(actividad))
+      .map((actividad) => buildCorreoItemFromActividad(actividad));
+
     const timeline = [
       ...mensajes.map((m) => ({ ...m.toJSON(), itemType: "mensaje" })),
-      ...actividades.map((a) => ({ ...a.toJSON(), itemType: "actividad" })),
+      ...actividades
+        .filter((actividad) => !isEmailActivity(actividad))
+        .map((a) => ({ ...a.toJSON(), itemType: "actividad" })),
+      ...correosTickets,
+      ...correosActividad,
     ].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 
     return res.json({

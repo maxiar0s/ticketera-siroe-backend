@@ -807,6 +807,35 @@ export const crearTicket = async (req, res) => {
       );
     }
 
+    await registrarActividadTicket({
+      ticketId: ticketCreado.id,
+      cuentaId: usuario.id,
+      tipo: "creacion",
+      valorNuevo: ticketCreado.estadoTicket,
+      metadata: {
+        fuente: ticketCreado.fuente,
+      },
+    });
+
+    if (ticketCreado.tecnicoAsignadoId) {
+      const tecnicoAsignado = await CuentaModel.findByPk(ticketCreado.tecnicoAsignadoId, {
+        attributes: ["name"],
+      });
+
+      await registrarActividadTicket({
+        ticketId: ticketCreado.id,
+        cuentaId: usuario.id,
+        tipo: "asignacion",
+        valorAnterior: "Sin asignar",
+        valorNuevo: tecnicoAsignado?.name || "Sin asignar",
+        metadata: {
+          fromId: null,
+          toId: ticketCreado.tecnicoAsignadoId,
+          assignedById: usuario.id,
+        },
+      });
+    }
+
     // LOG
     await registrarLog(
       usuario.id,
