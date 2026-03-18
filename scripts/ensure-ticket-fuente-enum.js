@@ -2,7 +2,7 @@ import db from "../config/db.js";
 
 const TABLE_NAME = "Tickets";
 const COLUMN_NAME = "fuente";
-const REQUIRED_VALUES = ["Web", "Email", "Telegram IA", "Agente IA"];
+const REQUIRED_VALUES = ["Web", "Email", "Telegram IA", "Agente IA", "Cotizador"];
 
 const normalizeType = (value) => `${value || ""}`.toLowerCase().replace(/\s+/g, "");
 
@@ -32,9 +32,9 @@ export const ensureTicketFuenteEnum = async () => {
 
   await db.query(`
     ALTER TABLE \`${TABLE_NAME}\`
-    MODIFY COLUMN \`${COLUMN_NAME}\` ENUM('Web', 'Email', 'Telegram IA', 'Agente IA')
+    MODIFY COLUMN \`${COLUMN_NAME}\` ENUM('Web', 'Email', 'Telegram IA', 'Agente IA', 'Cotizador')
     NOT NULL DEFAULT 'Web';
   `);
 
-  console.log(`Enum ${TABLE_NAME}.${COLUMN_NAME} actualizado con valor 'Agente IA'.`);
+  console.log(`Enum ${TABLE_NAME}.${COLUMN_NAME} actualizado con valor 'Cotizador'.`);
 };

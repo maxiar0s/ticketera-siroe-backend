@@ -11,6 +11,7 @@ import { initCronJobs } from "../services/cronService.js";
 import { ensureTicketFuenteEnum } from "../scripts/ensure-ticket-fuente-enum.js";
 import { ensureTicketCreatorEmailColumn } from "../scripts/ensure-ticket-creator-email.js";
 import { ensureInventarioModule } from "../scripts/add-inventario-module.js";
+import { ensureCotizadorIntegration } from "../scripts/ensure-cotizador-integration.js";
 
 const app = express();
 
@@ -30,6 +31,9 @@ app.use(
       "X-Requested-With",
       "Accept",
       "Origin",
+      "X-Webhook-Secret",
+      "X-Idempotency-Key",
+      "X-Event-Type",
     ],
     credentials: true, // Permite cookies/headers seguros
   }),
@@ -46,6 +50,7 @@ try {
   await ensureTicketFuenteEnum();
   await ensureTicketCreatorEmailColumn();
   await ensureInventarioModule();
+  await ensureCotizadorIntegration();
   // db.sync() removido - la base de datos ya tiene las tablas creadas
   // Solo se necesita sync() en desarrollo inicial o al agregar nuevas tablas
   console.log("Conexion a la base datos establecida");

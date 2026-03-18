@@ -4,11 +4,13 @@ import { htmlToText } from "html-to-text";
 import { randomUUID } from "crypto";
 import path from "path";
 import nodemailer from "nodemailer";
+import { Op } from "sequelize";
 
 import bucket from "../../config/gcs.js";
 import db from "../../config/db.js";
 import { emailTicketConfig } from "../../config/emailTicketConfig.js";
 import {
+  ActividadTicketModel,
   TicketModel,
   CasaMatrizModel,
   CuentaModel,
@@ -28,9 +30,39 @@ const FREE_EMAIL_DOMAINS = new Set([
 ]);
 const ALLOWLIST_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 const LINK_LABEL = "[LINK]";
+const THREAD_SUBJECT_PREFIX_REGEX = /^(\s*(re|rv|fw|fwd|aw)\s*:\s*)+/i;
+const THREAD_TICKET_TAG_REGEX = /\[\s*ticket\s*#?\s*(\d+)\s*\]/i;
+const THREAD_MATCH_WINDOW_DAYS = 21;
 
 const normalizeEmail = (value) =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
+
+const normalizeThreadSubject = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  return value
+    .replace(/\[\s*ticket\s*#?\s*\d+\s*\]/gi, " ")
+    .replace(THREAD_SUBJECT_PREFIX_REGEX, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+};
+
+const extractTicketIdFromSubject = (subject) => {
+  if (typeof subject !== "string") {
+    return null;
+  }
+
+  const match = subject.match(THREAD_TICKET_TAG_REGEX);
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const ticketId = Number.parseInt(match[1], 10);
+  return Number.isInteger(ticketId) ? ticketId : null;
+};
 
 const toDateOnly = (date, timezone = "UTC") => {
   const reference = date instanceof Date ? date : new Date(date);
@@ -336,7 +368,7 @@ export class EmailTicketProcessor {
           : ticket?.titulo || "Ticket sin asunto";
       const subject = `${
         outboundSubjectPrefix ?? "[Ticket creado]"
-      } ${subjectBase}`.trim();
+      } [Ticket #${ticket?.id ?? ""}] ${subjectBase}`.trim();
 
       const cuerpoBase =
         outboundAckBodyTemplate ??
@@ -510,6 +542,102 @@ export class EmailTicketProcessor {
     return { casaMatriz: casaMatriz ?? null, cuenta: null };
   }
 
+  async findExistingTicketForThread({
+    casaMatrizId,
+    creatorEmail,
+    subject,
+    parsedSubjectTicketId,
+  }) {
+    if (Number.isInteger(parsedSubjectTicketId)) {
+      const ticketById = await TicketModel.findByPk(parsedSubjectTicketId);
+      if (ticketById && `${ticketById.casaMatrizId}` === `${casaMatrizId}`) {
+        return ticketById;
+      }
+    }
+
+    const asuntoNormalizado = normalizeThreadSubject(subject);
+    if (!asuntoNormalizado) {
+      return null;
+    }
+
+    const where = {
+      fuente: "Email",
+      casaMatrizId,
+      titulo: { [Op.ne]: null },
+    };
+
+    if (creatorEmail) {
+      where.creatorEmail = creatorEmail;
+    }
+
+    const candidatos = await TicketModel.findAll({
+      where,
+      attributes: ["id", "titulo", "createdAt", "casaMatrizId", "creatorEmail"],
+      order: [["createdAt", "DESC"]],
+      limit: 25,
+    });
+
+    const ahora = Date.now();
+
+    return (
+      candidatos.find((ticket) => {
+        const createdAtMs = new Date(ticket.createdAt).getTime();
+        const dentroVentana =
+          Number.isFinite(createdAtMs) &&
+          ahora - createdAtMs <= THREAD_MATCH_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+        return (
+          dentroVentana &&
+          normalizeThreadSubject(ticket.titulo || "") === asuntoNormalizado
+        );
+      }) || null
+    );
+  }
+
+  async registrarCorreoEnTicket({
+    ticket,
+    cuentaId,
+    cuentaRemitente,
+    parsedEmail,
+    asunto,
+    cuerpo,
+    adjuntos,
+    correoDate,
+  }) {
+    await ActividadTicketModel.create({
+      ticketId: ticket.id,
+      cuentaId,
+      tipo: "comentario",
+      valorNuevo: asunto,
+      metadata: {
+        origen: "email",
+        asunto,
+        cuerpo,
+        adjuntos,
+        remitenteNombre:
+          getSenderName(parsedEmail.from) ||
+          cuentaRemitente?.name ||
+          normalizeEmail(primaryAddress(parsedEmail.from)) ||
+          "Correo",
+        remitenteEmail: normalizeEmail(primaryAddress(parsedEmail.from)),
+        remitenteCuentaId: cuentaRemitente?.id || null,
+        remitenteTipoCuentaId: cuentaRemitente?.tipoCuentaId || null,
+        sourceTicketId: ticket.id,
+        estadoTicket: ticket.estadoTicket || null,
+      },
+      createdAt: correoDate,
+    });
+
+    await ticket.update(
+      {
+        actualizadoPorId: cuentaId,
+      },
+      {
+        silent: false,
+      },
+    );
+  }
+
   async crearTicketDesdeCorreo(parsedEmail, metadata = {}) {
     const remitente = primaryAddress(parsedEmail.from);
     if (!remitente) {
@@ -562,6 +690,7 @@ export class EmailTicketProcessor {
       parsedEmail.subject.trim().length
         ? parsedEmail.subject.trim()
         : "Ticket sin asunto";
+    const parsedSubjectTicketId = extractTicketIdFromSubject(tituloBase);
 
     const cuerpoBase = cleanBody(parsedEmail);
     const cuerpoFormateado = enhanceBodyText(cuerpoBase);
@@ -623,6 +752,30 @@ export class EmailTicketProcessor {
     const tecnicos = [];
 
     const fechaVisita = toDateOnly(correoDate, this.config.timezone);
+
+    const ticketExistente = await this.findExistingTicketForThread({
+      casaMatrizId: casaMatriz.id,
+      creatorEmail: normalizeEmail(remitente) || remitente,
+      subject: tituloBase,
+      parsedSubjectTicketId,
+    });
+
+    if (ticketExistente) {
+      await this.registrarCorreoEnTicket({
+        ticket: ticketExistente,
+        cuentaId: creadorId,
+        cuentaRemitente,
+        parsedEmail,
+        asunto: tituloBase,
+        cuerpo:
+          cuerpoFormateado ||
+          "Correo incorporado automaticamente al hilo sin contenido de texto.",
+        adjuntos: archivosSubidos,
+        correoDate,
+      });
+
+      return ticketExistente;
+    }
 
     const nuevoTicket = await TicketModel.create({
       casaMatrizId: casaMatriz.id,

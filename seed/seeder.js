@@ -40,6 +40,7 @@ import estadoCuenta from './EstadoCuenta.js';
 import { ensureTicketCreatorEmailColumn } from '../scripts/ensure-ticket-creator-email.js';
 import { ensureTicketFuenteEnum } from '../scripts/ensure-ticket-fuente-enum.js';
 import { ensureInventarioModule } from '../scripts/add-inventario-module.js';
+import { ensureCotizadorIntegration } from '../scripts/ensure-cotizador-integration.js';
 
 const importarDatos = async () => {
     try {
@@ -48,6 +49,7 @@ const importarDatos = async () => {
         await ensureTicketFuenteEnum();
         await ensureTicketCreatorEmailColumn({ runBackfill: false });
         await ensureInventarioModule();
+        await ensureCotizadorIntegration();
 
         await Promise.all([
             EstadoCuentaModel.bulkCreate(estadoCuenta),

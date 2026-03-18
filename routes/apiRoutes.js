@@ -19,6 +19,7 @@ import protegerRutaAdmin from "../middleware/protegerRutaAdmin.js";
 import protegerRutaTecnico from "../middleware/protegerRutaTecnico.js";
 import protegerRuta from "../middleware/protegerRuta.js";
 import protegerRutaAdminComercial from "../middleware/protegerRutaAdminComercial.js";
+import protegerIntegracionCotizador from "../middleware/protegerIntegracionCotizador.js";
 
 // =====================================================
 // Importaciones desde controladores refactorizados
@@ -98,6 +99,7 @@ import {
   getTickets,
   getTicketById,
   crearTicket,
+  crearTicketDesdeCotizador,
   actualizarTicket,
   eliminarTicket,
 } from "../controllers/ticketController.js";
@@ -516,6 +518,11 @@ router.post(
   handleFiles,
   processFiles,
   crearTicket,
+);
+router.post(
+  "/integrations/cotizador/tickets",
+  protegerIntegracionCotizador,
+  crearTicketDesdeCotizador,
 );
 router.put(
   "/tickets/:id",

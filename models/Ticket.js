@@ -220,9 +220,22 @@ const ticket = db.define(
     },
 
     fuente: {
-      type: DataTypes.ENUM("Web", "Email", "Telegram IA", "Agente IA"),
+      type: DataTypes.ENUM("Web", "Email", "Telegram IA", "Agente IA", "Cotizador"),
       allowNull: false,
       defaultValue: "Web",
+    },
+    cotizacionId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+    cotizacionVersion: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    cotizacionUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
     },
     creatorEmail: {
       type: DataTypes.STRING,

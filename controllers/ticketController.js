@@ -30,9 +30,10 @@ import {
 } from "../utils/validators.js";
 import { construirNotificacionTicket } from "../utils/builders.js";
 import { registrarActividadTicket } from "./chatController.js";
+import { ensureCotizadorIntegrationResources } from "../scripts/ensure-cotizador-integration.js";
 
 const ESTADO_TICKET_INGRESADO = "Ingresado";
-const FUENTES_TICKET_VALIDAS = ["Web", "Email", "Telegram IA", "Agente IA"];
+const FUENTES_TICKET_VALIDAS = ["Web", "Email", "Telegram IA", "Agente IA", "Cotizador"];
 
 const normalizarFuenteTicket = (value) => {
   if (typeof value !== "string") {
@@ -51,6 +52,9 @@ const normalizarFuenteTicket = (value) => {
   }
   if (fuente === "agente ia" || fuente === "agente_ia") {
     return "Agente IA";
+  }
+  if (fuente === "cotizador") {
+    return "Cotizador";
   }
 
   return "Web";
@@ -93,6 +97,40 @@ const normalizarDescripcionTicket = (value) => {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+};
+
+const construirDescripcionCotizador = (payload) => {
+  const cotizacion = payload?.cotizacion || {};
+  const cliente = payload?.cliente || {};
+  const secciones = [
+    `Cotizacion: ${cotizacion.id || "N/D"}`,
+    `Version: ${cotizacion.version ?? "N/D"}`,
+    `Cliente: ${cliente.name || "N/D"}`,
+  ];
+
+  if (cliente.rut) {
+    secciones.push(`RUT cliente: ${cliente.rut}`);
+  }
+  if (cotizacion.requesterName) {
+    secciones.push(`Solicitante: ${cotizacion.requesterName}`);
+  }
+  if (cotizacion.executive) {
+    secciones.push(`Ejecutivo: ${cotizacion.executive}`);
+  }
+  if (cotizacion.status) {
+    secciones.push(`Estado cotizacion: ${cotizacion.status}`);
+  }
+  if (cotizacion.url) {
+    secciones.push(`URL cotizacion: ${cotizacion.url}`);
+  }
+  if (cotizacion.requirement) {
+    secciones.push("", "Requerimiento:", `${cotizacion.requirement}`);
+  }
+  if (cotizacion.techDescription) {
+    secciones.push("", "Descripcion tecnica:", `${cotizacion.techDescription}`);
+  }
+
+  return secciones.join("\n").trim();
 };
 
 // =====================================================
@@ -570,6 +608,10 @@ export const crearTicket = async (req, res) => {
       estimacion,
       tagIds,
       fuente,
+      creatorEmail: creatorEmailEntrada,
+      cotizacionId,
+      cotizacionVersion,
+      cotizacionUrl,
     } = bodyData;
 
     if (!casaMatrizId || !fechaVisita) {
@@ -725,7 +767,10 @@ export const crearTicket = async (req, res) => {
     );
 
     let creatorEmail =
-      typeof usuario.email === "string" ? usuario.email.trim() : "";
+      typeof creatorEmailEntrada === "string" ? creatorEmailEntrada.trim() : "";
+    if (!creatorEmail) {
+      creatorEmail = typeof usuario.email === "string" ? usuario.email.trim() : "";
+    }
     if (!creatorEmail) {
       const cuentaCreadora = await CuentaModel.findByPk(usuario.id, {
         attributes: ["email"],
@@ -765,6 +810,10 @@ export const crearTicket = async (req, res) => {
       prioridad: prioridad ?? "Media",
       estimacion: estimacion ?? null,
       fuente: fuenteTicket,
+      cotizacionId: cotizacionId ? `${cotizacionId}`.trim() : null,
+      cotizacionVersion:
+        Number.isInteger(Number(cotizacionVersion)) ? Number(cotizacionVersion) : null,
+      cotizacionUrl: cotizacionUrl ? `${cotizacionUrl}`.trim() : null,
       creatorEmail: creatorEmail || null,
     });
 
@@ -807,6 +856,35 @@ export const crearTicket = async (req, res) => {
       );
     }
 
+    await registrarActividadTicket({
+      ticketId: ticketCreado.id,
+      cuentaId: usuario.id,
+      tipo: "creacion",
+      valorNuevo: ticketCreado.estadoTicket,
+      metadata: {
+        fuente: ticketCreado.fuente,
+      },
+    });
+
+    if (ticketCreado.tecnicoAsignadoId) {
+      const tecnicoAsignado = await CuentaModel.findByPk(ticketCreado.tecnicoAsignadoId, {
+        attributes: ["name"],
+      });
+
+      await registrarActividadTicket({
+        ticketId: ticketCreado.id,
+        cuentaId: usuario.id,
+        tipo: "asignacion",
+        valorAnterior: "Sin asignar",
+        valorNuevo: tecnicoAsignado?.name || "Sin asignar",
+        metadata: {
+          fromId: null,
+          toId: ticketCreado.tecnicoAsignadoId,
+          assignedById: usuario.id,
+        },
+      });
+    }
+
     // LOG
     await registrarLog(
       usuario.id,
@@ -821,6 +899,96 @@ export const crearTicket = async (req, res) => {
   } catch (error) {
     console.error("Error al crear ticket:", error);
     return res.status(500).json({ error: "Hubo un error al crear el ticket." });
+  }
+};
+
+export const crearTicketDesdeCotizador = async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const cotizacion = payload.cotizacion || {};
+    const cliente = payload.cliente || {};
+    const adjuntos = Array.isArray(payload.adjuntos) ? payload.adjuntos : [];
+
+    if (!cotizacion.id) {
+      return res.status(400).json({
+        error: "El payload debe incluir cotizacion.id.",
+      });
+    }
+
+    const ticketExistente = await TicketModel.findOne({
+      where: { cotizacionId: `${cotizacion.id}` },
+      include: ticketIncludes,
+    });
+    if (ticketExistente) {
+      return res.status(200).json({
+        duplicado: true,
+        ticket: ticketExistente,
+      });
+    }
+
+    const { casaMatriz, cuenta } = await ensureCotizadorIntegrationResources();
+
+    const tituloBase = typeof cotizacion.title === "string" && cotizacion.title.trim()
+      ? cotizacion.title.trim()
+      : `Cotizacion ${cotizacion.id}`;
+
+    const fakeReq = {
+      ...req,
+      usuario: {
+        id: cuenta.id,
+        email: cuenta.email,
+        tipoCuentaId: cuenta.tipoCuentaId,
+      },
+      body: {
+        casaMatrizId: casaMatriz.id,
+        fechaVisita: new Date().toISOString().slice(0, 10),
+        titulo: `[Cotizacion ${cotizacion.id}] ${tituloBase}`,
+        descripcion: construirDescripcionCotizador(payload),
+        estadoTicket: "Nuevo",
+        prioridad: "Media",
+        fuente: "Cotizador",
+        creatorEmail: cliente.email || cuenta.email,
+        cotizacionId: `${cotizacion.id}`,
+        cotizacionVersion: cotizacion.version ?? null,
+        cotizacionUrl: cotizacion.url || null,
+        tecnicos: [],
+      },
+      uploadedFiles: adjuntos
+        .map((adjunto) => (typeof adjunto?.storageKey === "string" ? adjunto.storageKey.trim() : ""))
+        .filter((adjunto) => adjunto.length > 0),
+      uploadedEvidenceFiles: [],
+    };
+
+    let statusCode = 200;
+    let responsePayload;
+    const fakeRes = {
+      status(code) {
+        statusCode = code;
+        return this;
+      },
+      json(payloadJson) {
+        responsePayload = payloadJson;
+        return this;
+      },
+    };
+
+    await crearTicket(fakeReq, fakeRes);
+
+    if (statusCode >= 400) {
+      return res.status(statusCode).json(responsePayload || {
+        error: "No fue posible crear el ticket desde Cotizador.",
+      });
+    }
+
+    return res.status(statusCode || 201).json({
+      duplicado: false,
+      ticket: responsePayload,
+    });
+  } catch (error) {
+    console.error("Error al crear ticket desde Cotizador:", error);
+    return res.status(500).json({
+      error: "Hubo un error al procesar el ticket desde Cotizador.",
+    });
   }
 };
 
