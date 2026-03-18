@@ -5,6 +5,7 @@ import db from '../config/db.js';
 import { ensureTicketCreatorEmailColumn } from './ensure-ticket-creator-email.js';
 import { ensureTicketFuenteEnum } from './ensure-ticket-fuente-enum.js';
 import { ensureInventarioModule } from './add-inventario-module.js';
+import { ensureCotizadorIntegration } from './ensure-cotizador-integration.js';
 
 const maxRetries = 20;
 const retryDelayMs = 3000;
@@ -72,6 +73,7 @@ async function runCreatorEmailMigration() {
     await ensureTicketFuenteEnum();
     await ensureTicketCreatorEmailColumn();
     await ensureInventarioModule();
+    await ensureCotizadorIntegration();
   } finally {
     await db.close();
   }
